@@ -1,0 +1,9 @@
+target/
+.bsp/
+.bloop/
+.metals/
+.idea/
+.DS_Store
+__pycache__/
+results.json
+results.csv

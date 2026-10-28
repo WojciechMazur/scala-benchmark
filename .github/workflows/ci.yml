@@ -1,0 +1,25 @@
+name: CI
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  benchmarks:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-22.04, macos-15]
+        scala: ['3.3.8', '3.9.0']
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v7
+      - uses: coursier/setup-action@v3
+        with:
+          jvm: temurin:25
+          apps: sbt
+      - uses: coursier/cache-action@v8
+      - name: Check portable modules, compiler, sbt integration, and Native execution
+        run: python3 scripts/check.py --scala-version '${{ matrix.scala }}' --incremental
