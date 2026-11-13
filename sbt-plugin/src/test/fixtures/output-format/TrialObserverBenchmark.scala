@@ -1,4 +1,4 @@
-package scala.scalanative.jmh.outputformat
+package scala.benchmark.runtime.outputformat
 
 import scala.benchmark.*
 
@@ -8,7 +8,7 @@ import scala.benchmark.*
 @Fork(0)
 class TrialObserverBenchmark {
   @Benchmark def execute(): Int = {
-    val cases = scala.scalanative.jmh.TrialObserverChecks.verify()
+    val cases = scala.benchmark.runtime.TrialObserverChecks.verify()
     assert(cases == 32)
     println("TRIAL_OBSERVER_OK:" + cases)
     cases

@@ -49,7 +49,7 @@ object StdioChecks {
         val err = evidence / s"cli-$forks-err.bin"
         val process = new ProcessBuilder(
           (command ++ Vector(
-            "scala.scalanative.jmh.stdio.RawTarget.execute",
+            "scala.benchmark.runtime.stdio.RawTarget.execute",
             "-f",
             forks.toString,
             "-wi",

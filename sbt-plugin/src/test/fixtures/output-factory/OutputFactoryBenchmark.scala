@@ -1,4 +1,4 @@
-package scala.scalanative.jmh.outputfactory
+package scala.benchmark.runtime.outputfactory
 
 import scala.benchmark.*
 import java.io.{ByteArrayOutputStream, PrintStream}
@@ -190,7 +190,7 @@ class OutputFactoryBenchmark {
 @BenchmarkMode(Array(Mode.SingleShotTime)) @Warmup(iterations = 0) @Measurement(iterations = 1) @Fork(0)
 class OutputFactoryRunnerBenchmark {
   @Benchmark def execute(): Int = {
-    val name = "scala.scalanative.jmh.outputfactory.OutputFactoryTarget.execute"
+    val name = "scala.benchmark.runtime.outputfactory.OutputFactoryTarget.execute"
     var count = 0
     for (verbose <- Vector(VerboseMode.SILENT, VerboseMode.NORMAL, VerboseMode.EXTRA); forks <- Vector(0, 1)) {
       val capture = new Capture

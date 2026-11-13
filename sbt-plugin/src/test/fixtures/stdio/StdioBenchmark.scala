@@ -1,4 +1,4 @@
-package scala.scalanative.jmh.stdio
+package scala.benchmark.runtime.stdio
 
 import scala.benchmark.*
 import java.io.{ByteArrayOutputStream, PrintStream}
@@ -58,7 +58,7 @@ class StdioBenchmark {
       val beforeOut = System.out; val beforeErr = System.err
       val id = s"$forks-${verbosity.name().toLowerCase}-$custom-$action"
       val options = new OptionsBuilder()
-        .include("scala.scalanative.jmh.stdio.UserTarget.execute")
+        .include("scala.benchmark.runtime.stdio.UserTarget.execute")
         .mode(Mode.SingleShotTime)
         .warmupIterations(0)
         .measurementIterations(1)
@@ -100,7 +100,7 @@ class StdioBenchmark {
       val out = new Capture; val err = new Capture
       val beforeOut = System.out; val beforeErr = System.err
       val options = new OptionsBuilder()
-        .include("scala.scalanative.jmh.stdio.UserTarget.execute")
+        .include("scala.benchmark.runtime.stdio.UserTarget.execute")
         .warmupIterations(0)
         .measurementIterations(1)
         .forks(forks)

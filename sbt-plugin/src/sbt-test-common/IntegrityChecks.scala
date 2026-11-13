@@ -75,7 +75,7 @@ object IntegrityChecks {
             .filter(block => {
               val header = block.linesIterator.nextOption().getOrElse("")
               header.contains("IntegrityBenchmark") || header.contains("BenchmarkMain") ||
-                header.contains("scalanative_jmh_consume") || header.contains(
+                header.contains("scala_benchmark_consume") || header.contains(
                 "scalanative_nano_time"
               )
             })
@@ -84,8 +84,8 @@ object IntegrityChecks {
         methods
           .filterNot(_ == "inlinedInt")
           .foreach(name => assert(disassembly.contains(name), "Optimized workload missing: " + name))
-        assert(disassembly.contains("scalanative_jmh_consume"), "Missing primitive consumption barrier")
-        assert(disassembly.contains("scalanative_jmh_consume_reference"), "Missing reference consumption barrier")
+        assert(disassembly.contains("scala_benchmark_consume"), "Missing primitive consumption barrier")
+        assert(disassembly.contains("scala_benchmark_consume_reference"), "Missing reference consumption barrier")
         val ir = artifacts.filter(_.getName.endsWith(".ll"))
         val definitions = "(?ms)^define[^\\n]*(?:IntegrityBenchmark|BenchmarkMain|Blackhole)[^\\n]*\\{.*?^\\}".r
         val functions = ir.flatMap(path => definitions.findAllIn(IO.read(path)).toVector)

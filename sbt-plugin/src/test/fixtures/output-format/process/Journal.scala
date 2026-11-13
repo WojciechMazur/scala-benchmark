@@ -1,4 +1,4 @@
-package scala.scalanative.jmh.outputformat
+package scala.benchmark.runtime.outputformat
 
 import java.nio.charset.StandardCharsets.UTF_8
 import java.nio.file.{Files, Paths, StandardOpenOption}
@@ -46,7 +46,7 @@ object CancellationChecks {
         }
       }
       val options = new OptionsBuilder()
-        .include("scala.scalanative.jmh.outputformat.OutputModeTarget.execute")
+        .include("scala.benchmark.runtime.outputformat.OutputModeTarget.execute")
         .mode(Mode.SingleShotTime)
         .forks(forks)
         .warmupIterations(1)

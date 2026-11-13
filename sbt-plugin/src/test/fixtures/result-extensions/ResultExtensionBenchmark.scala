@@ -1,4 +1,4 @@
-package scala.scalanative.jmh.resultsextensions
+package scala.benchmark.runtime.resultsextensions
 
 import scala.benchmark.*
 import org.openjdk.jmh.infra.BenchmarkParams
@@ -150,7 +150,7 @@ class ResultExtensionBenchmark {
     assert(extended.contains("N = 3") && extended.contains("Histogram") && extended.contains("p(99.9999)"), extended)
     val format = new CountingFormat
     val options = new OptionsBuilder()
-      .include("scala.scalanative.jmh.resultsextensions.ResultModeTarget.execute")
+      .include("scala.benchmark.runtime.resultsextensions.ResultModeTarget.execute")
       .mode(Mode.All)
       .forks(0)
       .warmupIterations(0)
@@ -166,7 +166,7 @@ class ResultExtensionBenchmark {
     )
     val rejectedFormat = new CountingFormat
     val rejectedOptions = new OptionsBuilder()
-      .include("scala.scalanative.jmh.resultsextensions.ResultMultipleModesTarget.execute")
+      .include("scala.benchmark.runtime.resultsextensions.ResultMultipleModesTarget.execute")
       .mode(Mode.SingleShotTime)
       .forks(0)
       .warmupIterations(0)
@@ -178,7 +178,7 @@ class ResultExtensionBenchmark {
     for (forks <- Vector(0, 1)) {
       val captured = new CountingFormat
       val parameterOptions = new OptionsBuilder()
-        .include("scala.scalanative.jmh.resultsextensions.ResultParamTarget.execute")
+        .include("scala.benchmark.runtime.resultsextensions.ResultParamTarget.execute")
         .mode(Mode.SingleShotTime)
         .forks(forks)
         .warmupIterations(0)

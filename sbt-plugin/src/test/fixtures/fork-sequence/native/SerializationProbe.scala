@@ -1,6 +1,6 @@
-package scala.scalanative.jmh.examples
+package scala.benchmark.examples
 
-import scala.scalanative.jmh.*
+import scala.benchmark.runtime.*
 
 /** Loaded by name by the transport driver, without a derived harness. */
 @scala.scalanative.reflect.annotation.EnableReflectiveInstantiation

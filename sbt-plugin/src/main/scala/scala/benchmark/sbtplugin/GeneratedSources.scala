@@ -46,7 +46,7 @@ private[sbtplugin] object GeneratedSources {
 
   /** Entry point of a Native or Scala.js benchmark executable. */
   def harnessMain(classes: Seq[String], buildInfo: Seq[(String, String)]): String = {
-    val runtime = "scala.scalanative.jmh"
+    val runtime = "scala.benchmark.runtime"
     val suites = classes.map(name => s"${literal(name)} -> $runtime.Harness.derive[${typeName(name)}]")
     val info = buildInfo.sorted.map { case (key, value) => s"${literal(key)} -> ${literal(value)}" }
     s"""package $packageName

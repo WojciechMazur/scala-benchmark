@@ -48,7 +48,7 @@ class SelectionTest {
     )
   }
   @Test def portableConfigurationOverrides(): Unit = {
-    import scala.scalanative.jmh.{Options, Configuration, BenchmarkRunner}
+    import scala.benchmark.runtime.{Options, Configuration, BenchmarkRunner}
     val options = Options.parse(Array("-opi", "13", "-si", "false", "-e", "first,second"))
     val config = options.configuration(Configuration(operationsPerInvocation = 7))
     assertEquals(13, config.operationsPerInvocation)

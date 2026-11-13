@@ -1,4 +1,4 @@
-package scala.scalanative.jmh.outputformat
+package scala.benchmark.runtime.outputformat
 
 import scala.benchmark.*
 import org.openjdk.jmh.infra.{BenchmarkParams, IterationParams}
@@ -59,7 +59,7 @@ class OutputFormatApiBenchmark {
         def close(): Unit = record("close")
       }
       val options = new OptionsBuilder()
-        .include("scala.scalanative.jmh.outputformat.OutputTarget.execute")
+        .include("scala.benchmark.runtime.outputformat.OutputTarget.execute")
         .mode(Mode.SingleShotTime)
         .warmupIterations(1)
         .measurementIterations(2)

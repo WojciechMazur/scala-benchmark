@@ -30,7 +30,7 @@ export function inspectNative(ir, assembly) {
         let consumed = false;
         for (const line of lines.slice(index + 1, index + 15)) {
           const carriesResult = [...origins].some(value => new RegExp(value + '(?![\\w.])').test(line));
-          if (carriesResult && /call void.*(?:BlackholeK?D7consume|scalanative_jmh_consume)/.test(line)) { consumed = true; break; }
+          if (carriesResult && /call void.*(?:BlackholeK?D7consume|scala_benchmark_consume)/.test(line)) { consumed = true; break; }
           const cast = line.match(/(%[\w.]+) = (?:sext|zext|bitcast|phi) /);
           if (cast && carriesResult) origins.add(cast[1]);
           if (carriesResult && /br i1/.test(line))
@@ -48,10 +48,10 @@ export function inspectNative(ir, assembly) {
   assert.match(allocation, /call[^\n]*scalanative_GC_alloc/);
   assert.match(allocation, /store atomic i64/);
   const explicit = definitions.find(text => text.split('\n')[0].includes('D17explicitBlackhole'));
-  assert.match(explicit, /call void @"scalanative_jmh_consume"/);
-  assert.match(explicit, /call void @"scalanative_jmh_consume_reference"/);
+  assert.match(explicit, /call void @"scala_benchmark_consume"/);
+  assert.match(explicit, /call void @"scala_benchmark_consume_reference"/);
   assert.ok(calls.filter(line => /scalanative_nano_time|clock_gettime|QueryPerformanceCounter/.test(line)).length >= 2, 'Clock boundaries missing from final measured code');
-  assert.ok(calls.some(line => line.includes('scalanative_jmh_consume')), 'Final measurement lost consumption calls');
+  assert.ok(calls.some(line => line.includes('scala_benchmark_consume')), 'Final measurement lost consumption calls');
   assert.doesNotMatch(measure, /call[^\n]*(?:Function0.*apply|ScriptedClock|java\.lang\.reflect)/, 'Indirect/test dispatch in hot loop');
   return { methods, returnedValuesFeedConsumption: true, nativeAllocationRetained: true, finalCallsAndClocksRetained: true };
 }
@@ -62,7 +62,7 @@ if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.me
   const assembly = fs.readFileSync(path.join(directory, 'disassembly.txt'), 'utf8');
   const result = inspectNative(ir, assembly);
   assert.throws(() => inspectNative(ir.replaceAll('scalanative_GC_alloc', 'removed_allocation'), assembly));
-  assert.throws(() => inspectNative(ir.replaceAll('BlackholeD7consume', 'removed_consumption').replaceAll('BlackholeKD7consume', 'removed_consumption').replaceAll('scalanative_jmh_consume', 'removed_consumption'), assembly));
+  assert.throws(() => inspectNative(ir.replaceAll('BlackholeD7consume', 'removed_consumption').replaceAll('BlackholeKD7consume', 'removed_consumption').replaceAll('scala_benchmark_consume', 'removed_consumption'), assembly));
   assert.throws(() => inspectNative(ir, assembly.replace(/scalanative_nano_time|clock_gettime|QueryPerformanceCounter/g, 'removed_clock')));
   assert.throws(() => inspectNative(ir, assembly.replaceAll('primitiveInt', 'removedWork')), /No final measured call/);
   result.rejectsRemovedWorkAllocationConsumptionAndClocks = true;

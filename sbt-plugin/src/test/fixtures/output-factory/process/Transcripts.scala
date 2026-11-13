@@ -1,4 +1,4 @@
-package scala.scalanative.jmh.outputfactory
+package scala.benchmark.runtime.outputfactory
 
 object Transcripts {
   def write(name: String, text: String): Unit = {

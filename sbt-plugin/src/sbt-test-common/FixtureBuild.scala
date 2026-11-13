@@ -108,7 +108,7 @@ object FixtureBuild {
 
   /** Observer checks shared with the runtime's unit tests. */
   val trialObserverChecks: File = repository.getParentFile.getParentFile /
-    "runtime/shared/src/test/scala/scala/scalanative/jmh/TrialObserverChecks.scala"
+    "runtime/shared/src/test/scala/scala/benchmark/runtime/TrialObserverChecks.scala"
 
   /** Fixture directory with the host services of a platform: processes or the Node.js host. */
   def host(platform: String): String = if (platform == "jvm" || platform == "native") "process" else "js"
@@ -285,7 +285,7 @@ object FixtureBuild {
       assert(!(baseDirectory.value / "preflight.json").exists())
     },
     verifyEligibility := Def.uncached {
-      val prefix = "scala.scalanative.jmh.examples.PlatformBenchmarks."
+      val prefix = "scala.benchmark.examples.PlatformBenchmarks."
       val expected = Set(prefix + "everywhere", prefix + backend + "Only")
       val results = ujson.read(IO.read(baseDirectory.value / "eligibility.json")).arr
       assert(results.map(_("benchmark").str).toSet == expected)

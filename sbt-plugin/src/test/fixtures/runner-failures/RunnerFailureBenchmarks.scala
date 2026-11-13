@@ -1,4 +1,4 @@
-package scala.scalanative.jmh.examples
+package scala.benchmark.examples
 
 import scala.benchmark.*
 import org.openjdk.jmh.runner.IterationType

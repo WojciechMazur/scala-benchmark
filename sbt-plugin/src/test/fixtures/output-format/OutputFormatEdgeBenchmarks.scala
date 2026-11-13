@@ -1,4 +1,4 @@
-package scala.scalanative.jmh.outputformat
+package scala.benchmark.runtime.outputformat
 
 import scala.benchmark.*
 import org.openjdk.jmh.infra.{BenchmarkParams, IterationParams}
@@ -63,7 +63,7 @@ class OutputWarmupFailure { @Benchmark def execute(): Int = throw new IllegalSta
 class OutputFormatEdgeApiBenchmark {
   private def options(target: String, forks: Int): org.openjdk.jmh.runner.options.ChainedOptionsBuilder =
     new OptionsBuilder()
-      .include("scala.scalanative.jmh.outputformat." + target + ".execute")
+      .include("scala.benchmark.runtime.outputformat." + target + ".execute")
       .warmupIterations(1)
       .measurementIterations(2)
       .warmupBatchSize(2)
@@ -114,7 +114,7 @@ class OutputFormatEdgeApiBenchmark {
         options("OutputModeTarget", forks)
           .mode(Mode.SingleShotTime)
           .warmupMode(mode)
-          .includeWarmup("scala.scalanative.jmh.outputformat.OutputWarmupTarget.execute")
+          .includeWarmup("scala.benchmark.runtime.outputformat.OutputWarmupTarget.execute")
           .warmupForks(warmupForks)
           .build(),
         capture
@@ -140,7 +140,7 @@ class OutputFormatEdgeApiBenchmark {
           options("OutputModeTarget", forks)
             .mode(Mode.SingleShotTime)
             .warmupMode(WarmupMode.BULK_INDI)
-            .includeWarmup("scala.scalanative.jmh.outputformat.OutputWarmupFailure.execute")
+            .includeWarmup("scala.benchmark.runtime.outputformat.OutputWarmupFailure.execute")
             .shouldFailOnError(failOnError)
             .build(),
           capture
@@ -203,7 +203,7 @@ class OutputGroupApiBenchmark {
     for (forks <- Vector(0, 1); overridden <- Vector(false, true)) {
       val capture = new Capture
       val builder = new OptionsBuilder()
-        .include("scala.scalanative.jmh.outputformat.OutputGroupTarget.exchange")
+        .include("scala.benchmark.runtime.outputformat.OutputGroupTarget.exchange")
         .mode(Mode.SingleShotTime)
         .warmupIterations(1)
         .measurementIterations(2)
@@ -237,7 +237,7 @@ class OutputFormatListingApiBenchmark {
     val lines = ArrayBuffer.empty[String]
     val capture = new Capture { override def println(text: String): Unit = { lines += text } }
     val options = new OptionsBuilder()
-      .include("scala.scalanative.jmh.outputformat.OutputTarget.execute")
+      .include("scala.benchmark.runtime.outputformat.OutputTarget.execute")
       .param("journal", "listed-only")
       .forks(0)
       .warmupIterations(0)
@@ -266,7 +266,7 @@ class OutputFormatListingApiBenchmark {
     val success = new Capture
     new scala.benchmark.Runner(
       new OptionsBuilder()
-        .include("scala.scalanative.jmh.outputformat.OutputModeTarget.execute")
+        .include("scala.benchmark.runtime.outputformat.OutputModeTarget.execute")
         .mode(Mode.SingleShotTime)
         .forks(0)
         .warmupIterations(0)
@@ -290,7 +290,7 @@ class OutputFormatCrashApiBenchmark {
     val capture = new Capture
     val journal = Journal.create("crash-")
     val options = new OptionsBuilder()
-      .include("scala.scalanative.jmh.outputformat.OutputTarget.execute")
+      .include("scala.benchmark.runtime.outputformat.OutputTarget.execute")
       .mode(Mode.SingleShotTime)
       .warmupIterations(1)
       .measurementIterations(2)
@@ -345,7 +345,7 @@ class OutputFormatMutationApiBenchmark {
         }
       }
       val options = new OptionsBuilder()
-        .include("scala.scalanative.jmh.outputformat.OutputModeTarget.execute")
+        .include("scala.benchmark.runtime.outputformat.OutputModeTarget.execute")
         .mode(Mode.SingleShotTime)
         .forks(forks)
         .warmupIterations(1)
@@ -366,7 +366,7 @@ class OutputFormatMutationApiBenchmark {
       override def endRun(r: java.util.Collection[RunResult]): Unit = { super.endRun(r); r.clear() }
     }
     val options = new OptionsBuilder()
-      .include("scala.scalanative.jmh.outputformat.OutputModeTarget.execute")
+      .include("scala.benchmark.runtime.outputformat.OutputModeTarget.execute")
       .mode(Mode.SingleShotTime)
       .forks(0)
       .warmupIterations(0)
@@ -402,7 +402,7 @@ class OutputFormatReportApiBenchmark {
         }
       }
       val options = new OptionsBuilder()
-        .include("scala.scalanative.jmh.outputformat.OutputModeTarget.execute")
+        .include("scala.benchmark.runtime.outputformat.OutputModeTarget.execute")
         .mode(mode)
         .forks(forks)
         .warmupIterations(0)
@@ -422,7 +422,7 @@ class OutputFormatReportApiBenchmark {
       override def endRun(r: java.util.Collection[RunResult]): Unit = { super.endRun(r); r.clear() }
     }
     val options = new OptionsBuilder()
-      .include("scala.scalanative.jmh.outputformat.OutputModeTarget.execute")
+      .include("scala.benchmark.runtime.outputformat.OutputModeTarget.execute")
       .mode(Mode.SingleShotTime)
       .forks(0)
       .warmupIterations(0)

@@ -56,7 +56,7 @@ if backend == 'native':
     directory = root / 'serialization-interruption'
     directory.mkdir()
     request = directory / 'request.properties'
-    request.write_text('suite=scala.scalanative.jmh.examples.SerializationProbe$\nbenchmark=0\nmode=SingleShotTime\nbulk.count=0\n-to=1000000000ns\n')
+    request.write_text('suite=scala.benchmark.examples.SerializationProbe$\nbenchmark=0\nmode=SingleShotTime\nbulk.count=0\n-to=1000000000ns\n')
     fifo = directory / 'result.pipe'
     os.mkfifo(fifo)
     prefix = bytearray()
@@ -72,7 +72,7 @@ if backend == 'native':
     receiver = threading.Thread(target=reader, daemon=True)
     receiver.start()
     with open(directory / 'worker.log', 'wb') as log:
-        child = subprocess.Popen(command + ['--native-jmh-worker-v3', str(request), str(fifo), str(directory / 'deadline')],
+        child = subprocess.Popen(command + ['--benchmark-worker-v3', str(request), str(fifo), str(directory / 'deadline')],
                                  stdin=subprocess.PIPE, stdout=log, stderr=log)
         try:
             assert ready.wait(timeout=5), 'Serializer did not publish its prefix'

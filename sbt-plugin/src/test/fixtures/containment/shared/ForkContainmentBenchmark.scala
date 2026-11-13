@@ -1,7 +1,7 @@
-package scala.scalanative.jmh.examples
+package scala.benchmark.examples
 
 import org.openjdk.jmh.annotations.*
-import scala.scalanative.jmh.Platform
+import scala.benchmark.runtime.Platform
 
 @State(Scope.Thread)
 @BenchmarkMode(Array(Mode.SingleShotTime))

@@ -1,4 +1,4 @@
-package scala.scalanative.jmh.examples
+package scala.benchmark.examples
 
 import java.nio.charset.StandardCharsets.UTF_8
 import java.nio.file.{Files, Paths}
@@ -11,7 +11,7 @@ object ForkJournal {
     if (mode.nonEmpty) Runtime.getRuntime.addShutdownHook(new Thread(new Runnable {
       def run(): Unit = {
         val directories = Option(new java.io.File(System.getProperty("java.io.tmpdir")).listFiles()).toVector.flatten
-        directories.filter(f => f.isDirectory && f.getName.startsWith("native-jmh-")).foreach { directory =>
+        directories.filter(f => f.isDirectory && f.getName.startsWith("scala-benchmark-")).foreach { directory =>
           val request = new java.io.File(directory, "request.properties")
           if (request.isFile) {
             val properties = new java.util.Properties
@@ -29,8 +29,8 @@ object ForkJournal {
                     Files.delete(result)
                     require(new ProcessBuilder("mkfifo", result.toString).start().waitFor() == 0)
                   case "incomplete" =>
-                    val results = scala.scalanative.jmh.Main.readResults(result)
-                    scala.scalanative.jmh.Main.writeResults(result, results.take(1))
+                    val results = scala.benchmark.runtime.Main.readResults(result)
+                    scala.benchmark.runtime.Main.writeResults(result, results.take(1))
                   case _ => throw new IllegalArgumentException(mode)
                 }
               }

@@ -59,7 +59,7 @@ for repeat in range(3):
 
 # Block framework listing output. No worker or user fixture is required.
 with open(root / 'console-listing.stderr', 'wb') as errors:
-    child = subprocess.Popen(config['command'] + ['--suite', 'scala.scalanative.jmh.examples.ConsoleInventory$', '-l', '-to', '500ms'],
+    child = subprocess.Popen(config['command'] + ['--suite', 'scala.benchmark.examples.ConsoleInventory$', '-l', '-to', '500ms'],
                              stdout=subprocess.PIPE, stderr=errors)
     try:
         assert child.wait(timeout=8) == 1, 'Blocked framework console did not fail'

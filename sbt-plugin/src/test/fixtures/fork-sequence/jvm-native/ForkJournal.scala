@@ -1,4 +1,4 @@
-package scala.scalanative.jmh.examples
+package scala.benchmark.examples
 
 import java.nio.charset.StandardCharsets.UTF_8
 import java.nio.file.{Files, Paths}

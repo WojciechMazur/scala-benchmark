@@ -1,4 +1,4 @@
-package scala.scalanative.jmh.stdio
+package scala.benchmark.runtime.stdio
 import scala.scalajs.js
 import scala.scalajs.js.annotation.JSImport
 @js.native @JSImport("node:fs", JSImport.Namespace)

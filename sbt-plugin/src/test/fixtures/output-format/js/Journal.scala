@@ -1,4 +1,4 @@
-package scala.scalanative.jmh.outputformat
+package scala.benchmark.runtime.outputformat
 
 import scala.scalajs.js
 import scala.scalajs.js.annotation.JSImport

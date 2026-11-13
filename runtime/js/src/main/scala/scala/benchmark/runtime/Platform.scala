@@ -1,0 +1,359 @@
+package scala.benchmark.runtime
+
+import scala.scalajs.js
+import scala.scalajs.js.annotation.JSGlobal
+import org.openjdk.jmh.annotations.Mode
+
+/** One JS event loop owns the benchmark; duration checks must run on that loop. */
+class ControlFields {
+  val notifyControl = new org.openjdk.jmh.infra.Control
+  private var stopped = false
+  private var polls = 0
+  var deadline: Long = 0L
+  var failure: Throwable = null
+  def announceReady(): Unit = ()
+  val started = new Counter
+  val finished = new Counter
+  def done: Boolean = {
+    if (!stopped && deadline != 0L) {
+      polls -= 1
+      if (polls <= 0) {
+        polls = 64
+        stopped = System.nanoTime() - deadline >= 0
+        if (stopped) notifyControl.stopMeasurement = true
+      }
+    }
+    stopped
+  }
+  def done_=(value: Boolean): Unit = stopped = value
+}
+final class Counter {
+  private var value = 0
+  def get(): Int = value
+  def incrementAndGet(): Int = { value += 1; value }
+}
+
+/** Host services stay outside linked Scala code, for both JS and Wasm output. */
+@js.native @JSGlobal("__scalaBenchmarkHost")
+private[runtime] object Host extends js.Object {
+  val arguments: js.Array[String] = js.native
+  val metadata: js.Dictionary[String] = js.native
+  val runtimeVersion: String = js.native
+  val gcAvailable: Boolean = js.native
+  def requestGC(): Unit = js.native
+  def stringify(value: js.Any): String = js.native
+  def parse(text: String): js.Dynamic = js.native
+  def write(path: String, text: String): Unit = js.native
+  def validateOutput(path: String): Unit = js.native
+  def consoleWrite(bytes: js.Array[Int], channel: Int, budget: String): Unit = js.native
+  def progress(message: String): Unit = js.native
+  def fork(request: String, timeoutNanos: String): String = js.native
+  def complete(result: String): Unit = js.native
+  def event(sequence: Int, text: String): Unit = js.native
+  def takeEvents(): js.Array[String] = js.native
+  def userWrite(bytes: js.Array[Int], channel: Int): Unit = js.native
+  def userClose(channel: Int): Unit = js.native
+  def readUserOutput(channel: Int): js.Array[Int] = js.native
+  def releaseUserOutput(): Unit = js.native
+  def exit(status: Int): Unit = js.native
+}
+
+object Platform {
+  def restoreCallerInterrupt(): Unit = ()
+  def isCallerInterrupted: Boolean = false
+  def ensureMeasurementHealthy(): Unit = ()
+  private def isWasm: Boolean = Registry.buildInfo.contains("backend" -> "wasm")
+  def identity: scala.benchmark.Platform =
+    if (isWasm) scala.benchmark.Platform.Wasm else scala.benchmark.Platform.JS
+
+  def loadSuite(name: String): Suite = Registry.suite(name).getOrElse(throw new ClassNotFoundException(name))
+  def inventory: Vector[String] = Registry.names
+
+  /** Build information from the benchmark project, completed with what only the host knows. */
+  def buildMetadata: Vector[(String, String)] = (Registry.buildInfo ++ Host.metadata.toVector).sortBy(_._1)
+  def description: String = if (isWasm) "Scala.js Wasm (Node.js)" else "Scala.js (Node.js)"
+  def metadataSection: String = "javascript"
+  def runtimeVersion: String = Host.runtimeVersion
+  def processorCount: Int = 1
+  def requestGC(): Unit = Host.requestGC()
+  def validate(config: Configuration): Unit = {
+    require(config.timeoutNanos > 0, "The JS/Wasm host requires a positive iteration timeout")
+    require(config.threads == 1, "The Scala.js backend supports one benchmark thread per process; use -t 1")
+    require(
+      !config.doGC || Host.gcAvailable,
+      "Host collection is unavailable; start Node.js with --expose-gc when using -gc true"
+    )
+  }
+  def validateOutput(path: String): Unit = Host.validateOutput(path)
+  def write(path: String, text: String): Unit = Host.write(path, text)
+  def consoleStream(destination: java.io.PrintStream, channel: Int, budget: Long): java.io.PrintStream = {
+    if (destination.getClass().getName() == "java.lang.JSConsoleBasedPrintStream") hostConsoleStream(channel, budget)
+    else destination
+  }
+  private def hostConsoleStream(channel: Int, budget: Long): java.io.PrintStream =
+    new java.io.PrintStream(
+      new java.io.OutputStream {
+        def write(value: Int): Unit = send(Array(value.toByte), 0, 1)
+        override def write(bytes: Array[Byte], offset: Int, length: Int): Unit = send(bytes, offset, length)
+        private def send(bytes: Array[Byte], offset: Int, length: Int): Unit = {
+          ForkOutputFailure.check()
+          var next = offset
+          while (next < offset + length) {
+            val end = math.min(offset + length, next + 8192)
+            try
+              Host
+                .consoleWrite(js.Array(bytes.slice(next, end).iterator.map(_.toInt).toSeq*), channel, budget.toString)
+            catch { case error: js.JavaScriptException => throw ForkOutputFailure.fail(error.getMessage, error) }
+            next = end
+          }
+        }
+      },
+      true,
+      "UTF-8"
+    )
+
+  def outputContext[A](options: Options)(body: => A): A = {
+    val priorOut = System.out
+    val priorErr = System.err
+    val priorConsole = BenchmarkOutput.console
+    val budget = options.configuration(Configuration()).timeoutNanos
+    def raw(stream: java.io.PrintStream, channel: Int): java.io.PrintStream =
+      if (stream.getClass().getName() == "java.lang.JSConsoleBasedPrintStream") hostConsoleStream(channel, budget)
+      else stream
+    val out = raw(priorOut, 1)
+    val err = raw(priorErr, 2)
+    val console = BenchmarkOutput.Streams(
+      if (priorConsole.out eq priorOut) out else priorConsole.out,
+      if (priorConsole.err eq priorErr) err else priorConsole.err
+    )
+    System.setOut(out); System.setErr(err)
+    try BenchmarkOutput.withConsole(console)(body)
+    finally {
+      if (System.out eq out) System.setOut(priorOut)
+      if (System.err eq err) System.setErr(priorErr)
+    }
+  }
+
+  def forked(
+      suite: String,
+      descriptor: Descriptor,
+      mode: Mode,
+      config: Configuration,
+      parameters: Map[String, String],
+      warmups: Vector[WarmupRequest] = Vector.empty,
+      failOnError: Boolean = true,
+      observer: RunObserver = RunObserver.Disabled
+  ): Vector[IterationResult] = {
+    val overrides = js.Dictionary(Configuration.overrides(config).toSeq*)
+    val bulk = js.Array(warmups.map { warmup =>
+      js.Dynamic.literal(
+        suite = warmup.suite,
+        index = warmup.index,
+        mode = warmup.mode.name(),
+        overrides = js.Dictionary(Configuration.overrides(warmup.configuration).toSeq*),
+        parameters = js.Dictionary(warmup.parameters.toSeq*)
+      )
+    }*)
+    val request = js.Dynamic.literal(
+      failOnError = failOnError,
+      events = (observer ne RunObserver.Disabled),
+      stdio = true,
+      directOutput = false,
+      suite = suite,
+      warmups = bulk,
+      index = descriptor.index,
+      mode = mode.name(),
+      overrides = overrides,
+      parameters = js.Dictionary(parameters.toSeq*)
+    )
+    var returned = false
+    var forkFailure: Throwable = null
+    val text = {
+      try
+        try {
+          val result = Host.fork(Host.stringify(request), config.timeoutNanos.toString)
+          returned = true
+          result
+        } catch {
+          case error: js.JavaScriptException
+              if js.typeOf(error.exception) == "object" && error.exception != null &&
+                error.exception
+                  .asInstanceOf[js.Dynamic]
+                  .code
+                  .asInstanceOf[js.UndefOr[String]]
+                  .contains("SCALA_BENCHMARK_OUTPUT") =>
+            throw ForkOutputFailure.fail(error.getMessage, error)
+          case error: js.JavaScriptException =>
+            if (js.typeOf(error.exception) == "object" && error.exception != null) {
+              val captured = error.exception.asInstanceOf[js.Dynamic].benchmarkOutput.asInstanceOf[js.UndefOr[String]]
+              captured.foreach { output =>
+                if (output.nonEmpty) try observer.diagnosticOutput.write(output.getBytes("UTF-8"))
+                catch { case failure: Throwable => failure.addSuppressed(error); throw failure }
+              }
+            }
+            throw error
+        }
+      catch { case error: Throwable => forkFailure = error; throw error }
+      finally {
+        var cleanupFailure: Throwable = null
+        def cleanup(action: => Unit): Unit = try action
+        catch {
+          case error: Throwable =>
+            if (cleanupFailure == null) cleanupFailure = error
+            else if (cleanupFailure ne error) cleanupFailure.addSuppressed(error)
+        }
+        cleanup(drainUserOutput())
+        cleanup {
+          if (observer ne RunObserver.Disabled)
+            ForkEvents.replay(
+              Host.takeEvents().toVector,
+              descriptor,
+              mode,
+              config,
+              parameters,
+              warmups,
+              observer,
+              requireClosed = returned
+            )
+        }
+        if (cleanupFailure != null) {
+          if (forkFailure != null && (forkFailure ne cleanupFailure)) cleanupFailure.addSuppressed(forkFailure)
+          throw cleanupFailure
+        }
+      }
+    }
+    val outcome = Host.parse(text)
+    val output = outcome.output.asInstanceOf[String]
+    if (output.nonEmpty) observer.diagnosticOutput.write(output.getBytes("UTF-8"))
+    val decoded = try decode(outcome.result.asInstanceOf[String])
+    catch { case failure: BenchmarkForkFailure => BenchmarkForkFailure.verify(failure, mode, config) }
+    ForkResults.verify(mode, config, decoded)
+  }
+  private[runtime] def workerStream(channel: Int): java.io.PrintStream = new java.io.PrintStream(
+    new java.io.OutputStream {
+      def write(value: Int): Unit = write(Array(value.toByte), 0, 1)
+      override def write(bytes: Array[Byte], offset: Int, length: Int): Unit =
+        try Host.userWrite(js.Array(bytes.slice(offset, offset + length).iterator.map(_.toInt).toSeq*), channel)
+        catch { case error: js.JavaScriptException => throw new java.io.IOException(error.getMessage, error) }
+      override def close(): Unit = Host.userClose(channel)
+    },
+    true,
+    "UTF-8"
+  )
+
+  private def drainUserOutput(): Unit = {
+    try {
+      for (channel <- Vector(1, 2)) {
+        val destination = if (channel == 1) System.out else System.err
+        var bytes = Host.readUserOutput(channel)
+        while (bytes.nonEmpty) {
+          destination.write(bytes.iterator.map(_.toByte).toArray)
+          if (destination.checkError()) throw ForkOutputFailure.fail("Benchmark user output destination failed")
+          bytes = Host.readUserOutput(channel)
+        }
+      }
+      val input = new java.io.InputStream {
+        private var bytes = Array.emptyByteArray
+        private var index = 0
+        def read(): Int = {
+          if (index == bytes.length) { bytes = Host.readUserOutput(3).iterator.map(_.toByte).toArray; index = 0 }
+          if (bytes.isEmpty) -1 else { val value = bytes(index) & 255; index += 1; value }
+        }
+      }
+      val reader = new java.io.InputStreamReader(input, "UTF-8")
+      try {
+        val chars = new Array[Char](8192)
+        var count = reader.read(chars)
+        while (count != -1) { Console.print(new String(chars, 0, count)); count = reader.read(chars) }
+      } finally reader.close()
+    } catch { case error: js.JavaScriptException => throw ForkOutputFailure.fail(error.getMessage, error) }
+    finally Host.releaseUserOutput()
+  }
+
+  private[runtime] def encodeFailure(error: Throwable): String = Host.stringify(
+    js.Dynamic.literal(
+      failureVersion = 1,
+      benchmarkType = error.getClass.getName,
+      message = Option(error.getMessage).getOrElse(""),
+      completed = Host.parse(encode(BenchmarkForkFailure.completed(error)))
+    )
+  )
+  private[runtime] def encode(results: Vector[IterationResult]): String =
+    Host.stringify(js.Array(results.map { iteration =>
+      js.Dynamic.literal(
+        score = iteration.score,
+        trial = iteration.trial.map { metadata =>
+          js.Dynamic.literal(
+            start = metadata.startMillis.toString,
+            measurementStart = metadata.measurementStartMillis.toString,
+            stop = metadata.stopMillis.toString,
+            warmupOps = metadata.warmupOperations.toString,
+            measurementOps = metadata.measurementOperations.toString
+          )
+        }.orNull,
+        workers = js.Array(iteration.workers.map { worker =>
+          js.Dynamic.literal(
+            invocations = worker.invocations.toString,
+            allInvocations = worker.allInvocations.toString,
+            elapsedNanos = worker.elapsedNanos.toString,
+            auxiliary = js.Array(worker.auxiliary.map { counter =>
+              js.Dynamic.literal(name = counter.name, kind = counter.kind, value = counter.value.toString)
+            }*),
+            samples = js.Array(worker.samples.entries.map { case (value, count) =>
+              js.Array(value.toString, count.toString)
+            }*)
+          )
+        }*)
+      )
+    }*))
+  private[runtime] def decode(text: String): Vector[IterationResult] = {
+    val parsed = Host.parse(text)
+    if (!js.Array.isArray(parsed)) {
+      require(
+        parsed != null && parsed.failureVersion.asInstanceOf[Double] == 1 &&
+          js.typeOf(parsed.benchmarkType) == "string" && js.typeOf(parsed.message) == "string" && js.Array.isArray(
+            parsed.completed
+          ),
+        "Invalid benchmark failure record"
+      )
+      throw new BenchmarkForkFailure(
+        parsed.benchmarkType.asInstanceOf[String],
+        parsed.message.asInstanceOf[String],
+        decode(Host.stringify(parsed.completed))
+      )
+    }
+    parsed.asInstanceOf[js.Array[js.Dynamic]].toVector.map { iteration =>
+      val workers = iteration.workers.asInstanceOf[js.Array[js.Dynamic]].toVector.map { worker =>
+        val samples = new SampleBuffer
+        worker.samples
+          .asInstanceOf[js.Array[js.Array[String]]]
+          .foreach(pair => samples.addCount(pair(0).toLong, pair(1).toLong))
+        RawResult(
+          worker.invocations.asInstanceOf[String].toLong,
+          worker.elapsedNanos.asInstanceOf[String].toLong,
+          samples,
+          worker.auxiliary.asInstanceOf[js.Array[js.Dynamic]].toVector.map { counter =>
+            AuxiliaryValue(
+              counter.name.asInstanceOf[String],
+              counter.kind.asInstanceOf[String],
+              counter.value.asInstanceOf[String].toDouble
+            )
+          },
+          worker.allInvocations.asInstanceOf[String].toLong
+        )
+      }
+      val score = iteration.score.asInstanceOf[Double]
+      require(score.isFinite && workers.nonEmpty, "Invalid JS worker result")
+      val trial = Option(iteration.trial.asInstanceOf[js.Dynamic]).map { metadata =>
+        TrialMetadata(
+          metadata.start.asInstanceOf[String].toLong,
+          metadata.measurementStart.asInstanceOf[String].toLong,
+          metadata.stop.asInstanceOf[String].toLong,
+          metadata.warmupOps.asInstanceOf[String].toLong,
+          metadata.measurementOps.asInstanceOf[String].toLong
+        )
+      }
+      IterationResult(score, workers, trial)
+    }
+  }
+}

@@ -1,6 +1,6 @@
-package scala.scalanative.jmh.examples
+package scala.benchmark.examples
 
-import scala.scalanative.jmh.*
+import scala.benchmark.runtime.*
 
 object ConsoleInventory extends Suite {
   def metadata(): Array[String] =

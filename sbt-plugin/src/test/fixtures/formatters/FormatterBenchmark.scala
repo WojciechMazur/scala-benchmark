@@ -1,4 +1,4 @@
-package scala.scalanative.jmh.formatters
+package scala.benchmark.runtime.formatters
 
 import scala.benchmark.*
 import java.io.{ByteArrayOutputStream, PrintStream}
