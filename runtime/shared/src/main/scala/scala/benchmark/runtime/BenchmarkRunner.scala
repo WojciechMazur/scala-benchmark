@@ -15,7 +15,7 @@ object BenchmarkRunner:
     val suites = (Platform.inventory ++ options.suites).distinct.sorted
     require(
       suites.nonEmpty,
-      "No benchmark inventory. Enable JmhPlugin on a benchmark project with sbt-scala-benchmark, or supply --suite <generated module>."
+      "No benchmarks found. Enable JmhPlugin on a project that uses sbt-scala-benchmark."
     )
     val inventory = suites
       .flatMap { name =>
