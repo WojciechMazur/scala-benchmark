@@ -1,8 +1,6 @@
 import sbt.{*, given}
-import sbt.io.Hash
-import java.io.File
 import pl.project13.scala.sbt.JmhPlugin
-import scala.benchmark.sbtplugin.NativeBenchmarkPlugin.autoImport.*
+import scala.benchmark.sbtplugin.BenchmarkPlugin.autoImport.*
 import BuildSettings.*
 import BuildPlatforms.*
 import ScriptedPlugin.autoImport.*
@@ -17,8 +15,7 @@ licenses := Seq("GPLv2 with Classpath Exception" -> uri("https://openjdk.org/leg
 lazy val root = project
   .in(file("."))
   .aggregate(
-    (Seq(interface, runtime, examples)
-      .flatMap(_.projectRefs) ++ Seq(LocalProject(compilerPlugin.id), LocalProject(sbtPlugin.id))) *
+    (Seq(interface, runtime, examples).flatMap(_.projectRefs) :+ LocalProject(sbtPlugin.id)) *
   )
   .settings(name := "scala-benchmark", publish / skip := true)
 
@@ -53,29 +50,6 @@ lazy val runtime = projectMatrix
     jsSettings = sourceLayout("non-jvm") ++ sourceLayout("js")
   )
 
-lazy val compilerPlugin = project
-  .in(file("compiler-plugin"))
-  .dependsOn(runtime.jvm(true) % "test->compile")
-  .settings(
-    legalSettings,
-    junitSettings,
-    name := "benchmark-plugin",
-    scalaVersion := libraryScalaVersion,
-    crossVersion := CrossVersion.full,
-    exportJars := true,
-    libraryDependencies += "org.scala-lang" %% "scala3-compiler" % scalaVersion.value % Provided,
-    Test / fork := true,
-    Test / javaOptions ++= Def.uncached {
-      val converter = fileConverter.value
-      Seq(
-        "-Dscalanative.jmh.plugin=" + converter.toPath((Compile / packageBin).value).toAbsolutePath,
-        "-Dscalanative.jmh.testClasspath=" + (Test / fullClasspath).value
-          .map(entry => converter.toPath(entry.data).toAbsolutePath)
-          .mkString(File.pathSeparator)
-      )
-    }
-  )
-
 lazy val examples = projectMatrix
   .in(file("examples"))
   .dependsOn(runtime)
@@ -83,15 +57,7 @@ lazy val examples = projectMatrix
   .libraryPlatforms()
   .settings(
     exampleSettings,
-    benchmarkUsePublishedArtifacts := false,
-    Compile / scalacOptions ++= Def.uncached {
-      require(
-        scalaVersion.value == (compilerPlugin / scalaVersion).value,
-        "Select the same Scala version for examples and compilerPlugin using ++"
-      )
-      val jar = fileConverter.value.toPath((compilerPlugin / Compile / packageBin).value)
-      Seq("-Xplugin:" + jar.toAbsolutePath, "-P:scalanative-jmh:cacheKey=" + Hash.toHex(Hash(jar.toFile)))
-    }
+    benchmarkUsePublishedArtifacts := false
   )
 
 lazy val sbtPlugin = project
@@ -112,13 +78,12 @@ lazy val sbtPlugin = project
     scriptedLaunchOpts ++= Seq(
       "-Xmx1024m",
       "-Dplugin.version=" + version.value,
-      "-Dbenchmark.scala.version=" + (compilerPlugin / scalaVersion).value,
+      "-Dbenchmark.scala.version=" + libraryScalaVersion,
       "-Dbenchmark.scripted.support=" + ((LocalRootProject / baseDirectory).value / "sbt-plugin/src/sbt-test-common").getAbsolutePath,
       "-Dbenchmark.test.sources=" + ((LocalRootProject / baseDirectory).value / "sbt-plugin/src/sbt-test-sources/scala").getAbsolutePath
     ),
     scriptedDependencies := {
       publishLocal.value
-      (compilerPlugin / publishLocal).value
       (interface.jvm(true) / publishLocal).value
       (interface.native(true) / publishLocal).value
       (interface.js(true) / publishLocal).value

@@ -16,8 +16,13 @@ import java.util.concurrent.TimeUnit
 import org.openjdk.jmh.annotations.Mode
 
 object Main {
-  private val Inventory = "/native-jmh/benchmarks.list"
   private val WorkerFlag = "--native-jmh-worker-v3"
+
+  /** Entry point of a benchmark project, called by its generated main class. */
+  def run(args: Array[String], suites: Seq[(String, Suite)], buildInfo: Seq[(String, String)]): Unit = {
+    Registry.install(suites, buildInfo)
+    main(args)
+  }
 
   def main(args: Array[String]): Unit = {
     try {

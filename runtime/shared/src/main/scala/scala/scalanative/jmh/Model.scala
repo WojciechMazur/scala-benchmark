@@ -8,8 +8,8 @@ import org.openjdk.jmh.runner.options.TimeValue
 import java.util.concurrent.TimeUnit
 import org.openjdk.jmh.infra.{Blackhole, ThreadParams}
 
-/** Internal compiler/runtime ABI. Not an alternative public Runner API. */
-trait Suite extends PlatformSuite with scala.benchmark.internal.BenchmarkInventory {
+/** Contract between the derived harness and the runtime. Not an alternative public Runner API. */
+trait Suite {
   def metadata(): Array[String]
   def resetAuxiliary(benchmark: Int, environment: Environment): Unit = ()
   def auxiliary(benchmark: Int, environment: Environment): Array[Double] = Array.emptyDoubleArray
@@ -391,14 +391,6 @@ final class Environment(
 
 object Values {
   def counter(value: Any): Double = value.asInstanceOf[java.lang.Number].doubleValue()
-  def zero(kind: String): AnyRef = kind match {
-    case "java.lang.Byte"    => java.lang.Byte.valueOf(0.toByte)
-    case "java.lang.Short"   => java.lang.Short.valueOf(0.toShort)
-    case "java.lang.Integer" => java.lang.Integer.valueOf(0)
-    case "java.lang.Long"    => java.lang.Long.valueOf(0L)
-    case "java.lang.Float"   => java.lang.Float.valueOf(0.0f)
-    case "java.lang.Double"  => java.lang.Double.valueOf(0.0)
-  }
   def boolean(value: String): Boolean = {
     require(value == "true" || value == "false", s"Invalid boolean: $value")
     value == "true"

@@ -13,8 +13,7 @@ object JvmPreflight {
   ): Option[Options] = {
     def emit(text: String): Unit = if (format == null) println(text) else format.println(text)
     val loader = Thread.currentThread().getContextClassLoader
-    val classpath = JvmInventory.classpath(loader)
-    val inventory = JvmInventory.load(classpath, loader)
+    val inventory = JvmInventory.load(loader)
     // Projects may also contain Java benchmarks, whose metadata is JMH's list.
     val upstream = org.openjdk.jmh.runner.BenchmarkList.defaultList()
     val output = org.openjdk.jmh.runner.format.OutputFormatFactory

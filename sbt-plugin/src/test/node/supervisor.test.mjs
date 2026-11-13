@@ -11,12 +11,10 @@ function alive(pid) { try { process.kill(pid, 0); return true; } catch (error) {
 function fixture(t, body, owner) {
   const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'benchmark-supervisor-test-'));
   const module = path.join(directory, 'worker.mjs');
-  const manifest = path.join(directory, 'manifest.json');
   const request = path.join(directory, 'request.json');
   fs.writeFileSync(module, body);
-  fs.writeFileSync(manifest, JSON.stringify({ inventory: [], metadata: { backend: 'js' } }));
   fs.writeFileSync(request, '{}');
-  const child = spawn(process.execPath, [launcher, '--supervise', module, manifest, request,
+  const child = spawn(process.execPath, [launcher, '--supervise', module, request,
     path.join(directory, 'result.json'), path.join(directory, 'progress'), '100000000', ...(owner ? [String(owner)] : [])], { stdio: ['ignore', 'pipe', 'pipe'] });
   let output = '', workerPid;
   const pid = new Promise((resolve, reject) => {
@@ -70,8 +68,6 @@ test('successful child exit without results is rejected and temporary files are 
   const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'benchmark-missing-result-'));
   t.after(() => fs.rmSync(directory, { recursive: true, force: true }));
   const module = path.join(directory, 'worker.mjs');
-  const manifest = path.join(directory, 'manifest.json');
-  fs.writeFileSync(manifest, JSON.stringify({ inventory: [], metadata: { backend: 'js' } }));
   fs.writeFileSync(module, `
     const host = globalThis.__scalaBenchmarkHost;
     if (host.arguments[0] === '--benchmark-worker-v3') process.exit(0);
@@ -82,7 +78,7 @@ test('successful child exit without results is rejected and temporary files are 
       console.log('MISSING_RESULT_REJECTED');
     }
   `);
-  const child = spawn(process.execPath, [launcher, module, manifest], { env: { ...process.env, TMPDIR: directory }, stdio: ['ignore', 'pipe', 'pipe'] });
+  const child = spawn(process.execPath, [launcher, module], { env: { ...process.env, TMPDIR: directory }, stdio: ['ignore', 'pipe', 'pipe'] });
   t.after(() => { if (child.exitCode === null) child.kill('SIGKILL'); });
   let output = '';
   child.stdout.on('data', chunk => { output += chunk; });
@@ -90,7 +86,7 @@ test('successful child exit without results is rejected and temporary files are 
   const code = await new Promise((resolve, reject) => { child.on('close', resolve); child.on('error', reject); });
   assert.equal(code, 0, output);
   assert.match(output, /MISSING_RESULT_REJECTED/);
-  assert.deepEqual(fs.readdirSync(directory).sort(), ['manifest.json', 'worker.mjs']);
+  assert.deepEqual(fs.readdirSync(directory).sort(), ['worker.mjs']);
 });
 
 test('hard-killing the supervisor terminates blocked synchronous work', { timeout: 5000 }, async t => {
@@ -106,10 +102,8 @@ test('hard-killing the supervisor terminates blocked synchronous work', { timeou
 test('hard-killing a synchronous coordinator terminates supervisor and worker', { timeout: 7000 }, async t => {
   const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'benchmark-owner-death-'));
   const module = path.join(directory, 'worker.mjs');
-  const manifest = path.join(directory, 'manifest.json');
   const workerFile = path.join(directory, 'worker.pid');
   const supervisorFile = path.join(directory, 'supervisor.pid');
-  fs.writeFileSync(manifest, JSON.stringify({ inventory: [], metadata: { backend: 'js' } }));
   fs.writeFileSync(module, `
     import fs from 'node:fs';
     const host = globalThis.__scalaBenchmarkHost;
@@ -119,7 +113,7 @@ test('hard-killing a synchronous coordinator terminates supervisor and worker', 
       while (true) {}
     } else host.fork('{}', '10000000000');
   `);
-  const child = spawn(process.execPath, [launcher, module, manifest], { stdio: 'ignore' });
+  const child = spawn(process.execPath, [launcher, module], { stdio: 'ignore' });
   let worker, supervisor;
   t.after(() => {
     for (const pid of [child.pid, supervisor, worker]) if (pid && alive(pid)) process.kill(pid, 'SIGKILL');
@@ -143,8 +137,6 @@ test('nonzero worker exit rejects even an already written result', { timeout: 50
   const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'benchmark-crash-result-'));
   t.after(() => fs.rmSync(directory, { recursive: true, force: true }));
   const module = path.join(directory, 'worker.mjs');
-  const manifest = path.join(directory, 'manifest.json');
-  fs.writeFileSync(manifest, JSON.stringify({ inventory: [], metadata: { backend: 'js' } }));
   fs.writeFileSync(module, `
     const host = globalThis.__scalaBenchmarkHost;
     if (host.arguments[0] === '--benchmark-worker-v3') {
@@ -158,7 +150,7 @@ test('nonzero worker exit rejects even an already written result', { timeout: 50
       console.log('CRASH_RESULT_REJECTED');
     }
   `);
-  const child = spawn(process.execPath, [launcher, module, manifest], {
+  const child = spawn(process.execPath, [launcher, module], {
     env: { ...process.env, TMPDIR: directory }, stdio: ['ignore', 'pipe', 'pipe']
   });
   t.after(() => { if (child.exitCode === null && child.signalCode === null) child.kill('SIGKILL'); });
@@ -168,7 +160,7 @@ test('nonzero worker exit rejects even an already written result', { timeout: 50
   const code = await new Promise((resolve, reject) => { child.on('close', resolve); child.on('error', reject); });
   assert.equal(code, 0, output);
   assert.match(output, /CRASH_RESULT_REJECTED/);
-  assert.deepEqual(fs.readdirSync(directory).sort(), ['manifest.json', 'worker.mjs']);
+  assert.deepEqual(fs.readdirSync(directory).sort(), ['worker.mjs']);
 });
 
 
@@ -182,9 +174,7 @@ for (const channel of [1, 2]) {
   test(`blocked inherited fd ${channel} cannot trap fork output replay`, { timeout: 7000 }, async t => {
     const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'benchmark-output-blocked-'));
     const module = path.join(directory, 'worker.mjs');
-    const manifest = path.join(directory, 'manifest.json');
     const outcome = path.join(directory, 'outcome');
-    fs.writeFileSync(manifest, JSON.stringify({ inventory: [], metadata: { backend: 'js' } }));
     fs.writeFileSync(module, `
       import fs from 'node:fs';
       const host = globalThis.__scalaBenchmarkHost;
@@ -201,7 +191,7 @@ for (const channel of [1, 2]) {
         }
       }
     `);
-    const child = spawn(process.execPath, [launcher, module, manifest], {
+    const child = spawn(process.execPath, [launcher, module], {
       env: { ...process.env, TMPDIR: directory }, stdio: ['ignore', 'pipe', 'pipe']
     });
     // Neither output pipe is consumed. The result is recorded through a separate file.
@@ -214,15 +204,13 @@ for (const channel of [1, 2]) {
     assert.equal(code, 0);
     assert.match(fs.readFileSync(outcome, 'utf8'), /output relay/);
     assert.match(fs.readFileSync(outcome, 'utf8'), /FixtureFailure: injected primary/);
-    assert.deepEqual(fs.readdirSync(directory).sort(), ['manifest.json', 'outcome', 'worker.mjs']);
+    assert.deepEqual(fs.readdirSync(directory).sort(), ['outcome', 'worker.mjs']);
   });
 }
 
 test('worker death during a partial result write rejects the payload', { timeout: 5000 }, async t => {
   const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'benchmark-partial-result-'));
   const module = path.join(directory, 'worker.mjs');
-  const manifest = path.join(directory, 'manifest.json');
-  fs.writeFileSync(manifest, JSON.stringify({ inventory: [], metadata: { backend: 'js' } }));
   fs.writeFileSync(module, `
     import fs from 'node:fs';
     const host = globalThis.__scalaBenchmarkHost;
@@ -236,7 +224,7 @@ test('worker death during a partial result write rejects the payload', { timeout
       if (!rejected) throw new Error('Interrupted serialization was accepted');
     }
   `);
-  const child = spawn(process.execPath, [launcher, module, manifest], {
+  const child = spawn(process.execPath, [launcher, module], {
     env: { ...process.env, TMPDIR: directory }, stdio: 'ignore'
   });
   t.after(() => {
@@ -245,7 +233,7 @@ test('worker death during a partial result write rejects the payload', { timeout
   });
   const code = await new Promise((resolve, reject) => { child.on('exit', resolve); child.on('error', reject); });
   assert.equal(code, 0);
-  assert.deepEqual(fs.readdirSync(directory).sort(), ['manifest.json', 'worker.mjs']);
+  assert.deepEqual(fs.readdirSync(directory).sort(), ['worker.mjs']);
 });
 
 for (const scenario of ['success', 'crash', 'missing', 'timeout', 'gap']) {
@@ -253,8 +241,6 @@ for (const scenario of ['success', 'crash', 'missing', 'timeout', 'gap']) {
     const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'benchmark-event-records-'));
     t.after(() => fs.rmSync(directory, { recursive: true, force: true }));
     const module = path.join(directory, 'events.mjs');
-    const manifest = path.join(directory, 'manifest.json');
-    fs.writeFileSync(manifest, JSON.stringify({ inventory: [], metadata: { backend: 'js' } }));
     fs.writeFileSync(module, `
       import fs from 'node:fs';
       import path from 'node:path';
@@ -280,7 +266,7 @@ for (const scenario of ['success', 'crash', 'missing', 'timeout', 'gap']) {
         console.log('EVENT_RECORDS_OK');
       }
     `);
-    const child = spawn(process.execPath, [launcher, module, manifest], {
+    const child = spawn(process.execPath, [launcher, module], {
       env: { ...process.env, TMPDIR: directory }, stdio: ['ignore', 'pipe', 'pipe']
     });
     t.after(() => { if (child.exitCode === null && child.signalCode === null) child.kill('SIGKILL'); });
@@ -290,7 +276,7 @@ for (const scenario of ['success', 'crash', 'missing', 'timeout', 'gap']) {
     const code = await new Promise((resolve, reject) => { child.on('close', resolve); child.on('error', reject); });
     assert.equal(code, 0, output);
     assert.match(output, /EVENT_RECORDS_OK/);
-    assert.deepEqual(fs.readdirSync(directory).sort(), ['events.mjs', 'manifest.json']);
+    assert.deepEqual(fs.readdirSync(directory).sort(), ['events.mjs']);
   });
 }
 
@@ -299,8 +285,6 @@ for (const scenario of ['success', 'crash', 'missing', 'timeout']) {
     const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'benchmark-user-streams-'));
     t.after(() => fs.rmSync(directory, { recursive: true, force: true }));
     const module = path.join(directory, 'user.mjs');
-    const manifest = path.join(directory, 'manifest.json');
-    fs.writeFileSync(manifest, JSON.stringify({ inventory: [], metadata: { backend: 'js' } }));
     fs.writeFileSync(module, `
       import fs from 'node:fs';
       const host = globalThis.__scalaBenchmarkHost;
@@ -338,7 +322,7 @@ for (const scenario of ['success', 'crash', 'missing', 'timeout']) {
         console.log('USER_CHANNELS_OK');
       }
     `);
-    const child = spawn(process.execPath, [launcher, module, manifest], {
+    const child = spawn(process.execPath, [launcher, module], {
       env: { ...process.env, TMPDIR: directory }, stdio: ['ignore', 'pipe', 'pipe']
     });
     t.after(() => { if (child.exitCode === null && child.signalCode === null) child.kill('SIGKILL'); });
@@ -348,6 +332,6 @@ for (const scenario of ['success', 'crash', 'missing', 'timeout']) {
     const code = await new Promise((resolve, reject) => { child.on('close', resolve); child.on('error', reject); });
     assert.equal(code, 0, output);
     assert.match(output, /USER_CHANNELS_OK/);
-    assert.deepEqual(fs.readdirSync(directory).sort(), ['manifest.json', 'user.mjs']);
+    assert.deepEqual(fs.readdirSync(directory).sort(), ['user.mjs']);
   });
 }

@@ -15,7 +15,7 @@ object JvmGenerator {
     require(args.length == 3, "Expected bytecode, source and resource directories")
     val loader = Thread.currentThread().getContextClassLoader
     val root = Paths.get(args(0))
-    val inventory = JvmInventory.load(Vector(root), loader).map(e => e.name -> e.eligibility).toMap
+    val inventory = JvmInventory.load(loader).map(e => e.name -> e.eligibility).toMap
     val source = new RFGeneratorSource
     val files = Files.walk(root)
     try

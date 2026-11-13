@@ -1,21 +1,55 @@
 package scala.benchmark.sbtplugin
 
 import java.io.File
+
+import sbt.*
+
 import scala.benchmark.internal.reporting.{HtmlReport, ResultTable}
 import sjsonnew.shaded.scalajson.ast.unsafe.*
 import sjsonnew.support.scalajson.unsafe.{CompactPrinter, Parser}
 
-/** Uses the JSON support already supplied by sbt. Benchmark execution stays in JMH. */
+/** HTML and LaTeX reports for the JVM, rendered from JMH's own JSON results. Benchmark execution stays in JMH. */
 private[sbtplugin] object JvmReport {
+  private val extensions = Map("html" -> "html", "latex" -> "tex")
+
+  /** A `Jmh / run` invocation asking for a result format that JMH does not provide. */
+  final case class Request(format: String, output: File, private val forwarded: Seq[String]) {
+
+    /** The original arguments, with the result format redirected to a JSON file. */
+    def jmhArguments(json: File): Seq[String] = forwarded ++ Seq("-rf", "json", "-rff", json.getAbsolutePath)
+  }
+
+  object Request {
+    def apply(arguments: Seq[String], workingDirectory: File): Option[Request] = {
+      def option(name: String): Option[String] = {
+        val index = arguments.indexOf(name)
+        require(index < 0 || index + 1 < arguments.size, s"Missing value of $name")
+        Option.when(index >= 0)(arguments(index + 1))
+      }
+      for {
+        format <- option("-rf").map(_.toLowerCase)
+        extension <- extensions.get(format)
+      } yield {
+        val selected = file(option("-rff").getOrElse("jmh-result." + extension))
+        val output = if (selected.isAbsolute) selected else workingDirectory / selected.getPath
+        Request(format, output, withoutResultOptions(arguments))
+      }
+    }
+
+    private def withoutResultOptions(arguments: Seq[String]): Seq[String] = arguments match {
+      case ("-rf" | "-rff") +: _ +: rest => withoutResultOptions(rest)
+      case argument +: rest              => argument +: withoutResultOptions(rest)
+      case _                             => Nil
+    }
+  }
+
   def render(file: File, format: String): String = {
     val entries = read(file)
     if (format == "html") HtmlReport.render(entries)
     else {
       val names = entries.flatMap(_.parameters.map(_._1)).distinct.sorted
-      val header =
-        Vector("Benchmark", "Mode", "Threads", "Samples", "Score", "Score Error (99.9%)", "Unit") ++ names.map(
-          "Param: " + _
-        )
+      val header = Vector("Benchmark", "Mode", "Threads", "Samples", "Score", "Score Error (99.9%)", "Unit") ++
+        names.map("Param: " + _)
       val rows = entries.map { entry =>
         val metadata = entry.metadata.toMap
         val parameters = entry.parameters.toMap
@@ -54,15 +88,6 @@ private[sbtplugin] object JvmReport {
       else array.map(histogramCount).sum
     }
     val records = elements(Parser.parseFromFile(file).get)
-    def quote(value: String): String = "\"" + value.flatMap {
-      case '"'          => "\\\""
-      case '\\'         => "\\\\"
-      case '\n'         => "\\n"
-      case '\r'         => "\\r"
-      case '\t'         => "\\t"
-      case c if c < ' ' => f"\\u${c.toInt}%04x"
-      case c            => c.toString
-    } + "\""
     records.flatMap { record =>
       val values = fields(record)
       val metrics = Vector("" -> values("primaryMetric")) ++ fields(
@@ -82,18 +107,13 @@ private[sbtplugin] object JvmReport {
           .filterNot { case (key, _) => Set("benchmark", "mode", "params", "primaryMetric", "secondaryMetrics")(key) }
           .map { case (key, value) => key -> text(value) } :+ ("Backend" -> "JMH (JVM)")
         val name = text(values("benchmark")) + (if (label.isEmpty) "" else ":" + label)
-        val raw = values.toVector
-          .sortBy(_._1)
-          .map { case (key, value) =>
-            val encoded = key match {
-              case "benchmark"        => quote(name)
-              case "primaryMetric"    => CompactPrinter(metricValue)
-              case "secondaryMetrics" => "{}"
-              case _                  => CompactPrinter(value)
-            }
-            quote(key) + ":" + encoded
-          }
-          .mkString("{", ",", "}")
+        // One record per metric: the metric becomes the record's primary one.
+        val raw = CompactPrinter(JObject(values.toArray.sortBy(_._1).map {
+          case ("benchmark", _)        => JField("benchmark", JString(name))
+          case ("primaryMetric", _)    => JField("primaryMetric", metricValue)
+          case ("secondaryMetrics", _) => JField("secondaryMetrics", JObject(Array.empty[JField]))
+          case (key, value)            => JField(key, value)
+        }))
         HtmlReport.Entry(
           name,
           text(values("mode")),

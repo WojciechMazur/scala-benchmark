@@ -6,7 +6,8 @@ import scala.benchmark.internal.BenchmarkSymbols
 import scala.collection.mutable
 import scala.quoted.*
 
-import org.openjdk.jmh.infra.Blackhole
+import org.openjdk.jmh.annotations.{Scope as _, *}
+import org.openjdk.jmh.infra.{BenchmarkParams, Blackhole, Control, IterationParams, ThreadParams}
 
 /** Derives the typed harness of one benchmark class.
   *
@@ -25,47 +26,61 @@ private final class HarnessMacro[Q <: Quotes](q: Q) extends BenchmarkSymbols[Q](
   private val trial = 0
   private val invocation = 2
 
-  private val infrastructure = Set(
-    "org.openjdk.jmh.infra.Blackhole",
-    "org.openjdk.jmh.infra.ThreadParams",
-    "org.openjdk.jmh.infra.BenchmarkParams",
-    "org.openjdk.jmh.infra.IterationParams",
-    "org.openjdk.jmh.infra.Control"
+  private def symbol[A: Type]: Symbol = TypeRepr.of[A].typeSymbol
+
+  /** JMH infrastructure that may be injected next to `@State` arguments. */
+  private val infrastructure: Map[Symbol, Expr[Environment] => Expr[Any]] = Map(
+    symbol[Blackhole] -> (environment => '{ $environment.blackhole }),
+    symbol[ThreadParams] -> (environment => '{ $environment.threadParams }),
+    symbol[BenchmarkParams] -> (environment => '{ $environment.benchmarkParams }),
+    symbol[IterationParams] -> (environment => '{ $environment.iterationParams }),
+    symbol[Control] -> (environment => '{ $environment.notifyControl })
   )
 
-  private val numeric = Set(
-    "scala.Byte",
-    "scala.Short",
-    "scala.Int",
-    "scala.Long",
-    "scala.Float",
-    "scala.Double",
-    "java.lang.Byte",
-    "java.lang.Short",
-    "java.lang.Integer",
-    "java.lang.Long",
-    "java.lang.Float",
-    "java.lang.Double"
-  )
+  /** How a `@Param` text is checked at compile time and converted at run time. */
+  private final case class ParameterType(valid: String => Boolean, parse: Expr[String] => Expr[Any])
 
-  private val parameterParsers = Map(
-    "scala.Boolean" -> "paramBoolean",
-    "java.lang.Boolean" -> "paramBoolean",
-    "scala.Byte" -> "byte",
-    "java.lang.Byte" -> "byte",
-    "scala.Short" -> "short",
-    "java.lang.Short" -> "short",
-    "scala.Char" -> "char",
-    "java.lang.Character" -> "char",
-    "scala.Int" -> "int",
-    "java.lang.Integer" -> "int",
-    "scala.Long" -> "long",
-    "java.lang.Long" -> "long",
-    "scala.Float" -> "float",
-    "java.lang.Float" -> "float",
-    "scala.Double" -> "double",
-    "java.lang.Double" -> "double",
-    "java.lang.String" -> "string"
+  private def parses(parse: String => Any): String => Boolean = text =>
+    try { parse(text); true }
+    catch case _: NumberFormatException => false
+
+  private val parameterTypes: Map[Symbol, ParameterType] =
+    val boolean = (text: String) => text == "true" || text == "false"
+    val char = (text: String) => text.length == 1
+    Map(
+      symbol[Boolean] -> ParameterType(boolean, text => '{ Values.paramBoolean($text) }),
+      symbol[java.lang.Boolean] -> ParameterType(boolean, text => '{ Boolean.box(Values.paramBoolean($text)) }),
+      symbol[Char] -> ParameterType(char, text => '{ Values.char($text) }),
+      symbol[java.lang.Character] -> ParameterType(char, text => '{ Char.box(Values.char($text)) }),
+      symbol[Byte] -> ParameterType(parses(_.toByte), text => '{ Values.byte($text) }),
+      symbol[java.lang.Byte] -> ParameterType(parses(_.toByte), text => '{ Byte.box(Values.byte($text)) }),
+      symbol[Short] -> ParameterType(parses(_.toShort), text => '{ Values.short($text) }),
+      symbol[java.lang.Short] -> ParameterType(parses(_.toShort), text => '{ Short.box(Values.short($text)) }),
+      symbol[Int] -> ParameterType(parses(_.toInt), text => '{ Values.int($text) }),
+      symbol[java.lang.Integer] -> ParameterType(parses(_.toInt), text => '{ Int.box(Values.int($text)) }),
+      symbol[Long] -> ParameterType(parses(_.toLong), text => '{ Values.long($text) }),
+      symbol[java.lang.Long] -> ParameterType(parses(_.toLong), text => '{ Long.box(Values.long($text)) }),
+      symbol[Float] -> ParameterType(parses(_.toFloat), text => '{ Values.float($text) }),
+      symbol[java.lang.Float] -> ParameterType(parses(_.toFloat), text => '{ Float.box(Values.float($text)) }),
+      symbol[Double] -> ParameterType(parses(_.toDouble), text => '{ Values.double($text) }),
+      symbol[java.lang.Double] -> ParameterType(parses(_.toDouble), text => '{ Double.box(Values.double($text)) }),
+      symbol[String] -> ParameterType(_ => true, identity)
+    )
+
+  /** Auxiliary counter types, with the value Java-defined counter fields are reset to. */
+  private val counterZeros: Map[Symbol, Expr[Any]] = Map(
+    symbol[Byte] -> '{ 0.toByte },
+    symbol[java.lang.Byte] -> '{ Byte.box(0.toByte) },
+    symbol[Short] -> '{ 0.toShort },
+    symbol[java.lang.Short] -> '{ Short.box(0.toShort) },
+    symbol[Int] -> '{ 0 },
+    symbol[java.lang.Integer] -> '{ Int.box(0) },
+    symbol[Long] -> '{ 0L },
+    symbol[java.lang.Long] -> '{ Long.box(0L) },
+    symbol[Float] -> '{ 0.0f },
+    symbol[java.lang.Float] -> '{ Float.box(0.0f) },
+    symbol[Double] -> '{ 0.0 },
+    symbol[java.lang.Double] -> '{ Double.box(0.0) }
   )
 
   // ---------------------------------------------------------------------------------------------------------------
@@ -89,14 +104,12 @@ private final class HarnessMacro[Q <: Quotes](q: Q) extends BenchmarkSymbols[Q](
       case other              => other
     loop(signature(member))
 
-  private def className(tpe: TypeRepr): String = tpe.classSymbol.fold("")(_.fullName)
-
   private def returnsUnit(member: Symbol): Boolean = resultType(member) =:= TypeRepr.of[Unit]
 
-  private def scope(cls: Symbol): String = value(inherited(cls, "State"), "value", "Thread")
+  private def scope(cls: Symbol): String = value(inherited[State](cls), "value", "Thread")
 
   private def parameterFields(cls: Symbol): List[Symbol] =
-    cls.typeRef.baseClasses.reverse.flatMap(_.declaredFields.filter(annotation(_, "Param").nonEmpty)).distinct
+    cls.typeRef.baseClasses.reverse.flatMap(_.declaredFields.filter(annotation[Param](_).nonEmpty)).distinct
 
   /** Annotated declarations hidden by overrides are retained: JMH emits each declaration's helper call, with normal
     * virtual dispatch at the call site. JMH 1.37 orders helpers by qualified method name (RFMethodInfo.compareTo).
@@ -104,14 +117,17 @@ private final class HarnessMacro[Q <: Quotes](q: Q) extends BenchmarkSymbols[Q](
   private def fixtures(cls: Symbol, setup: Boolean): List[Symbol] =
     cls.typeRef.baseClasses
       .flatMap(_.declaredMethods)
-      .filter(annotation(_, if setup then "Setup" else "TearDown").nonEmpty)
+      .filter(fixtureAnnotation(_, setup).nonEmpty)
       .distinct
       .sortBy(method => (method.owner.fullName, method.name))
+
+  private def fixtureAnnotation(method: Symbol, setup: Boolean): Option[Term] =
+    if setup then annotation[Setup](method) else annotation[TearDown](method)
 
   private def allFixtures(cls: Symbol): List[Symbol] = (fixtures(cls, true) ::: fixtures(cls, false)).distinct
 
   private def level(method: Symbol, setup: Boolean): Int =
-    value(annotation(method, if setup then "Setup" else "TearDown"), "value", "Trial") match
+    value(fixtureAnnotation(method, setup), "value", "Trial") match
       case "Trial"      => 0
       case "Iteration"  => 1
       case "Invocation" => 2
@@ -120,8 +136,8 @@ private final class HarnessMacro[Q <: Quotes](q: Q) extends BenchmarkSymbols[Q](
   private def stateArguments(method: Symbol): List[Symbol] =
     parameterTypes(method).flatMap { tpe =>
       tpe.classSymbol match
-        case Some(cls) if infrastructure(cls.fullName)       => Nil
-        case Some(cls) if inherited(cls, "State").nonEmpty   => List(cls)
+        case Some(cls) if infrastructure.contains(cls)   => Nil
+        case Some(cls) if inherited[State](cls).nonEmpty => List(cls)
         case _ => fail("Arguments must be @State classes or JMH infrastructure (Blackhole, *Params, Control)", method)
     }
 
@@ -160,9 +176,9 @@ private final class HarnessMacro[Q <: Quotes](q: Q) extends BenchmarkSymbols[Q](
     eligible.foreach { method =>
       if isRestricted(method) || method.flags.is(Flags.Deferred) then
         fail("Benchmark methods must be public and concrete", method)
-      if annotation(method, "Group").nonEmpty && annotation(method, "Threads").nonEmpty then
+      if annotation[Group](method).nonEmpty && annotation[Threads](method).nonEmpty then
         fail("@Threads is ambiguous on a grouped method; use @GroupThreads", method)
-      if annotation(method, "GroupThreads").nonEmpty && annotation(method, "Group").isEmpty then
+      if annotation[GroupThreads](method).nonEmpty && annotation[Group](method).isEmpty then
         fail("@GroupThreads requires @Group", method)
       stateArguments(method).foreach(visit)
     }
@@ -190,7 +206,7 @@ private final class HarnessMacro[Q <: Quotes](q: Q) extends BenchmarkSymbols[Q](
           !(owner.is(Flags.Package) || owner.is(Flags.Module))
         then fail("Benchmark states must be concrete classes at package or object scope", cls)
         if defaultConstructor(cls).isEmpty then fail("Benchmark states require a public no-argument constructor", cls)
-        if inherited(cls, "AuxCounters").nonEmpty then auxiliaryMembers(cls) = auxiliaryCounters(cls)
+        if inherited[AuxCounters](cls).nonEmpty then auxiliaryMembers(cls) = auxiliaryCounters(cls)
         active += cls
         val helpers = allFixtures(cls)
         helpers.foreach { method =>
@@ -209,7 +225,8 @@ private final class HarnessMacro[Q <: Quotes](q: Q) extends BenchmarkSymbols[Q](
         !member.isClassConstructor && !isRestricted(member) && (!member.isDefDef || !returnsUnit(member))
       }
       members.foreach { member =>
-        if !numeric(className(resultType(member))) then fail("Public auxiliary counters must have numeric types", member)
+        if !resultType(member).classSymbol.exists(counterZeros.contains) then
+          fail("Public auxiliary counters must have numeric types", member)
         if member.isDefDef && parameterTypes(member).nonEmpty then
           fail("Auxiliary counter methods must have no arguments", member)
       }
@@ -235,7 +252,7 @@ private final class HarnessMacro[Q <: Quotes](q: Q) extends BenchmarkSymbols[Q](
         fail("Conflicting auxiliary counter names injected into benchmark", method)
       members
 
-    def counterKind(id: Int): String = value(inherited(instances(id).cls, "AuxCounters"), "value", "OPERATIONS")
+    def counterKind(id: Int): String = value(inherited[AuxCounters](instances(id).cls), "value", "OPERATIONS")
   end Model
 
   private def defaultConstructor(cls: Symbol): Option[Symbol] =
@@ -256,8 +273,11 @@ private final class HarnessMacro[Q <: Quotes](q: Q) extends BenchmarkSymbols[Q](
     case c                        => c.toString
   }
 
-  private def isBlank(annotation: String, text: String): Boolean =
-    text == blank || (Set("Warmup", "Measurement", "Fork")(annotation) && text == "-1")
+  /** Annotations whose numeric members use -1 for "not declared". */
+  private val blankNumbers = Set(symbol[Warmup], symbol[Measurement], symbol[Fork])
+
+  private def isBlank(annotation: Symbol, text: String): Boolean =
+    text == blank || (blankNumbers(annotation) && text == "-1")
 
   private def metadata(model: Model, benchmark: Symbol): String =
     import model.*
@@ -265,11 +285,12 @@ private final class HarnessMacro[Q <: Quotes](q: Q) extends BenchmarkSymbols[Q](
     def put(key: String, text: String): Unit = properties(key) = text
     val group = groupName(benchmark)
     val members = groups(group)
-    val cache = mutable.Map.empty[String, List[Term]]
+    val cache = mutable.Map.empty[Symbol, List[Term]]
 
     /** Members of one group must agree on every configuration annotation they declare, as in JMH. */
-    def groupAnnotations(name: String): List[Term] = cache.getOrElseUpdate(
-      name, {
+    def groupAnnotations[A: Type]: List[Term] = cache.getOrElseUpdate(
+      symbol[A], {
+        val name = symbol[A]
         def declared(annotation: Term): Map[String, List[String]] =
           arguments(annotation).flatMap { (key, term) =>
             val values = constant(term).toList match
@@ -280,31 +301,32 @@ private final class HarnessMacro[Q <: Quotes](q: Q) extends BenchmarkSymbols[Q](
             Option.unless(unset)(key -> values)
           }
         val inheritedAnnotations =
-          benchmarkClass.typeRef.baseClasses.filterNot(_.flags.is(Flags.Trait)).flatMap(annotation(_, name))
+          benchmarkClass.typeRef.baseClasses.filterNot(_.flags.is(Flags.Trait)).flatMap(annotation[A](_))
         var result = List.empty[Term]
         members.foreach { method =>
-          val annotations = annotation(method, name).toList ::: inheritedAnnotations
+          val annotations = annotation[A](method).toList ::: inheritedAnnotations
           if result.nonEmpty && annotations.nonEmpty && result.map(declared) != annotations.map(declared) then
-            fail(s"Colliding $name annotations in group $group", method)
+            fail(s"Colliding ${name.name} annotations in group $group", method)
           result = annotations
         }
         result
       }
     )
-    def groupValue(name: String, argument: String, default: String): String =
-      groupAnnotations(name).iterator
+    def groupValue[A: Type](argument: String, default: String): String =
+      groupAnnotations[A].iterator
         .map(annotation => value(Some(annotation), argument, default))
-        .find(!isBlank(name, _))
+        .find(!isBlank(symbol[A], _))
         .getOrElse(default)
-    def number(annotation: String, argument: String, key: String, allowZero: Boolean = false): Unit =
-      val declared = groupValue(annotation, argument, "-1").toInt
+    def number[A: Type](argument: String, key: String, allowZero: Boolean = false): Unit =
+      val declared = groupValue[A](argument, "-1").toInt
       if declared != -1 then
-        if declared < (if allowZero then 0 else 1) then fail(s"Invalid $annotation.$argument: $declared", benchmark)
+        if declared < (if allowZero then 0 else 1) then
+          fail(s"Invalid ${symbol[A].name}.$argument: $declared", benchmark)
         put(key, declared.toString)
-    def duration(name: String, prefix: String): Unit =
-      groupAnnotations(name).find(annotation => value(Some(annotation), "time", "-1") != "-1").foreach { annotation =>
+    def duration[A: Type](prefix: String): Unit =
+      groupAnnotations[A].find(annotation => value(Some(annotation), "time", "-1") != "-1").foreach { annotation =>
         val time = value(Some(annotation), "time", "-1").toLong
-        if time < 0 then fail(s"$name.time must be nonnegative", benchmark)
+        if time < 0 then fail(s"${symbol[A].name}.time must be nonnegative", benchmark)
         val unit = TimeUnit.valueOf(value(Some(annotation), "timeUnit", "SECONDS"))
         put(prefix + "Nanos", unit.toNanos(time).toString)
         put(prefix + "TimeValue", time.toString)
@@ -320,8 +342,8 @@ private final class HarnessMacro[Q <: Quotes](q: Q) extends BenchmarkSymbols[Q](
 
     val declaredModes = members
       .flatMap { member =>
-        annotation(member, "BenchmarkMode")
-          .orElse(inherited(benchmarkClass, "BenchmarkMode"))
+        annotation[BenchmarkMode](member)
+          .orElse(inherited[BenchmarkMode](benchmarkClass))
           .flatMap(arguments(_).get("value"))
           .toList
           .flatMap(modes)
@@ -333,20 +355,20 @@ private final class HarnessMacro[Q <: Quotes](q: Q) extends BenchmarkSymbols[Q](
       (if selectedModes.contains("All") then List("Throughput", "AverageTime", "SampleTime", "SingleShotTime")
        else selectedModes).mkString(",")
     )
-    number("Warmup", "iterations", "warmupIterations", allowZero = true)
-    number("Measurement", "iterations", "measurementIterations")
-    number("Warmup", "batchSize", "warmupBatchSize")
-    number("Measurement", "batchSize", "measurementBatchSize")
-    duration("Warmup", "warmup")
-    duration("Measurement", "measurement")
-    duration("Timeout", "timeout")
-    number("Fork", "value", "forks", allowZero = true)
-    number("Fork", "warmups", "warmupForks", allowZero = true)
-    put("threads", groupValue("Threads", "value", "1"))
-    number("OperationsPerInvocation", "value", "operationsPerInvocation")
-    put("unit", groupValue("OutputTimeUnit", "value", "SECONDS"))
+    number[Warmup]("iterations", "warmupIterations", allowZero = true)
+    number[Measurement]("iterations", "measurementIterations")
+    number[Warmup]("batchSize", "warmupBatchSize")
+    number[Measurement]("batchSize", "measurementBatchSize")
+    duration[Warmup]("warmup")
+    duration[Measurement]("measurement")
+    duration[Timeout]("timeout")
+    number[Fork]("value", "forks", allowZero = true)
+    number[Fork]("warmups", "warmupForks", allowZero = true)
+    put("threads", groupValue[Threads]("value", "1"))
+    number[OperationsPerInvocation]("value", "operationsPerInvocation")
+    put("unit", groupValue[OutputTimeUnit]("value", "SECONDS"))
 
-    val grouped = members.exists(annotation(_, "Group").nonEmpty)
+    val grouped = members.exists(annotation[Group](_).nonEmpty)
     val generated = eligible.contains(benchmark)
     val used = if generated then members.flatMap(reachable).distinct else Nil
     if generated && !grouped && used.exists(id => scope(instances(id).cls) == "Group") then
@@ -354,7 +376,7 @@ private final class HarnessMacro[Q <: Quotes](q: Q) extends BenchmarkSymbols[Q](
     if grouped then
       put("members", members.size.toString)
       members.zipWithIndex.foreach { (member, index) =>
-        val threads = value(annotation(member, "GroupThreads"), "value", "1").toInt
+        val threads = value(annotation[GroupThreads](member), "value", "1").toInt
         if threads < 0 then fail("GroupThreads must be nonnegative", member)
         put(s"member.$index.name", member.name)
         put(s"member.$index.threads", threads.toString)
@@ -369,10 +391,10 @@ private final class HarnessMacro[Q <: Quotes](q: Q) extends BenchmarkSymbols[Q](
       val parameters = parameterFields(cls)
       put(prefix + "params", parameters.map(_.name).distinct.mkString(","))
       parameters.foreach { field =>
-        if inherited(cls, "State").isEmpty then fail("@Param requires @State", field)
+        if inherited[State](cls).isEmpty then fail("@Param requires @State", field)
         val values = parameterValues(field)
         values.foreach { text =>
-          if !validParameter(field, text) then fail(s"Invalid @Param value '$text' for ${field.name}", field)
+          if !parameterType(field).forall(_.valid(text)) then fail(s"Invalid @Param value '$text' for ${field.name}", field)
         }
         put(prefix + s"param.${field.name}.count", values.size.toString)
         values.zipWithIndex.foreach((text, index) => put(prefix + s"param.${field.name}.$index", text))
@@ -392,7 +414,7 @@ private final class HarnessMacro[Q <: Quotes](q: Q) extends BenchmarkSymbols[Q](
       put(s"counter.$index.member", member.toString)
     }
 
-    val ignored = groupAnnotations("Fork").headOption.toList.flatMap(arguments).filter(_._1.startsWith("jvm")).flatMap {
+    val ignored = groupAnnotations[Fork].headOption.toList.flatMap(arguments).filter(_._1.startsWith("jvm")).flatMap {
       (key, term) =>
         val literals = strings(term)
         val values = (if literals.nonEmpty then literals else constant(term).toList).filterNot(_ == blank)
@@ -409,7 +431,7 @@ private final class HarnessMacro[Q <: Quotes](q: Q) extends BenchmarkSymbols[Q](
   private def fieldType(field: Symbol): TypeRepr = signature(field).widen
 
   private def parameterValues(field: Symbol): List[String] =
-    val declared = arguments(annotation(field, "Param").get).get("value").map(strings).getOrElse(Nil)
+    val declared = arguments(annotation[Param](field).get).get("value").map(strings).getOrElse(Nil)
     if declared.nonEmpty && declared != List(blank) then declared
     else
       val enumClass = fieldType(field).classSymbol.filter(_.flags.is(Flags.Enum)).getOrElse {
@@ -419,19 +441,8 @@ private final class HarnessMacro[Q <: Quotes](q: Q) extends BenchmarkSymbols[Q](
         .filter(member => member.flags.is(Flags.Enum) && member.flags.is(Flags.StableRealizable))
         .map(_.name)
 
-  private def validParameter(field: Symbol, text: String): Boolean =
-    try
-      className(fieldType(field)) match
-        case "scala.Boolean" | "java.lang.Boolean" => text == "true" || text == "false"
-        case "scala.Char" | "java.lang.Character"  => text.length == 1
-        case "scala.Byte" | "java.lang.Byte"       => java.lang.Byte.parseByte(text); true
-        case "scala.Short" | "java.lang.Short"     => java.lang.Short.parseShort(text); true
-        case "scala.Int" | "java.lang.Integer"     => java.lang.Integer.parseInt(text); true
-        case "scala.Long" | "java.lang.Long"       => java.lang.Long.parseLong(text); true
-        case "scala.Float" | "java.lang.Float"     => java.lang.Float.parseFloat(text); true
-        case "scala.Double" | "java.lang.Double"   => java.lang.Double.parseDouble(text); true
-        case _                                     => true
-    catch case _: NumberFormatException => false
+  private def parameterType(field: Symbol): Option[ParameterType] =
+    fieldType(field).classSymbol.flatMap(parameterTypes.get)
 
   // ---------------------------------------------------------------------------------------------------------------
   // Code generation
@@ -446,9 +457,6 @@ private final class HarnessMacro[Q <: Quotes](q: Q) extends BenchmarkSymbols[Q](
     cls.typeRef.asType match
       case '[t] => '{ $target.asInstanceOf[t] }.asTerm
 
-  private def values(method: String, argument: Term): Term =
-    Select.unique(Ref(Symbol.requiredModule("scala.scalanative.jmh.Values")), method).appliedTo(argument)
-
   private final class Generator(model: Model):
     import model.*
 
@@ -456,13 +464,9 @@ private final class HarnessMacro[Q <: Quotes](q: Q) extends BenchmarkSymbols[Q](
       cast('{ $environment.state(${ Expr(id) }) }, instances(id).cls)
 
     private def injected(environment: Expr[Environment], tpe: TypeRepr, states: Iterator[Int]): Term =
-      className(tpe) match
-        case "org.openjdk.jmh.infra.Blackhole"       => '{ $environment.blackhole }.asTerm
-        case "org.openjdk.jmh.infra.ThreadParams"    => '{ $environment.threadParams }.asTerm
-        case "org.openjdk.jmh.infra.BenchmarkParams" => '{ $environment.benchmarkParams }.asTerm
-        case "org.openjdk.jmh.infra.IterationParams" => '{ $environment.iterationParams }.asTerm
-        case "org.openjdk.jmh.infra.Control"         => '{ $environment.notifyControl }.asTerm
-        case _                                       => state(environment, states.next())
+      tpe.classSymbol.flatMap(infrastructure.get) match
+        case Some(inject) => inject(environment).asTerm
+        case None         => state(environment, states.next())
 
     /** Applies every parameter list; type parameters are instantiated to their upper bounds, as after erasure. */
     def invoke(target: Term, method: Symbol, environment: Expr[Environment], states: List[Int] = Nil): Term =
@@ -495,11 +499,11 @@ private final class HarnessMacro[Q <: Quotes](q: Q) extends BenchmarkSymbols[Q](
           if !field.flags.is(Flags.Mutable) then fail("@Param requires a mutable var", field)
           if isRestricted(field) then fail("@Param fields must be non-private vars on Native and Scala.js", field)
           val tpe = fieldType(field)
-          val parsed = parameterParsers.get(className(tpe)) match
-            case Some(parser) => values(parser, text.asTerm)
+          val parsed = parameterType(field) match
+            case Some(parameter) => parameter.parse(text).asTerm
             case None if tpe.classSymbol.exists(_.flags.is(Flags.Enum)) =>
               Select.unique(Ref(tpe.classSymbol.get.companionModule), "valueOf").appliedTo(text.asTerm)
-            case None => fail(s"Unsupported @Param type ${className(tpe)}", field)
+            case None => fail(s"Unsupported @Param type ${tpe.show}", field)
           val assignment = Assign(cast(target, field.owner).select(field), parsed).asExprOf[Unit]
           '{ if $parameter == ${ Expr(field.name) } then $assignment }.asTerm
         })
@@ -548,14 +552,8 @@ private final class HarnessMacro[Q <: Quotes](q: Q) extends BenchmarkSymbols[Q](
           subgroup -> sequence(counters(member).flatMap { (id, counter) =>
             if counter.isDefDef || !instances(id).cls.flags.is(Flags.JavaDefined) then Nil
             else
-              val tpe = fieldType(counter)
-              val name = className(tpe)
-              val zero =
-                if name.startsWith("java.lang.") then
-                  tpe.asType match
-                    case '[t] => '{ Values.zero(${ Expr(name) }).asInstanceOf[t] }.asTerm
-                else values(name.stripPrefix("scala.").toLowerCase, Literal(StringConstant("0")))
-              List(Assign(state(environment, id).select(counter), zero))
+              val zero = counterZeros(fieldType(counter).classSymbol.get)
+              List(Assign(state(environment, id).select(counter), zero.asTerm))
           })
         }
         index -> choose(subgroup(environment), alternatives, '{ () })
@@ -563,8 +561,8 @@ private final class HarnessMacro[Q <: Quotes](q: Q) extends BenchmarkSymbols[Q](
       choose(benchmark, cases, '{ () })
 
     private def compilerControl(benchmark: Symbol): Option[String] =
-      annotation(benchmark, "CompilerControl")
-        .orElse(annotation(benchmark.owner, "CompilerControl"))
+      annotation[CompilerControl](benchmark)
+        .orElse(annotation[CompilerControl](benchmark.owner))
         .map(control => value(Some(control), "value", ""))
 
     /** The benchmark call, with its result consumed by the injected Blackhole. */

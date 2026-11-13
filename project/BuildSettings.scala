@@ -84,7 +84,7 @@ object BuildSettings {
     )
   }
 
-  val exampleSettings = Seq(
+  val exampleSettings = compilerSettings ++ Seq(
     scalaVersion := libraryScalaVersion,
     publish / skip := true,
     Compile / unmanagedSourceDirectories += (LocalRootProject / baseDirectory).value / "examples/shared/src/main/scala"

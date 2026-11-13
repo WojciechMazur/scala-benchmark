@@ -1,9 +1,6 @@
 package scala.scalanative.jmh
 
-/** Only used by deterministic harness tests. JVM benchmarks use upstream JMH.
-  */
-trait PlatformSuite
-
+/** Only used by deterministic harness tests. JVM benchmarks use upstream JMH. */
 class ControlFields {
   val notifyControl = new org.openjdk.jmh.infra.Control
   @volatile var done: Boolean = false
@@ -18,12 +15,14 @@ object Platform extends ProcessPlatform {
   def haltWorker(): Unit = Runtime.getRuntime.halt(1)
   def identity: scala.benchmark.Platform = scala.benchmark.Platform.JVM
 
-  def loadSuite(name: String): Suite =
+  /** Tests may also name a hand-written suite object. */
+  def loadSuite(name: String): Suite = Registry.suite(name).getOrElse {
     Class
       .forName(name, true, Thread.currentThread().getContextClassLoader)
       .getField("MODULE$")
       .get(null)
       .asInstanceOf[Suite]
+  }
   def executable: String = throw new UnsupportedOperationException(
     "Use upstream JMH on JVM"
   )

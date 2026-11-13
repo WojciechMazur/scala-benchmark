@@ -2,9 +2,6 @@ package scala.scalanative.jmh
 
 import scala.scalanative.unsafe._
 
-@scala.scalanative.reflect.annotation.EnableReflectiveInstantiation
-trait PlatformSuite
-
 class ControlFields {
   val notifyControl = new org.openjdk.jmh.infra.Control
   @scala.scalanative.annotation.align(128)
@@ -43,11 +40,7 @@ object Platform extends ProcessPlatform {
   override def releaseFork(process: Process, token: Long): Unit = Native.releaseFork(process.pid(), token)
   def identity: scala.benchmark.Platform = scala.benchmark.Platform.Native
 
-  def loadSuite(name: String): Suite = scala.scalanative.reflect.Reflect
-    .lookupLoadableModuleClass(name)
-    .getOrElse(throw new ClassNotFoundException(name))
-    .loadModule()
-    .asInstanceOf[Suite]
+  def loadSuite(name: String): Suite = Registry.suite(name).getOrElse(throw new ClassNotFoundException(name))
 
   def executable: String = Zone {
     @annotation.tailrec

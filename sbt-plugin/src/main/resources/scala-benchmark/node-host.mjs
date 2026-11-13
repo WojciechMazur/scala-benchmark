@@ -11,11 +11,11 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 const launcher = fileURLToPath(import.meta.url);
 const argv = process.argv.slice(2);
 if (argv[0] === '--supervise') {
-  const [module, manifest, request, result, progress, timeoutNanos, ownerPid] = argv.slice(1);
+  const [module, request, result, progress, timeoutNanos, ownerPid] = argv.slice(1);
   const deadline = new ProgressDeadline(timeoutNanos);
   const owner = ownerPid === undefined ? process.ppid : Number(ownerPid);
   let timedOut = false;
-  const child = spawn(process.execPath, [...process.execArgv, launcher, module, manifest,
+  const child = spawn(process.execPath, [...process.execArgv, launcher, module,
     '--benchmark-worker-v3', request], {
     detached: process.platform !== 'win32',
     stdio: ['inherit', 'inherit', 'inherit', 'pipe'],
@@ -64,7 +64,7 @@ if (argv[0] === '--supervise') {
     process.exitCode = timedOut ? 1 : (code ?? 1);
   });
 } else {
-  const [module, manifest, ...args] = argv;
+  const [module, ...args] = argv;
   if (args[0] === '--benchmark-worker-v3' && process.env.SCALA_BENCHMARK_LIFELINE) {
     const guard = new Worker(new URL('./worker-lifeline.mjs', import.meta.url), {
       workerData: { fd: Number(process.env.SCALA_BENCHMARK_LIFELINE), group: process.env.SCALA_BENCHMARK_GROUP === '1', directory: process.env.SCALA_BENCHMARK_DIRECTORY }
@@ -77,9 +77,8 @@ if (argv[0] === '--supervise') {
     });
     guard.unref();
   }
-  const { inventory, metadata } = JSON.parse(fs.readFileSync(manifest, 'utf8'));
-  Object.assign(metadata, { os: os.platform(), arch: process.arch, engine: 'V8', engineVersion: process.versions.v8, osRelease: os.release(),
-    cpu: os.cpus()[0]?.model ?? 'unknown', nodeOptions: JSON.stringify(process.execArgv) });
+  const metadata = { os: os.platform(), arch: process.arch, engine: 'V8', engineVersion: process.versions.v8, osRelease: os.release(),
+    cpu: os.cpus()[0]?.model ?? 'unknown', nodeOptions: JSON.stringify(process.execArgv) };
   let consumed;
   let forkEvents = [];
   let userOutput = [];
@@ -103,7 +102,7 @@ if (argv[0] === '--supervise') {
   globalThis.__scalaBenchmarkHost = {
     arguments: args[0] === '--benchmark-worker-v3'
       ? [args[0], fs.readFileSync(args[1], 'utf8')] : args,
-    inventory, metadata,
+    metadata,
     runtimeVersion: process.version,
     gcAvailable: typeof globalThis.gc === 'function',
     requestGC() {
@@ -204,7 +203,7 @@ if (argv[0] === '--supervise') {
           descriptor = fs.openSync(output, 'w');
           errorDescriptor = fs.openSync(errors, 'w');
           outcome = spawnSync(process.execPath, [...process.execArgv, launcher, '--supervise',
-            module, manifest, requestFile, result, progress, String(timeoutNanos), String(process.pid)], { stdio: ['inherit', descriptor, errorDescriptor] });
+            module, requestFile, result, progress, String(timeoutNanos), String(process.pid)], { stdio: ['inherit', descriptor, errorDescriptor] });
         } finally {
           if (descriptor !== undefined) fs.closeSync(descriptor);
           if (errorDescriptor !== undefined) fs.closeSync(errorDescriptor);

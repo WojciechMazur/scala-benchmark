@@ -4,6 +4,12 @@ import scala.scalajs.js
 import org.openjdk.jmh.annotations.Mode
 
 object Main {
+  /** Entry point of a benchmark project, called by its generated main class. */
+  def run(args: Array[String], suites: Seq[(String, Suite)], buildInfo: Seq[(String, String)]): Unit = {
+    Registry.install(suites, buildInfo)
+    main(args)
+  }
+
   def main(args: Array[String]): Unit = {
     try {
       val arguments = Host.arguments.toArray

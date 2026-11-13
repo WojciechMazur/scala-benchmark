@@ -19,23 +19,8 @@ trait ProcessPlatform {
   def validate(config: Configuration): Unit = ()
   def metadataSection: String = "native"
   def runtimeVersion: String = "native"
-  def inventory: Vector[String] = {
-    Option(getClass.getResourceAsStream("/native-jmh/benchmarks.list"))
-      .map { stream =>
-        val source = scala.io.Source.fromInputStream(stream, "UTF-8")
-        try source.getLines().filter(_.nonEmpty).toVector
-        finally source.close()
-      }
-      .getOrElse(Vector.empty)
-  }
-  def buildMetadata: Vector[(String, String)] = {
-    val properties = new java.util.Properties
-    val stream = getClass.getResourceAsStream("/native-jmh/build.properties")
-    if (stream != null) try properties.load(stream)
-    finally stream.close()
-    import scala.jdk.CollectionConverters.*
-    properties.stringPropertyNames().asScala.toVector.sorted.map(k => k -> properties.getProperty(k))
-  }
+  def inventory: Vector[String] = Registry.names
+  def buildMetadata: Vector[(String, String)] = Registry.buildInfo
   def validateOutput(path: String): Unit = {
     val file = Paths.get(path)
     require(

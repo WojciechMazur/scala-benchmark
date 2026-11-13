@@ -2,9 +2,17 @@ package scala.benchmark.internal
 
 import scala.benchmark.Platform
 
-/** Generated inventories contain only constants and never construct benchmark states. */
-trait BenchmarkInventory {
-  def metadata(): Array[String]
+/** Implemented by the generated inventory of a JVM benchmark project. Entries are constants: no benchmark class is
+  * initialized to produce them.
+  */
+trait InventoryProvider {
+  def entries: Array[InventoryEntry]
+}
+
+object InventoryProvider {
+
+  /** Name of the object the sbt plugin generates into benchmark projects. */
+  final val GeneratedName = "scala.benchmark.generated.BenchmarkInventory"
 }
 
 final case class Eligibility(

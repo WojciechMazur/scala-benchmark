@@ -4,9 +4,6 @@ import scala.scalajs.js
 import scala.scalajs.js.annotation.JSGlobal
 import org.openjdk.jmh.annotations.Mode
 
-@scala.scalajs.reflect.annotation.EnableReflectiveInstantiation
-trait PlatformSuite
-
 /** One JS event loop owns the benchmark; duration checks must run on that loop. */
 class ControlFields {
   val notifyControl = new org.openjdk.jmh.infra.Control
@@ -40,7 +37,6 @@ final class Counter {
 @js.native @JSGlobal("__scalaBenchmarkHost")
 private[jmh] object Host extends js.Object {
   val arguments: js.Array[String] = js.native
-  val inventory: js.Array[String] = js.native
   val metadata: js.Dictionary[String] = js.native
   val runtimeVersion: String = js.native
   val gcAvailable: Boolean = js.native
@@ -66,18 +62,16 @@ object Platform {
   def restoreCallerInterrupt(): Unit = ()
   def isCallerInterrupted: Boolean = false
   def ensureMeasurementHealthy(): Unit = ()
+  private def isWasm: Boolean = Registry.buildInfo.contains("backend" -> "wasm")
   def identity: scala.benchmark.Platform =
-    if (Host.metadata.get("backend").contains("wasm")) scala.benchmark.Platform.Wasm else scala.benchmark.Platform.JS
+    if (isWasm) scala.benchmark.Platform.Wasm else scala.benchmark.Platform.JS
 
-  def loadSuite(name: String): Suite = scala.scalajs.reflect.Reflect
-    .lookupLoadableModuleClass(name)
-    .getOrElse(throw new ClassNotFoundException(name))
-    .loadModule()
-    .asInstanceOf[Suite]
-  def inventory: Vector[String] = Host.inventory.toVector
-  def buildMetadata: Vector[(String, String)] = Host.metadata.toVector.sortBy(_._1)
-  def description: String =
-    if (Host.metadata.get("backend").contains("wasm")) "Scala.js Wasm (Node.js)" else "Scala.js (Node.js)"
+  def loadSuite(name: String): Suite = Registry.suite(name).getOrElse(throw new ClassNotFoundException(name))
+  def inventory: Vector[String] = Registry.names
+
+  /** Build information from the benchmark project, completed with what only the host knows. */
+  def buildMetadata: Vector[(String, String)] = (Registry.buildInfo ++ Host.metadata.toVector).sortBy(_._1)
+  def description: String = if (isWasm) "Scala.js Wasm (Node.js)" else "Scala.js (Node.js)"
   def metadataSection: String = "javascript"
   def runtimeVersion: String = Host.runtimeVersion
   def processorCount: Int = 1

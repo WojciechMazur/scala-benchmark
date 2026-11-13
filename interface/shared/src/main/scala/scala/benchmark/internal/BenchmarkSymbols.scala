@@ -1,6 +1,9 @@
 package scala.benchmark.internal
 
+import scala.benchmark.{Platform, Platforms}
 import scala.quoted.*
+
+import org.openjdk.jmh.annotations.{Benchmark, Group}
 
 /** Annotation queries shared by the inventory macro and the Native/JS harness macro.
   *
@@ -12,10 +15,10 @@ class BenchmarkSymbols[Q <: Quotes](using val quotes: Q):
 
   final case class Restriction(allowed: List[String], reasons: List[String])
 
-  val allPlatforms: List[String] = List("JVM", "Native", "JS", "Wasm")
+  val allPlatforms: List[String] = Platform.values.toList.map(_.toString)
 
-  private val annotations = "org.openjdk.jmh.annotations."
-  private val platformsAnnotation = "scala.benchmark.Platforms"
+  private val platformCases = TypeRepr.of[Platform].typeSymbol.companionModule.moduleClass
+  private val arrayModule = defn.ArrayModule.moduleClass
 
   /** Enum constants are read by name: their trees differ between Java (JVM) and Scala (Native/JS) definitions. */
   private val enumNames = Set(
@@ -52,11 +55,14 @@ class BenchmarkSymbols[Q <: Quotes](using val quotes: Q):
   def fail(message: String, symbol: Symbol): Nothing =
     report.errorAndAbort(s"$message [${symbol.fullName}]", symbol.pos.getOrElse(Position.ofMacroExpansion))
 
-  def annotation(symbol: Symbol, name: String): Option[Term] =
-    symbol.annotations.find(_.tpe.typeSymbol.fullName == annotations + name)
+  def annotations[A: Type](symbol: Symbol): List[Term] =
+    val cls = TypeRepr.of[A].typeSymbol
+    symbol.annotations.filter(_.tpe.typeSymbol == cls)
 
-  def inherited(cls: Symbol, name: String): Option[Term] =
-    cls.typeRef.baseClasses.iterator.flatMap(annotation(_, name)).nextOption()
+  def annotation[A: Type](symbol: Symbol): Option[Term] = annotations[A](symbol).headOption
+
+  def inherited[A: Type](cls: Symbol): Option[Term] =
+    cls.typeRef.baseClasses.iterator.flatMap(annotation[A](_)).nextOption()
 
   def overridden(method: Symbol): List[Symbol] = method :: method.allOverriddenSymbols.toList
 
@@ -120,7 +126,7 @@ class BenchmarkSymbols[Q <: Quotes](using val quotes: Q):
   def value(annotation: Option[Term], name: String, default: String): String =
     annotation.flatMap(arguments(_).get(name)).flatMap(constant).getOrElse(default)
 
-  def groupName(method: Symbol): String = value(annotation(method, "Group"), "value", method.name)
+  def groupName(method: Symbol): String = value(annotation[Group](method), "value", method.name)
 
   /** Concrete benchmark methods of a class, including inherited ones, ordered by name. */
   def benchmarks(cls: Symbol): List[Symbol] =
@@ -128,27 +134,26 @@ class BenchmarkSymbols[Q <: Quotes](using val quotes: Q):
     if flags.is(Flags.Module) || flags.is(Flags.Abstract) || flags.is(Flags.Trait) then Nil
     else
       cls.methodMembers
-        .filter(method => !method.isClassConstructor && overridden(method).exists(annotation(_, "Benchmark").nonEmpty))
+        .filter(method => !method.isClassConstructor && overridden(method).exists(annotation[Benchmark](_).nonEmpty))
         .distinct
         .sortBy(_.name)
 
   private def declaredRestrictions(symbol: Symbol): List[Restriction] =
-    symbol.annotations.filter(_.tpe.typeSymbol.fullName == platformsAnnotation).map { annotation =>
+    annotations[Platforms](symbol).map { annotation =>
       val args = arguments(annotation)
       def platform(term: Term): Option[String] = term match
         case Typed(value, _)      => platform(value)
         case Inlined(_, _, value) => platform(value)
         case _ =>
           val symbol = term.symbol
-          Option.when(
-            !symbol.isNoSymbol && allPlatforms.contains(symbol.name) &&
-              symbol.fullName.replace("$", "").startsWith("scala.benchmark.Platform.")
-          )(symbol.name)
+          Option.when(!symbol.isNoSymbol && symbol.owner == platformCases && allPlatforms.contains(symbol.name))(
+            symbol.name
+          )
       def elements(term: Term): Option[List[Term]] = term match
         case Repeated(values, _)  => Some(values)
         case Typed(value, _)      => elements(value)
         case Inlined(_, _, value) => elements(value)
-        case Apply(function, values) if function.symbol.fullName.replace("$", "") == "scala.Array.apply" =>
+        case Apply(function, values) if function.symbol.owner == arrayModule && function.symbol.name == "apply" =>
           values.iterator.flatMap(elements).nextOption().orElse(elements(function))
         case TypeApply(function, _) => elements(function)
         case _                      => None
@@ -189,7 +194,7 @@ class BenchmarkSymbols[Q <: Quotes](using val quotes: Q):
 
   def validatePlatformTargets(cls: Symbol): Unit =
     cls.declaredFields
-      .filter(_.annotations.exists(_.tpe.typeSymbol.fullName == platformsAnnotation))
+      .filter(annotation[Platforms](_).nonEmpty)
       .foreach(fail("@Platforms applies to benchmark classes and methods", _))
 
   private def describe(reasons: List[String]): String =
