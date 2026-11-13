@@ -24,32 +24,30 @@
  */
 package org.openjdk.jmh.util
 
-class SingletonStatistics(private val value: Double) extends AbstractStatistics {
+class SingletonStatistics(private val value: Double) extends AbstractStatistics:
   def getN(): Long = 1L
   def getSum(): Double = value
   def getMin(): Double = value
   def getMax(): Double = value
   def getVariance(): Double = Double.NaN
   def getPercentile(rank: Double): Double = value
-  override def getHistogram(levels: Array[Double]): Array[Int] = {
+
+  override def getHistogram(levels: Array[Double]): Array[Int] =
     val result = new Array[Int](levels.length - 1)
     var index = 0
     var found = false
-    while (index < result.length && !found) {
-      if (levels(index) <= value && value < levels(index + 1)) { result(index) = 1; found = true }
+    while index < result.length && !found do
+      if levels(index) <= value && value < levels(index + 1) then
+        result(index) = 1; found = true
       index += 1
-    }
     result
-  }
+
   def getRawData(): java.util.Iterator[java.util.Map.Entry[java.lang.Double, java.lang.Long]] =
-    new java.util.Iterator[java.util.Map.Entry[java.lang.Double, java.lang.Long]] {
+    new java.util.Iterator[java.util.Map.Entry[java.lang.Double, java.lang.Long]]:
       private var returned = false
       def hasNext(): Boolean = !returned
-      def next(): java.util.Map.Entry[java.lang.Double, java.lang.Long] = {
-        if (returned) throw new java.util.NoSuchElementException("No more elements.")
+      def next(): java.util.Map.Entry[java.lang.Double, java.lang.Long] =
+        if returned then throw new java.util.NoSuchElementException("No more elements.")
         returned = true
         new java.util.AbstractMap.SimpleImmutableEntry[java.lang.Double, java.lang.Long](value, 1L)
-      }
       override def remove(): Unit = throw new UnsupportedOperationException("Element cannot be removed.")
-    }
-}

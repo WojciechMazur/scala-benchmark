@@ -7,16 +7,14 @@ import scala.benchmark.*
 @Warmup(iterations = 0)
 @Measurement(iterations = 1)
 @Fork(1)
-class FacadeBenchmark {
+class FacadeBenchmark:
   @Param(Array("7")) var size: Int = 0
 
   @Benchmark @CompilerControl(CompilerControl.Mode.DONT_INLINE) def execute(
       blackhole: Blackhole,
       thread: ThreadParams
-  ): Int = {
+  ): Int =
     assert(size == 7)
     assert(thread.getThreadCount() > 0)
     blackhole.consume(size)
     size
-  }
-}

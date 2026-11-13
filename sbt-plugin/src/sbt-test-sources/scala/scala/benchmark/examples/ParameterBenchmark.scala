@@ -1,24 +1,26 @@
 package scala.benchmark.examples
 
-import org.openjdk.jmh.annotations._
+import org.openjdk.jmh.annotations.*
 
 @State(Scope.Thread)
 @BenchmarkMode(Array(Mode.SingleShotTime))
 @Warmup(iterations = 0)
 @Measurement(iterations = 1)
 @Fork(1)
-class ParameterBenchmark {
+class ParameterBenchmark:
   @Param var mode: Mode = _
   @Param(Array("true")) var flag: Boolean = false
   @Param(Array("a")) var character: Char = 0
   @Param(Array("2")) var boxed: java.lang.Integer = _
   @Param(Array("")) var text: String = _
-  @Setup def check(): Unit = {
+
+  @Setup def check(): Unit =
     assert(
-      mode != null && flag && character == 'a' && boxed
-        .intValue() == 2 && text == ""
+      mode != null && flag && character == 'a' &&
+        boxed
+          .intValue() == 2 && text == ""
     )
-  }
+
   @Benchmark def booleanResult(): Boolean = flag
   @Benchmark def byteResult(): Byte = character.toByte
   @Benchmark def charResult(): Char = character
@@ -28,4 +30,3 @@ class ParameterBenchmark {
   @Benchmark def floatResult(): Float = boxed.floatValue()
   @Benchmark def doubleResult(): Double = boxed.doubleValue()
   @Benchmark def referenceResult(): String = text
-}

@@ -1,60 +1,61 @@
 package scala.benchmark.runtime
 
-import org.openjdk.jmh.runner.{NoBenchmarksException, RunnerException}
-import org.openjdk.jmh.runner.options.{Options as PublicOptions, OptionsBuilder, VerboseMode, WarmupMode}
-import org.openjdk.jmh.util.Optional
 import scala.benchmark.internal.{RunnerService, Selection}
 import scala.jdk.CollectionConverters.*
 
+import org.openjdk.jmh.runner.{NoBenchmarksException, RunnerException}
+import org.openjdk.jmh.runner.options.{Options as PublicOptions, OptionsBuilder, VerboseMode, WarmupMode}
+import org.openjdk.jmh.util.Optional
+
 /** Interface/runtime dependency boundary; user benchmark classes are never reflected. */
-object RunnerBridge extends RunnerService {
+object RunnerBridge extends RunnerService:
+
   def renderResults(
       results: java.util.Collection[org.openjdk.jmh.results.RunResult],
       format: org.openjdk.jmh.results.format.ResultFormatType
-  ): String = {
-    if (format == null) throw new NullPointerException("format")
-    if (results == null) throw new NullPointerException("results")
+  ): String =
+    if format == null then throw new NullPointerException("format")
+    if results == null then throw new NullPointerException("results")
     Reports.render(
       results.asScala.toVector.map(PublicReportResults.apply),
       scala.benchmark.internal.Ascii.lower(format.name())
     )
-  }
+
   def writeResultsFile(
       results: java.util.Collection[org.openjdk.jmh.results.RunResult],
       format: org.openjdk.jmh.results.format.ResultFormatType,
       file: String
-  ): Unit = {
-    def write(text: String): Unit = {
-      if (file == null) throw new NullPointerException("file")
+  ): Unit =
+    def write(text: String): Unit =
+      if file == null then throw new NullPointerException("file")
       try Platform.write(file, text)
-      catch { case scala.util.control.NonFatal(error) => throw new IllegalStateException(error) }
-    }
+      catch
+        case scala.util.control.NonFatal(error) => throw new IllegalStateException(error)
     // JMH opens/truncates the file lazily, before selecting and rendering the format.
     write("")
     write(renderResults(results, format))
-  }
 
   private def inventory: Vector[Descriptor] = Platform.inventory.distinct.sorted.flatMap { name =>
     Platform.loadSuite(name).metadata().toVector.zipWithIndex.map { case (text, index) =>
       Descriptor.parse(index, text)
     }
   }
-  private def translated(options: PublicOptions, listing: Boolean = false, parameters: Boolean = false): Options = {
+
+  private def translated(options: PublicOptions, listing: Boolean = false, parameters: Boolean = false): Options =
     val discovered = inventory
     val includes = options.getIncludes().asScala.toVector
     val excludes = options.getExcludes().asScala.toVector
     val selected = Selection(discovered, includes, excludes, Platform.identity, listing)(_.name, _.eligibility)
-    if (!listing && selected.selected.nonEmpty) {
+    if !listing && selected.selected.nonEmpty then
       require(
         !options.getJvm().hasValue() &&
           Vector(options.getJvmArgs(), options.getJvmArgsAppend(), options.getJvmArgsPrepend())
             .forall(v => !v.hasValue() || v.get().isEmpty()),
         "JVM arguments do not configure Native or Node.js; use platform build/host settings"
       )
-    }
     var overrides = Map.empty[String, String]
     def add[T](key: String, value: Optional[T])(render: T => String): Unit =
-      if (value.hasValue()) overrides += key -> render(value.get())
+      if value.hasValue() then overrides += key -> render(value.get())
     add("-wi", options.getWarmupIterations())(_.toString)
     add("-i", options.getMeasurementIterations())(_.toString)
     add("-wbs", options.getWarmupBatchSize())(_.toString)
@@ -78,19 +79,19 @@ object RunnerBridge extends RunnerService {
           overrides += (key + ".unit") -> value.getTimeUnit().name()
         case _ => ()
       }
-    val known = discovered.flatMap(_.states.flatMap(_.parameters.map(_.name))) ++ (options match {
-      case builder: OptionsBuilder => builder.parameterNames()
-      case _                       => Vector.empty
-    })
+    val known = discovered.flatMap(_.states.flatMap(_.parameters.map(_.name))) ++
+      (options match
+        case builder: OptionsBuilder => builder.parameterNames()
+        case _                       => Vector.empty)
     val parameterValues = known.distinct.flatMap { name =>
       val values = options.getParameter(name)
-      if (values.hasValue()) Some(name -> values.get().asScala.toVector) else None
+      if values.hasValue() then Some(name -> values.get().asScala.toVector) else None
     }.toMap
     val format = scala.benchmark.internal.Ascii
       .lower(options.getResultFormat().orElse(org.openjdk.jmh.results.format.ResultFormatType.CSV).name())
     val file =
-      if (options.getResult().hasValue()) Some(options.getResult().get())
-      else if (options.getResultFormat().hasValue()) Some("jmh-result." + format)
+      if options.getResult().hasValue() then Some(options.getResult().get())
+      else if options.getResultFormat().hasValue() then Some("jmh-result." + format)
       else None
     Options(
       includes = includes,
@@ -103,38 +104,40 @@ object RunnerBridge extends RunnerService {
       format = format,
       output = file,
       failOnError = options.shouldFailOnError().orElse(false),
-      consoleOutput = if (options.getOutput().hasValue()) Some(options.getOutput().get()) else None,
+      consoleOutput = if options.getOutput().hasValue() then Some(options.getOutput().get()) else None,
       verbosity = options.verbosity().orElse(VerboseMode.NORMAL).name(),
       warmupMode = options.getWarmupMode().orElse(WarmupMode.INDI).name(),
       warmupIncludes = options.getWarmupIncludes().asScala.toVector
     )
-  }
+
+  end translated
+
   private def checked[A](body: => A): A = try body
-  catch {
+  catch
     case error: RunnerException => throw error
     case error: IllegalArgumentException
         if Option(error.getMessage).exists(_.contains("No benchmarks match the selection")) =>
       throw new NoBenchmarksException
     case error: Throwable => throw new RunnerException(error.getMessage, error)
-  }
+
   def run(
       options: PublicOptions,
       format: org.openjdk.jmh.runner.format.OutputFormat
   ): java.util.Collection[org.openjdk.jmh.results.RunResult] = checked {
     val resolved = try translated(options)
-    catch {
+    catch
       case error: IllegalArgumentException
           if Option(error.getMessage).exists(_.contains("No benchmarks match the selection")) =>
-        if (format != null) { TrialObserver.invoke(format.flush()); TrialObserver.invoke(format.close()) }
+        if format != null then
+          TrialObserver.invoke(format.flush()); TrialObserver.invoke(format.close())
         throw error
-    }
     val observer = FormatObserver(format)
     val completed = BenchmarkRunner.run(resolved, observer)
-    observer match {
+    observer match
       case custom: FormatObserver => custom.results
       case _                      => completed.map(PublicResults.apply).asJava
-    }
   }
+
   def runSingle(
       options: PublicOptions,
       format: org.openjdk.jmh.runner.format.OutputFormat
@@ -152,15 +155,16 @@ object RunnerBridge extends RunnerService {
     )
     val observer = FormatObserver(format)
     val completed = BenchmarkRunner.run(translatedOptions, observer)
-    val results = observer match {
+    val results = observer match
       case custom: FormatObserver => custom.results
       case _                      => completed.map(PublicResults.apply).asJava
-    }
-    if (results.size() != 1) throw new RunnerException("No results returned")
+    if results.size() != 1 then throw new RunnerException("No results returned")
     results.iterator().next()
   }
+
   def list(options: PublicOptions, parameters: Boolean, format: org.openjdk.jmh.runner.format.OutputFormat): Unit =
     checked {
       BenchmarkRunner.run(translated(options, listing = true, parameters = parameters), FormatObserver(format)); ()
     }
-}
+
+end RunnerBridge

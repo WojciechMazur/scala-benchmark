@@ -26,53 +26,51 @@ package scala.benchmark.runtime
 
 final class SampleBuffer extends scala.benchmark.internal.SamplingHistogram
 
-final case class Statistics(values: Vector[(Double, Long)], sampled: Boolean = false) {
+final case class Statistics(values: Vector[(Double, Long)], sampled: Boolean = false):
   val count: Long = values.map(_._2).sum
+
   val mean: Double =
-    if (count == 0) Double.NaN
+    if count == 0 then Double.NaN
     else values.map { case (v, n) => v * n }.sum / count
 
   val variance: Double =
-    if (count <= 1) Double.NaN
-    else {
+    if count <= 1 then Double.NaN
+    else
       val sum = values.map { case (v, n) => (v - mean) * (v - mean) * n }.sum
       sum / (count - 1)
-    }
 
   val deviation: Double = math.sqrt(variance)
+
   def error: Double =
-    if (count <= 2) Double.NaN
+    if count <= 2 then Double.NaN
     else
       StudentT.quantile(0.9995, count - 1) * deviation / math.sqrt(count.toDouble)
 
-  def percentile(percent: Double): Double = {
+  def percentile(percent: Double): Double =
     require(percent >= 0 && percent <= 100)
-    if (count == 0) Double.NaN
-    else {
+    if count == 0 then Double.NaN
+    else
       val minimum =
         values.iterator.map(_._1).foldLeft(Double.PositiveInfinity)(scala.benchmark.internal.StatisticsNumbers.minimum)
-      if (percent == 0) return minimum
-      val population = if (sampled) values else values.filterNot(_._1.isNaN)
+      if percent == 0 then return minimum
+      val population = if sampled then values else values.filterNot(_._1.isNaN)
       val n = population.map(_._2).sum
-      if (n == 0) return Double.NaN
+      if n == 0 then return Double.NaN
       val sorted = population.sortBy(_._1)
-      def at(rank: Long): Double = {
+      def at(rank: Long): Double =
         var accumulated = 0L
         sorted.find { case (_, weight) => accumulated += weight; accumulated >= rank }.getOrElse(sorted.last)._1
-      }
       val position = percent * (n + 1) / 100
-      if (!sampled && position < 1) sorted.head._1
-      else if (!sampled && position >= n) sorted.last._1
-      else {
+      if !sampled && position < 1 then sorted.head._1
+      else if !sampled && position >= n then sorted.last._1
+      else
         val lower = math.floor(position).toLong
         val first = at(lower)
         first + (position - lower) * (at(lower + 1) - first)
-      }
-    }
-  }
-}
 
-private[runtime] object StudentT {
+end Statistics
+
+private[runtime] object StudentT:
+
   def quantile(probability: Double, degrees: Long): Double =
     scala.benchmark.internal.StudentT.quantile(probability, degrees.toDouble)
-}

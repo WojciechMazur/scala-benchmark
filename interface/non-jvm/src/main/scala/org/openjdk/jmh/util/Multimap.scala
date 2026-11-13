@@ -26,7 +26,7 @@ package org.openjdk.jmh.util
 
 import scala.jdk.CollectionConverters.*
 
-trait Multimap[K, V] {
+trait Multimap[K, V]:
   def put(key: K, value: V): Unit
   def putAll(key: K, values: java.util.Collection[V]): Unit
   def get(key: K): java.util.Collection[V]
@@ -37,43 +37,51 @@ trait Multimap[K, V] {
   def clear(): Unit
   def remove(key: K): Unit
   def isEmpty(): Boolean
-}
+
 class DelegatingMultimap[K, V](protected val map: java.util.Map[K, java.util.Collection[V]])
     extends Multimap[K, V]
-    with Serializable {
+    with Serializable:
   protected def createValueCollection(): java.util.Collection[V] = new java.util.ArrayList[V]()
-  def put(key: K, value: V): Unit = {
-    if (!map.containsKey(key)) map.put(key, createValueCollection())
+
+  def put(key: K, value: V): Unit =
+    if !map.containsKey(key) then map.put(key, createValueCollection())
     map.get(key).add(value)
-  }
-  def putAll(key: K, values: java.util.Collection[V]): Unit = {
-    if (!map.containsKey(key)) map.put(key, createValueCollection())
+
+  def putAll(key: K, values: java.util.Collection[V]): Unit =
+    if !map.containsKey(key) then map.put(key, createValueCollection())
     map.get(key).addAll(values)
-  }
+
   def get(key: K): java.util.Collection[V] =
-    if (map.containsKey(key)) java.util.Collections.unmodifiableCollection(map.get(key))
+    if map.containsKey(key) then java.util.Collections.unmodifiableCollection(map.get(key))
     else java.util.Collections.emptyList[V]()
+
   def keys(): java.util.Collection[K] = map.keySet()
-  def values(): java.util.Collection[V] = {
+
+  def values(): java.util.Collection[V] =
     val result = createValueCollection()
     map.values().asScala.foreach(result.addAll)
     result
-  }
+
   def entrySet(): java.util.Collection[java.util.Map.Entry[K, java.util.Collection[V]]] = map.entrySet()
   def merge(other: Multimap[K, V]): Unit = other.keys().asScala.foreach(key => putAll(key, other.get(key)))
   def clear(): Unit = map.clear()
-  def remove(key: K): Unit = { map.remove(key); () }
+
+  def remove(key: K): Unit =
+    map.remove(key); ()
+
   def isEmpty(): Boolean = map.isEmpty()
-  override def equals(other: Any): Boolean = other match {
+
+  override def equals(other: Any): Boolean = other match
     case value: DelegatingMultimap[?, ?] => getClass == value.getClass && map == value.map
     case _                               => false
-  }
+
   override def hashCode(): Int = map.hashCode()
   override def toString(): String = map.toString()
-}
+
+end DelegatingMultimap
+
 class HashMultimap[K, V] extends DelegatingMultimap[K, V](new java.util.HashMap[K, java.util.Collection[V]]())
 class TreeMultimap[K, V] extends DelegatingMultimap[K, V](new java.util.TreeMap[K, java.util.Collection[V]]())
 
-class HashsetMultimap[K, V] extends DelegatingMultimap[K, V](new java.util.HashMap[K, java.util.Collection[V]]) {
+class HashsetMultimap[K, V] extends DelegatingMultimap[K, V](new java.util.HashMap[K, java.util.Collection[V]]):
   override protected def createValueCollection(): java.util.Collection[V] = new java.util.HashSet[V]
-}

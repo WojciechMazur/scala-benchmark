@@ -14,6 +14,7 @@ version := projectVersion
 pluginBuildInfoSettings
 
 Compile / unmanagedResourceDirectories += baseDirectory.value.getParentFile / "sbt-plugin/src/main/resources"
+
 // sbt loads meta-build classes directly after compilation, before packaging.
 Compile / compile := Def.uncached {
   val analysis = (Compile / compile).value

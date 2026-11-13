@@ -12,10 +12,11 @@ lazy val benchmarks = FixtureBuild.matrix("native", "js", "wasm") { platform =>
   val optimized =
     if (platform == "native")
       Seq(
-        nativeConfig ~= (_.withDump(true)
-          // Scala Native 0.5.12 eh.cpp needs this explicit header with recent macOS SDKs.
-          .withCppOptions(_ ++ Seq("-include", "cstdlib"))
-          .withLinkingOptions(_ ++ thinLtoRoots))
+        nativeConfig ~=
+          (_.withDump(true)
+            // Scala Native 0.5.12 eh.cpp needs this explicit header with recent macOS SDKs.
+            .withCppOptions(_ ++ Seq("-include", "cstdlib"))
+            .withLinkingOptions(_ ++ thinLtoRoots))
       )
     else FixtureBuild.nodeImport(IntegrityChecks.observeHost)
   optimized ++ FixtureBuild.only("IntegrityBenchmark.scala") ++ IntegrityChecks.settings(platform)

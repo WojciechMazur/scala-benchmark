@@ -26,12 +26,12 @@ package org.openjdk.jmh.annotations
 
 final class CompilerControl(val value: CompilerControl.Mode) extends scala.annotation.StaticAnnotation
 
-object CompilerControl {
-  enum Mode extends java.lang.Enum[Mode] {
+object CompilerControl:
+
+  enum Mode extends java.lang.Enum[Mode]:
     case BREAK, PRINT, EXCLUDE, INLINE, DONT_INLINE, COMPILE_ONLY
-  }
-  object Mode {
+
+  object Mode:
+
     @scala.annotation.targetName("javaValues")
     def values(): Array[Mode] = Array(BREAK, PRINT, EXCLUDE, INLINE, DONT_INLINE, COMPILE_ONLY)
-  }
-}

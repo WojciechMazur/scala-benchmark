@@ -5,15 +5,14 @@ import java.nio.charset.StandardCharsets
 import java.nio.file.{Files, Path}
 import java.util.concurrent.TimeUnit
 
-import org.junit.Assert._
+import HarnessCompiler.compile
+import org.junit.Assert.*
 import org.junit.Test
-
 import org.openjdk.jmh.annotations.Mode
 
-import HarnessCompiler.compile
+class HarnessDerivationTest:
 
-class HarnessDerivationTest {
-  @Test def partialGroupAnnotationsCollideAsInJmh(): Unit = {
+  @Test def partialGroupAnnotationsCollideAsInJmh(): Unit =
     val source = """package bench
       |import scala.benchmark.*
       |class Example {
@@ -21,11 +20,11 @@ class HarnessDerivationTest {
       |  @Benchmark @Group("same") @Warmup(time = 1) def b(): Int = 2
       |}
       |""".stripMargin
-    compile(source) { (success, _) => assertFalse("Partial group annotations must collide", success) }
+    compile(source)((success, _) => assertFalse("Partial group annotations must collide", success))
     compile(source, derive = Nil) { (success, output) =>
       assertTrue(success)
       val loader = new URLClassLoader(Array(output.toUri.toURL), getClass.getClassLoader)
-      try {
+      try
         val input = new org.openjdk.jmh.generators.reflection.RFGeneratorSource
         input.processClasses(loader.loadClass("bench.Example"))
         val destination = new org.openjdk.jmh.generators.core.FileSystemDestination(
@@ -36,9 +35,8 @@ class HarnessDerivationTest {
         generator.generate(input, destination); generator.complete(input, destination)
         assertTrue("JMH must independently reject the same definitions", destination.hasErrors)
         assertTrue(destination.getErrors.toString.contains("Colliding annotations"))
-      } finally loader.close()
+      finally loader.close()
     }
-  }
 
   @Test def overloadedMembersWithinOneGroupAreRejected(): Unit =
     compile(
@@ -50,7 +48,7 @@ class HarnessDerivationTest {
         |  @Benchmark @Group("same") def run(input: Input): Int = 2
         |}
         |""".stripMargin
-    ) { (success, _) => assertFalse("Duplicate member names must be rejected as in JMH", success) }
+    )((success, _) => assertFalse("Duplicate member names must be rejected as in JMH", success))
 
   @Test def objectScopedStatesCompileAndExecute(): Unit =
     compile(
@@ -69,13 +67,13 @@ class HarnessDerivationTest {
     ) { (success, output) =>
       assertTrue("Object-scoped state did not compile", success)
       val loader = new URLClassLoader(Array(output.toUri.toURL), getClass.getClassLoader)
-      try {
+      try
         val suite =
           HarnessCompiler.suite(loader, "bench.Example")
         val descriptor = Descriptor.parse(0, suite.metadata()(0), Some(Mode.SingleShotTime))
         val config = descriptor.resolve(Configuration(warmupIterations = 0, measurementIterations = 1, forks = 0))
         assertEquals(1, Execution.trial(suite, descriptor, Mode.SingleShotTime, config, Map.empty).size)
-      } finally loader.close()
+      finally loader.close()
     }
 
   @Test def inventoryExpandsToConstants(): Unit =
@@ -135,7 +133,7 @@ class HarnessDerivationTest {
       assertTrue("Generated benchmark did not compile", success)
       val loader =
         new URLClassLoader(Array(output.toUri.toURL), getClass.getClassLoader)
-      try {
+      try
         val suite = HarnessCompiler.suite(loader, "bench.Example")
         val descriptor = Descriptor.parse(0, suite.metadata()(0))
         assertEquals(Vector(Mode.SingleShotTime), descriptor.modes)
@@ -154,7 +152,7 @@ class HarnessDerivationTest {
         )
         assertEquals(3, results.size)
         assertTrue(results.flatMap(_.workers).forall(_.invocations == 7))
-      } finally loader.close()
+      finally loader.close()
     }
 
   @Test def genericMethodsUseTheirErasedStateBounds(): Unit = compile(
@@ -172,7 +170,7 @@ class HarnessDerivationTest {
   ) { (success, output) =>
     assertTrue("Generic methods did not compile", success)
     val loader = new URLClassLoader(Array(output.toUri.toURL), getClass.getClassLoader)
-    try {
+    try
       val suite =
         HarnessCompiler.suite(loader, "bench.Example")
       suite.metadata().zipWithIndex.foreach { case (text, index) =>
@@ -180,27 +178,29 @@ class HarnessDerivationTest {
         val config = descriptor.configuration.copy(forks = 0, timeoutNanos = 1000000000L)
         assertEquals(1, Execution.trial(suite, descriptor, Mode.SingleShotTime, config, Map.empty).size)
       }
-    } finally loader.close()
+    finally loader.close()
   }
 
-  @Test def threadStateIdentityFollowsInjectionSites(): Unit = {
+  @Test def threadStateIdentityFollowsInjectionSites(): Unit =
     val root = java.nio.file.Paths
       .get("sbt-plugin/src/sbt-test-sources/scala/scala/benchmark/examples/StateInjectionBenchmark.scala")
-    val file = if (Files.exists(root)) root else java.nio.file.Paths.get("..").resolve(root)
-    compile(new String(Files.readAllBytes(file), StandardCharsets.UTF_8), Seq("scala.benchmark.examples.StateInjectionBenchmark")) { (success, output) =>
+    val file = if Files.exists(root) then root else java.nio.file.Paths.get("..").resolve(root)
+    compile(
+      new String(Files.readAllBytes(file), StandardCharsets.UTF_8),
+      Seq("scala.benchmark.examples.StateInjectionBenchmark")
+    ) { (success, output) =>
       assertTrue(success)
       val loader = new URLClassLoader(Array(output.toUri.toURL), getClass.getClassLoader)
-      try {
+      try
         val suite = HarnessCompiler.suite(loader, "scala.benchmark.examples.StateInjectionBenchmark")
         val descriptor = Descriptor.parse(0, suite.metadata()(0))
         val config = descriptor.resolve(descriptor.configuration.copy(forks = 0, timeoutNanos = 1000000000L))
         assertEquals(1, Execution.trial(suite, descriptor, Mode.SingleShotTime, config, Map.empty).size)
-      } finally loader.close()
+      finally loader.close()
     }
-  }
 
-  @Test def invalidParameterDefaultsAreRejected(): Unit = {
-    for ((kind, value) <- List("Boolean" -> "TRUE", "Char" -> "ab", "Byte" -> "128", "Int" -> "word")) {
+  @Test def invalidParameterDefaultsAreRejected(): Unit =
+    for (kind, value) <- List("Boolean" -> "TRUE", "Char" -> "ab", "Byte" -> "128", "Int" -> "word") do
       compile(s"""package bench
         |import scala.benchmark.*
         |@State(Scope.Thread) class Example {
@@ -208,8 +208,6 @@ class HarnessDerivationTest {
         | @Benchmark def run(): Unit = ()
         |}
         |""".stripMargin)((success, _) => assertFalse(success))
-    }
-  }
 
   @Test def productionHarnessInlinesClockAndWorkWithoutFunctionDispatch(): Unit = compile(
     """package bench
@@ -225,18 +223,18 @@ class HarnessDerivationTest {
     val artifacts = java.nio.file.Paths.get("target/execution-parity/codegen")
     Files.createDirectories(artifacts)
     val files = Files.walk(output)
-    try {
+    try
       import scala.jdk.CollectionConverters.*
       files.iterator().asScala.filter(p => p.toString.endsWith(".class")).foreach { path =>
         val target = artifacts.resolve(output.relativize(path))
         Files.createDirectories(target.getParent)
         Files.copy(path, target, java.nio.file.StandardCopyOption.REPLACE_EXISTING)
       }
-    } finally files.close()
+    finally files.close()
     val tool = java.nio.file.Paths.get(
       System.getProperty("java.home"),
       "bin",
-      if (System.getProperty("os.name").startsWith("Windows")) "javap.exe" else "javap"
+      if System.getProperty("os.name").startsWith("Windows") then "javap.exe" else "javap"
     )
     val process = new ProcessBuilder(
       tool.toString,
@@ -303,7 +301,7 @@ class HarnessDerivationTest {
   ) { (success, output) =>
     assertTrue(success)
     val loader = new URLClassLoader(Array(output.toUri.toURL), getClass.getClassLoader)
-    try {
+    try
       val suite = HarnessCompiler.suite(loader, "bench.Example")
       val descriptor = Descriptor.parse(0, suite.metadata().head)
       val results = Execution.trial(
@@ -315,16 +313,16 @@ class HarnessDerivationTest {
       )
       assertEquals(3, results.size)
       assertTrue(results.flatMap(_.workers).forall(_.invocations == 5))
-    } finally loader.close()
+    finally loader.close()
   }
 
   @Test def classesWithoutConcreteBenchmarksDeriveEmptySuites(): Unit =
-    for (
+    for
       definition <- List(
         "class Example { def run(): Int = 1 }",
         "abstract class Example { @Benchmark def run(): Int = 1 }"
       )
-    )
+    do
       compile("package bench; import org.openjdk.jmh.annotations._; " + definition) { (success, output) =>
         assertTrue(success)
         HarnessCompiler.withLoader(output) { loader =>
@@ -335,7 +333,7 @@ class HarnessDerivationTest {
   private def inventory(output: Path, cls: String)(check: Array[String] => Unit): Unit =
     HarnessCompiler.withLoader(output)(loader => check(HarnessCompiler.suite(loader, "bench." + cls).metadata()))
 
-  @Test def platformRestrictionsPrecedeHarnessValidation(): Unit = {
+  @Test def platformRestrictionsPrecedeHarnessValidation(): Unit =
     val source = """package bench
       |import scala.benchmark.*
       |@Platforms(Array(Platform.JVM), reason = "Requires grouped workers")
@@ -352,7 +350,6 @@ class HarnessDerivationTest {
         assertTrue(descriptor.states.isEmpty)
       }
     }
-  }
 
   @Test def platformInheritanceIntersectsOverrides(): Unit = compile(
     """package bench
@@ -374,8 +371,8 @@ class HarnessDerivationTest {
     }
   }
 
-  @Test def emptyPlatformsAreDiagnosedOnEveryBackend(): Unit = {
-    for (restriction <- List("Array.empty[Platform]", "Array(Platform.JS)"))
+  @Test def emptyPlatformsAreDiagnosedOnEveryBackend(): Unit =
+    for restriction <- List("Array.empty[Platform]", "Array(Platform.JS)") do
       compile(
         s"""package bench
         |import scala.benchmark.*
@@ -384,29 +381,26 @@ class HarnessDerivationTest {
         |}
         |""".stripMargin
       )((ok, _) => assertFalse(ok))
-  }
 
-  @Test def inheritedMethodCannotHaveEmptyEffectivePlatforms(): Unit = {
+  @Test def inheritedMethodCannotHaveEmptyEffectivePlatforms(): Unit =
     compile(
-        """package bench
+      """package bench
         |import scala.benchmark.*
         |abstract class Base {
         |  @Benchmark @Platforms(Array(Platform.Native)) def run(): Int = 1
         |}
         |@Platforms(Array(Platform.JVM)) class Example extends Base
         |""".stripMargin
-      )((ok, _) => assertFalse(ok))
-  }
+    )((ok, _) => assertFalse(ok))
 
-  @Test def dynamicPlatformArraysAreRejected(): Unit = {
-    for (expression <- List("Array(Platform.Native, choose())", "Array(Platform.Native) ++ Array(Platform.JS)"))
+  @Test def dynamicPlatformArraysAreRejected(): Unit =
+    for expression <- List("Array(Platform.Native, choose())", "Array(Platform.Native) ++ Array(Platform.JS)") do
       compile(s"""package bench
         |import scala.benchmark.*
         |object Config { def choose(): Platform = Platform.JS }
         |import Config.*
         |@Platforms($expression) class Example { @Benchmark def run(): Int = 1 }
         |""".stripMargin)((ok, _) => assertFalse(ok))
-  }
 
   @Test def incompatibleBodiesStillTypecheck(): Unit = compile(
     """package bench
@@ -417,14 +411,17 @@ class HarnessDerivationTest {
       |""".stripMargin
   )((success, _) => assertFalse(success))
 
-  @Test def auxiliaryCountersCaptureIterationAndTrialTeardown(): Unit = {
+  @Test def auxiliaryCountersCaptureIterationAndTrialTeardown(): Unit =
     val relative = "sbt-plugin/src/sbt-test-sources/scala/scala/benchmark/examples/CounterBenchmark.scala"
     val source =
       Vector(java.nio.file.Paths.get(relative), java.nio.file.Paths.get("../" + relative)).find(Files.exists(_)).get
-    compile(new String(Files.readAllBytes(source), StandardCharsets.UTF_8), Seq("scala.benchmark.examples.CounterBenchmark")) { (success, output) =>
+    compile(
+      new String(Files.readAllBytes(source), StandardCharsets.UTF_8),
+      Seq("scala.benchmark.examples.CounterBenchmark")
+    ) { (success, output) =>
       assertTrue(success)
       val loader = new URLClassLoader(Array(output.toUri.toURL), getClass.getClassLoader)
-      try {
+      try
         val suite = HarnessCompiler.suite(loader, "scala.benchmark.examples.CounterBenchmark")
         val descriptor = Descriptor.parse(0, suite.metadata().head)
         assertEquals(Set("events", "operations"), descriptor.counters.map(_.name).toSet)
@@ -438,10 +435,9 @@ class HarnessDerivationTest {
         assertEquals(Vector(18.0, 28.0), events.forks.head.map(_.score))
         assertEquals("#", events.unit)
         assertEquals(Vector(46.0, 46.0), events.scoreConfidence)
-        for (format <- Reports.formats) assertTrue(Reports.render(Vector(result), format).contains("events"))
-      } finally loader.close()
+        for format <- Reports.formats do assertTrue(Reports.render(Vector(result), format).contains("events"))
+      finally loader.close()
     }
-  }
 
   @Test def auxiliaryCounterScopesAreValidated(): Unit = compile(
     """package bench
@@ -451,14 +447,17 @@ class HarnessDerivationTest {
       |""".stripMargin
   )((ok, _) => assertFalse(ok))
 
-  @Test def groupedWorkersShareStatesAndRetainMemberMetrics(): Unit = {
+  @Test def groupedWorkersShareStatesAndRetainMemberMetrics(): Unit =
     val relative = "sbt-plugin/src/sbt-test-sources/scala/scala/benchmark/examples/GroupBenchmark.scala"
     val source =
       Vector(java.nio.file.Paths.get(relative), java.nio.file.Paths.get("../" + relative)).find(Files.exists(_)).get
-    compile(new String(Files.readAllBytes(source), StandardCharsets.UTF_8), Seq("scala.benchmark.examples.GroupBenchmark")) { (success, output) =>
+    compile(
+      new String(Files.readAllBytes(source), StandardCharsets.UTF_8),
+      Seq("scala.benchmark.examples.GroupBenchmark")
+    ) { (success, output) =>
       assertTrue(success)
       val loader = new URLClassLoader(Array(output.toUri.toURL), getClass.getClassLoader)
-      try {
+      try
         val suite = HarnessCompiler.suite(loader, "scala.benchmark.examples.GroupBenchmark")
         val descriptor = Descriptor.parse(0, suite.metadata().head)
         assertEquals(Vector("read", "write"), descriptor.members.map(_.name))
@@ -472,11 +471,10 @@ class HarnessDerivationTest {
         assertEquals(Vector("read", "write"), result.secondaryResults.map(_._1))
         assertEquals(Vector(2, 4), result.secondaryResults.map(_._2.configuration.threads))
         assertTrue(Reports.json(Vector(result)).contains("\"secondaryMetrics\":{\"read\""))
-        for (format <- Reports.formats)
+        for format <- Reports.formats do
           assertTrue(Reports.render(Vector(result), format).contains("read"))
-      } finally loader.close()
+      finally loader.close()
     }
-  }
 
   @Test def groupHarnessesCompile(): Unit = compile(
     """package bench
@@ -518,11 +516,11 @@ class HarnessDerivationTest {
     assertTrue(success)
     val loader =
       new URLClassLoader(Array(output.toUri.toURL), getClass.getClassLoader)
-    try {
+    try
       val suite = HarnessCompiler.suite(loader, "bench.Example")
       val descriptor = Descriptor.parse(0, suite.metadata()(0))
       assertTrue(descriptor.warnings.exists(_.contains("Fork.jvmArgs=-Xmx2g")))
-    } finally loader.close()
+    finally loader.close()
   }
 
   @Test def methodConfigurationOverridesInheritedConfiguration(): Unit = compile(
@@ -577,4 +575,5 @@ class HarnessDerivationTest {
       Execution.trial(suite, descriptor, Mode.SingleShotTime, descriptor.configuration, Map("size" -> "7"))
     }
   }
-}
+
+end HarnessDerivationTest

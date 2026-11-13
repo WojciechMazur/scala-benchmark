@@ -1,13 +1,16 @@
 package scala.benchmark.runtime
 
-import org.openjdk.jmh.annotations.Mode
-import org.openjdk.jmh.results.{RunResult as PublicRunResult}
 import java.util.concurrent.TimeUnit
+
 import scala.jdk.CollectionConverters.*
 
+import org.openjdk.jmh.annotations.Mode
+import org.openjdk.jmh.results.RunResult as PublicRunResult
+
 /** Public report views preserve observations and metadata without manufacturing worker measurements. */
-private[runtime] object PublicReportResults {
-  def apply(result: PublicRunResult): RunResult = {
+private[runtime] object PublicReportResults:
+
+  def apply(result: PublicRunResult): RunResult =
     val params = result.getParams()
     val warmup = params.getWarmup()
     val measurement = params.getMeasurement()
@@ -48,10 +51,11 @@ private[runtime] object PublicReportResults {
       ClockCalibration.Unavailable
     )
     apply(result, context)
-  }
 
-  def apply(result: PublicRunResult, context: RunResult): RunResult = {
-    def metric(label: Option[String], value: org.openjdk.jmh.results.Result[?]): RunResult = {
+  end apply
+
+  def apply(result: PublicRunResult, context: RunResult): RunResult =
+    def metric(label: Option[String], value: org.openjdk.jmh.results.Result[?]): RunResult =
       val observations = result.getBenchmarkResults().asScala.toVector.map { benchmark =>
         benchmark.getIterationResults().asScala.toVector.flatMap { iteration =>
           val observed = label
@@ -60,7 +64,7 @@ private[runtime] object PublicReportResults {
         }
       }
       val histogram =
-        if (context.mode == Mode.SampleTime && label.isEmpty)
+        if context.mode == Mode.SampleTime && label.isEmpty then
           Some(
             result
               .getBenchmarkResults()
@@ -81,17 +85,19 @@ private[runtime] object PublicReportResults {
       context.copy(
         descriptor = context.descriptor.copy(name = context.descriptor.name + label.fold("")(name => ":" + name)),
         forks = observations,
-        metricKind = if (label.isEmpty) "" else "PUBLIC",
+        metricKind = if label.isEmpty then "" else "PUBLIC",
         statisticsOverride = None,
         publicMetric = Some(value),
         reportParams = Some(result.getParams()),
         secondaryOverride = Some(Vector.empty),
         histogramOverride = histogram
       )
-    }
+    end metric
     val primary = metric(None, result.getPrimaryResult())
     primary.copy(secondaryOverride = Some(result.getSecondaryResults().asScala.toVector.map { case (name, value) =>
       name -> metric(Some(name), value)
     }))
-  }
-}
+
+  end apply
+
+end PublicReportResults

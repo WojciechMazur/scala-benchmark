@@ -2,54 +2,59 @@ package scala.benchmark.runtime
 
 import java.io.StringReader
 import java.util.Properties
+import java.util.concurrent.TimeUnit
 
 import org.openjdk.jmh.annotations.{Mode, Scope}
-import org.openjdk.jmh.runner.options.TimeValue
-import java.util.concurrent.TimeUnit
 import org.openjdk.jmh.infra.{Blackhole, ThreadParams}
+import org.openjdk.jmh.runner.options.TimeValue
 
 /** Contract between the derived harness and the runtime. Not an alternative public Runner API. */
-trait Suite {
+trait Suite:
   def metadata(): Array[String]
   def resetAuxiliary(benchmark: Int, environment: Environment): Unit = ()
   def auxiliary(benchmark: Int, environment: Environment): Array[Double] = Array.emptyDoubleArray
   def instantiate(state: Int): AnyRef
   def assign(state: Int, target: AnyRef, parameter: String, value: String): Unit
+
   def setup(
       state: Int,
       level: Int,
       target: AnyRef,
       environment: Environment
   ): Unit
+
   def teardown(
       state: Int,
       level: Int,
       target: AnyRef,
       environment: Environment
   ): Unit
+
   def measure(
       benchmark: Int,
       environment: Environment,
       control: IterationControl
   ): RawResult
-}
 
 final case class Parameter(name: String, values: Vector[String])
+
 final case class StateDefinition(
     id: Int,
     scope: Scope,
     dependencies: Vector[Int],
     parameters: Vector[Parameter]
-) {
+):
   def shared: Boolean = scope != Scope.Thread
-}
-object StateDefinition {
+
+object StateDefinition:
+
   def apply(id: Int, shared: Boolean, dependencies: Vector[Int], parameters: Vector[Parameter]): StateDefinition =
-    new StateDefinition(id, if (shared) Scope.Benchmark else Scope.Thread, dependencies, parameters)
-}
+    new StateDefinition(id, if shared then Scope.Benchmark else Scope.Thread, dependencies, parameters)
+
 final case class CounterDefinition(name: String, kind: String, member: Int)
 final case class AuxiliaryValue(name: String, kind: String, value: Double)
 final case class GroupMember(name: String, threads: Int, states: Vector[Int])
+
 final case class Configuration(
     warmupIterations: Int = 5,
     measurementIterations: Int = 5,
@@ -72,20 +77,20 @@ final case class Configuration(
     parameterOrder: Map[String, Int] = Map.empty
 )
 
-object Configuration {
+object Configuration:
 
   /** Every resolved measurement option crosses the fork boundary, including injected metadata. */
-  def time(c: Configuration, warmup: Boolean): TimeValue = {
-    val nanos = if (warmup) c.warmupNanos else c.measurementNanos
-    val original = if (warmup) c.warmupTime else c.measurementTime
-    if (original != null && original.convertTo(TimeUnit.NANOSECONDS) == nanos) original
-    else if (nanos == 0) TimeValue.NONE
-    else if (nanos == 10000000000L) TimeValue.seconds(10)
+  def time(c: Configuration, warmup: Boolean): TimeValue =
+    val nanos = if warmup then c.warmupNanos else c.measurementNanos
+    val original = if warmup then c.warmupTime else c.measurementTime
+    if original != null && original.convertTo(TimeUnit.NANOSECONDS) == nanos then original
+    else if nanos == 0 then TimeValue.NONE
+    else if nanos == 10000000000L then TimeValue.seconds(10)
     else TimeValue.nanoseconds(nanos)
-  }
+
   def timeout(c: Configuration): TimeValue =
-    if (c.timeoutTime != null && c.timeoutTime.convertTo(TimeUnit.NANOSECONDS) == c.timeoutNanos) c.timeoutTime
-    else if (c.timeoutNanos == 600000000000L) TimeValue.minutes(10)
+    if c.timeoutTime != null && c.timeoutTime.convertTo(TimeUnit.NANOSECONDS) == c.timeoutNanos then c.timeoutTime
+    else if c.timeoutNanos == 600000000000L then TimeValue.minutes(10)
     else TimeValue.nanoseconds(c.timeoutNanos)
 
   def overrides(c: Configuration): Map[String, String] = Map(
@@ -111,7 +116,8 @@ object Configuration {
     "-to.unit" -> timeout(c).getTimeUnit().name()
   ) ++ Option.when(c.threadGroups.nonEmpty)("-tg" -> c.threadGroups.mkString(",")).toMap ++
     c.parameterOrder.map { case (name, order) => ("-parameterOrder." + name) -> order.toString }
-}
+
+end Configuration
 
 final case class WarmupRequest(
     suite: String,
@@ -120,9 +126,12 @@ final case class WarmupRequest(
     configuration: Configuration,
     parameters: Map[String, String]
 )
-object WarmupRequest {
+
+object WarmupRequest:
+
   def configuration(c: Configuration): Configuration =
     c.copy(measurementIterations = 0, measurementNanos = 0, measurementBatchSize = 1, measurementTime = TimeValue.NONE)
+
   def execute(
       requests: Vector[WarmupRequest],
       progress: (Int, Long) => Unit = (_, _) => (),
@@ -131,7 +140,7 @@ object WarmupRequest {
   ): Unit =
     requests.zipWithIndex.foreach { case (request, action) =>
       val c = request.configuration
-      if (c.warmupIterations > 0) {
+      if c.warmupIterations > 0 then
         println(s"# Bulk warmup ${request.suite} [${request.mode.shortLabel()}]")
         progress(-1, ForkProgress.budget(c.warmupNanos, c.timeoutNanos))
         val suite = Platform.loadSuite(request.suite)
@@ -146,18 +155,18 @@ object WarmupRequest {
             progress,
             observer = observer.warmup(action, descriptor, request.mode, configuration(c), request.parameters)
           )
-        catch {
+        catch
           case error: Throwable =>
-            if (!ForkOutputFailure.failed)
+            if !ForkOutputFailure.failed then
               Console.err.println(s"# FAILED bulk warmup ${request.suite}: ${error.getMessage}")
-            if (
-              failOnError || error.isInstanceOf[TrialObserverFailure] || error
+            if
+              failOnError || error.isInstanceOf[TrialObserverFailure] ||
+              error
                 .isInstanceOf[UnfinishedWorkersException] || ForkOutputFailure.failed || Platform.isCallerInterrupted
-            ) throw error
-        }
-      }
+            then throw error
     }
-}
+
+end WarmupRequest
 
 final case class Descriptor(
     index: Int,
@@ -170,10 +179,11 @@ final case class Descriptor(
     generatedTarget: String = "",
     members: Vector[GroupMember] = Vector.empty,
     counters: Vector[CounterDefinition] = Vector.empty
-) {
-  def capture(suite: Suite, environment: Environment, raw: RawResult): RawResult = {
-    if (counters.isEmpty) raw
-    else {
+):
+
+  def capture(suite: Suite, environment: Environment, raw: RawResult): RawResult =
+    if counters.isEmpty then raw
+    else
       val definitions = counters.filter(_.member == environment.threadParams.getSubgroupIndex())
       val values = suite.auxiliary(index, environment)
       require(definitions.size == values.length, "Auxiliary counter metadata does not match the generated harness")
@@ -181,11 +191,10 @@ final case class Descriptor(
         case (counter, value) if environment.counterEnabled(counter.kind) =>
           AuxiliaryValue(counter.name, counter.kind, value)
       })
-    }
-  }
-  def configured(c: Configuration): Descriptor = {
-    if (c.threadGroups.isEmpty) this
-    else {
+
+  def configured(c: Configuration): Descriptor =
+    if c.threadGroups.isEmpty then this
+    else
       require(
         c.threadGroups.size == math.max(1, members.size),
         "Thread group distribution must match the benchmark member count"
@@ -194,23 +203,21 @@ final case class Descriptor(
         c.threadGroups.forall(_ >= 0) && c.threadGroups.exists(_ > 0),
         "Thread groups must be nonnegative with at least one worker"
       )
-      val current = if (members.isEmpty) Vector(GroupMember(name.split('.').last, 1, states.map(_.id))) else members
+      val current = if members.isEmpty then Vector(GroupMember(name.split('.').last, 1, states.map(_.id))) else members
       copy(members = current.zip(c.threadGroups).map { case (member, threads) => member.copy(threads = threads) })
-    }
-  }
-  def resolve(c: Configuration): Configuration = {
-    if (members.isEmpty) c
-    else {
+
+  def resolve(c: Configuration): Configuration =
+    if members.isEmpty then c
+    else
       val size = members.map(_.threads.toLong).sum
       require(size > 0 && size <= Int.MaxValue, "Invalid group thread count")
       val threads = ((c.threads.toLong + size - 1) / size) * size
       require(threads <= Int.MaxValue, "Group thread count overflows")
       c.copy(threads = threads.toInt)
-    }
-  }
-  def worker(index: Int, count: Int): ThreadParams = {
-    if (members.isEmpty) new ThreadParams(index, count, index, count, 0, 1, 0, 1, 0, 1)
-    else {
+
+  def worker(index: Int, count: Int): ThreadParams =
+    if members.isEmpty then new ThreadParams(index, count, index, count, 0, 1, 0, 1, 0, 1)
+    else
       val size = members.map(_.threads).sum
       val groupThread = index % size
       val cumulative = members.scanLeft(0)((total, member) => total + member.threads)
@@ -227,23 +234,22 @@ final case class Descriptor(
         groupThread - cumulative(subgroup),
         members(subgroup).threads
       )
-    }
-  }
-  def workerStates(worker: ThreadParams): Vector[StateDefinition] = {
-    if (members.isEmpty) states
-    else {
+
+  def workerStates(worker: ThreadParams): Vector[StateDefinition] =
+    if members.isEmpty then states
+    else
       val used = members(worker.getSubgroupIndex()).states.toSet
       states.filter(s => used(s.id))
-    }
-  }
-}
 
-object Descriptor {
+end Descriptor
+
+object Descriptor:
+
   def parse(
       index: Int,
       text: String,
       selectedMode: Option[Mode] = None
-  ): Descriptor = {
+  ): Descriptor =
     val p = new Properties
     p.load(new StringReader(text))
     def str(key: String, default: String = ""): String =
@@ -279,10 +285,10 @@ object Descriptor {
       str("name"),
       modes,
       Configuration(
-        int("warmupIterations", if (single) 0 else 5),
-        int("measurementIterations", if (single) 1 else 5),
-        long("warmupNanos", if (single) 0L else 10000000000L),
-        long("measurementNanos", if (single) 0L else 10000000000L),
+        int("warmupIterations", if single then 0 else 5),
+        int("measurementIterations", if single then 1 else 5),
+        long("warmupNanos", if single then 0L else 10000000000L),
+        long("measurementNanos", if single then 0L else 10000000000L),
         int("warmupBatchSize", 1),
         int("measurementBatchSize", 1),
         int("forks", 5),
@@ -293,19 +299,19 @@ object Descriptor {
         str("unit", "SECONDS"),
         synchIterations = !single,
         warmupTime =
-          if (p.containsKey("warmupTimeValue"))
+          if p.containsKey("warmupTimeValue") then
             new TimeValue(long("warmupTimeValue", 0), TimeUnit.valueOf(str("warmupTimeUnit", "SECONDS")))
-          else if (p.containsKey("warmupNanos")) TimeValue.nanoseconds(long("warmupNanos", 0))
-          else TimeValue.seconds(if (single) 0 else 10),
+          else if p.containsKey("warmupNanos") then TimeValue.nanoseconds(long("warmupNanos", 0))
+          else TimeValue.seconds(if single then 0 else 10),
         measurementTime =
-          if (p.containsKey("measurementTimeValue"))
+          if p.containsKey("measurementTimeValue") then
             new TimeValue(long("measurementTimeValue", 0), TimeUnit.valueOf(str("measurementTimeUnit", "SECONDS")))
-          else if (p.containsKey("measurementNanos")) TimeValue.nanoseconds(long("measurementNanos", 0))
-          else TimeValue.seconds(if (single) 0 else 10),
+          else if p.containsKey("measurementNanos") then TimeValue.nanoseconds(long("measurementNanos", 0))
+          else TimeValue.seconds(if single then 0 else 10),
         timeoutTime =
-          if (p.containsKey("timeoutTimeValue"))
+          if p.containsKey("timeoutTimeValue") then
             new TimeValue(long("timeoutTimeValue", 0), TimeUnit.valueOf(str("timeoutTimeUnit", "SECONDS")))
-          else if (p.containsKey("timeoutNanos")) TimeValue.nanoseconds(long("timeoutNanos", 0))
+          else if p.containsKey("timeoutNanos") then TimeValue.nanoseconds(long("timeoutNanos", 0))
           else TimeValue.minutes(10)
       ),
       states,
@@ -319,7 +325,8 @@ object Descriptor {
         CounterDefinition(str(s"counter.$i.name"), str(s"counter.$i.kind"), int(s"counter.$i.member", 0))
       }
     )
-  }
+
+  end parse
 
   def combinations(
       descriptor: Descriptor,
@@ -329,7 +336,7 @@ object Descriptor {
   def indexedCombinations(
       descriptor: Descriptor,
       overrides: Map[String, Vector[String]]
-  ): Vector[(Map[String, String], Map[String, Int])] = {
+  ): Vector[(Map[String, String], Map[String, Int])] =
     val parameters = descriptor.states
       .flatMap(_.parameters)
       .groupBy(_.name)
@@ -345,11 +352,11 @@ object Descriptor {
     parameters.foldLeft(Vector(Map.empty[String, String] -> Map.empty[String, Int])) {
       case (products, (name, values)) =>
         require(values.nonEmpty, s"Parameter $name has no values")
-        for ((product, orders) <- products; (value, index) <- values.zipWithIndex)
-          yield product.updated(name, value) -> orders.updated(name, index)
+        for (product, orders) <- products; (value, index) <- values.zipWithIndex
+        yield product.updated(name, value) -> orders.updated(name, index)
     }
-  }
-}
+
+end Descriptor
 
 final class Environment(
     val suite: Suite,
@@ -358,43 +365,52 @@ final class Environment(
     val threadParams: ThreadParams,
     val benchmarkParams: org.openjdk.jmh.infra.BenchmarkParams = null,
     var iterationParams: org.openjdk.jmh.infra.IterationParams = null
-) {
+):
   var notifyControl = new org.openjdk.jmh.infra.Control
   val sampling: SamplingState = new SamplingState
+
   def counterEnabled(kind: String): Boolean = kind == "EVENTS" ||
     benchmarkParams.getMode() == Mode.Throughput || benchmarkParams.getMode() == Mode.AverageTime
+
   def state(id: Int): AnyRef = states(id).instance
+
   inline def guarded(id: Int, level: Int, setup: Boolean)(
       inline body: Unit
-  ): Unit = {
+  ): Unit =
     val slot = states(id)
-    if (slot.enter(level, setup)) {
+    if slot.enter(level, setup) then
       var success = false
-      try { body; success = true }
-      catch { case error: Throwable => slot.fail(error); throw error }
+      try
+        body; success = true
+      catch
+        case error: Throwable =>
+          slot.fail(error)
+          throw error
       finally slot.leave(level, setup, success)
-    }
-  }
-  def fixture(id: Int, level: Int, setup: Boolean): Unit = {
+
+  def fixture(id: Int, level: Int, setup: Boolean): Unit =
     val slot = states(id)
-    if (slot.enter(level, setup)) {
+    if slot.enter(level, setup) then
       var success = false
-      try {
-        if (setup) suite.setup(id, level, slot.instance, this)
+      try
+        if setup then suite.setup(id, level, slot.instance, this)
         else suite.teardown(id, level, slot.instance, this)
         success = true
-      } catch { case error: Throwable => slot.fail(error); throw error }
+      catch
+        case error: Throwable =>
+          slot.fail(error)
+          throw error
       finally slot.leave(level, setup, success)
-    }
-  }
-}
 
-object Values {
+end Environment
+
+object Values:
   def counter(value: Any): Double = value.asInstanceOf[java.lang.Number].doubleValue()
-  def boolean(value: String): Boolean = {
+
+  def boolean(value: String): Boolean =
     require(value == "true" || value == "false", s"Invalid boolean: $value")
     value == "true"
-  }
+
   def paramBoolean(value: String): Boolean = java.lang.Boolean.parseBoolean(value)
   def byte(value: String): Byte = value.toByte
   def short(value: String): Short = value.toShort
@@ -404,4 +420,3 @@ object Values {
   def float(value: String): Float = value.toFloat
   def double(value: String): Double = value.toDouble
   def string(value: String): String = value
-}

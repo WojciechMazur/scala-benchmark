@@ -3,13 +3,14 @@ package scala.benchmark.runtime
 import org.openjdk.jmh.annotations.Mode
 
 /** Validate transported observations before a child can contribute a successful result. */
-private[runtime] object ForkResults {
+private[runtime] object ForkResults:
+
   def verify(
       mode: Mode,
       configuration: Configuration,
       results: Vector[IterationResult],
       requireTrialMetadata: Boolean = true
-  ): Vector[IterationResult] = {
+  ): Vector[IterationResult] =
     require(results.size == configuration.measurementIterations, "Incomplete fork measurement iterations")
     require(
       (!requireTrialMetadata && results.forall(_.trial.isEmpty)) ||
@@ -28,16 +29,15 @@ private[runtime] object ForkResults {
           worker.allInvocations == -1 || worker.allInvocations >= worker.invocations,
           "Invalid fork total invocation count"
         )
-        if (mode == Mode.SingleShotTime)
+        if mode == Mode.SingleShotTime then
           require(worker.invocations == configuration.measurementBatchSize, "Incomplete single-shot batch")
-        if (mode == Mode.SampleTime) {
+        if mode == Mode.SampleTime then
           require(worker.invocations % configuration.measurementBatchSize == 0, "Incomplete sample batch")
           val population = worker.samples.entries.map(_._2).sum
           require(
             population > 0 && population <= worker.invocations / configuration.measurementBatchSize,
             "Invalid fork sample population"
           )
-        }
       }
       val computed = Execution.aggregate(mode, configuration, iteration.workers)
       val agrees = iteration.score == computed ||
@@ -48,5 +48,7 @@ private[runtime] object ForkResults {
       )
     }
     results
-  }
-}
+
+  end verify
+
+end ForkResults

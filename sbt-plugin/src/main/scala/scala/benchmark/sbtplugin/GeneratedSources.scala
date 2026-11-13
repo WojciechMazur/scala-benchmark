@@ -9,22 +9,20 @@ import xsbti.compile.CompileAnalysis
   * Benchmark classes are found in the compilation analysis and then handed to macros, which derive a harness
   * (Native, Scala.js) or the platform inventory (JVM) for each class.
   */
-private[sbtplugin] object GeneratedSources {
+private[sbtplugin] object GeneratedSources:
   private val packageName = "scala.benchmark.generated"
   val mainClass: String = packageName + ".BenchmarkMain"
 
-  private object BenchmarkFingerprint extends AnnotatedFingerprint {
+  private object BenchmarkFingerprint extends AnnotatedFingerprint:
     def isModule: Boolean = false
     def annotationName: String = "org.openjdk.jmh.annotations.Benchmark"
-  }
 
   /** Concrete classes that declare or inherit a `@Benchmark` method. Like JMH, the default package is unsupported. */
-  def benchmarkClasses(analysis: CompileAnalysis, log: Logger): Seq[String] = {
+  def benchmarkClasses(analysis: CompileAnalysis, log: Logger): Seq[String] =
     val (definitions, _) = Tests.discover(Seq(BenchmarkFingerprint), Tests.allDefs(analysis), log)
     val (named, unnamed) = definitions.map(_.name).distinct.sorted.partition(_.contains('.'))
     unnamed.foreach(name => log.warn(s"Benchmark class $name is ignored: benchmarks need a named package"))
     named
-  }
 
   private def literal(text: String): String = "\"" + text.flatMap {
     case '"'          => "\\\""
@@ -39,13 +37,13 @@ private[sbtplugin] object GeneratedSources {
   private def typeName(name: String): String =
     name
       .split('.')
-      .map(segment => if (segment.matches("[A-Za-z_][A-Za-z0-9_]*")) segment else s"`$segment`")
+      .map(segment => if segment.matches("[A-Za-z_][A-Za-z0-9_]*") then segment else s"`$segment`")
       .mkString("_root_.", ".", "")
 
   private def entries(lines: Seq[String]): String = lines.map("    " + _).mkString("\n", ",\n", "\n  ")
 
   /** Entry point of a Native or Scala.js benchmark executable. */
-  def harnessMain(classes: Seq[String], buildInfo: Seq[(String, String)]): String = {
+  def harnessMain(classes: Seq[String], buildInfo: Seq[(String, String)]): String =
     val runtime = "scala.benchmark.runtime"
     val suites = classes.map(name => s"${literal(name)} -> $runtime.Harness.derive[${typeName(name)}]")
     val info = buildInfo.sorted.map { case (key, value) => s"${literal(key)} -> ${literal(value)}" }
@@ -59,10 +57,9 @@ private[sbtplugin] object GeneratedSources {
        |  private def buildInfo: Seq[(String, String)] = Seq(${entries(info)})
        |}
        |""".stripMargin
-  }
 
   /** Platform eligibility of JVM benchmarks, read before JMH generates its own harnesses and again at run time. */
-  def inventory(classes: Seq[String]): String = {
+  def inventory(classes: Seq[String]): String =
     val internal = "scala.benchmark.internal"
     val inventories = classes.map(name => s"$internal.Inventory.of[${typeName(name)}]")
     s"""package $packageName
@@ -72,11 +69,10 @@ private[sbtplugin] object GeneratedSources {
        |    Seq[Array[$internal.InventoryEntry]](${entries(inventories)}).flatten.toArray
        |}
        |""".stripMargin
-  }
 
   /** Leaves an unchanged file untouched, so that it does not invalidate incremental compilation. */
-  def write(file: File, text: String): Seq[File] = {
-    if (!file.exists() || IO.read(file) != text) IO.write(file, text)
+  def write(file: File, text: String): Seq[File] =
+    if !file.exists() || IO.read(file) != text then IO.write(file, text)
     Seq(file)
-  }
-}
+
+end GeneratedSources

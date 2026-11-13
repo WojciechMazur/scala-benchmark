@@ -24,24 +24,25 @@
  */
 package org.openjdk.jmh.results
 
-import org.openjdk.jmh.util.{Statistics, ScoreFormatter}
+import org.openjdk.jmh.util.{ScoreFormatter, Statistics}
 
-enum AggregationPolicy extends java.lang.Enum[AggregationPolicy] {
+enum AggregationPolicy extends java.lang.Enum[AggregationPolicy]:
   case AVG, SUM, MAX, MIN
-  override def toString(): String = this match {
+
+  override def toString(): String = this match
     case AVG => "Average"
     case SUM => "Sum"
     case MAX => "Maximum"
     case MIN => "Minimum"
-  }
-}
-enum ResultRole extends java.lang.Enum[ResultRole] {
+
+enum ResultRole extends java.lang.Enum[ResultRole]:
   case PRIMARY, SECONDARY, SECONDARY_DERIVATIVE, OMITTED
   def isPrimary(): Boolean = this == PRIMARY
   def isSecondary(): Boolean = this == SECONDARY || this == SECONDARY_DERIVATIVE
   def isDerivative(): Boolean = this == SECONDARY_DERIVATIVE
-}
-trait Aggregator[T <: Result[?]] { def aggregate(results: java.util.Collection[T]): T }
+
+trait Aggregator[T <: Result[?]]:
+  def aggregate(results: java.util.Collection[T]): T
 
 abstract class Result[T <: Result[T]](
     protected val role: ResultRole,
@@ -49,7 +50,7 @@ abstract class Result[T <: Result[T]](
     protected val statistics: Statistics,
     unit0: String,
     protected val policy: AggregationPolicy
-) extends Serializable {
+) extends Serializable:
   protected val label: String = Result.dedup(label0)
   protected val unit: String = Result.dedup(unit0)
   def getRole(): ResultRole = role
@@ -57,34 +58,42 @@ abstract class Result[T <: Result[T]](
   def getStatistics(): Statistics = statistics
   def getSampleCount(): Long = statistics.getN()
   final def getScoreUnit(): String = unit
-  def getScore(): Double = policy match {
+
+  def getScore(): Double = policy match
     case AggregationPolicy.AVG => statistics.getMean()
     case AggregationPolicy.SUM => statistics.getSum()
     case AggregationPolicy.MIN => statistics.getMin()
     case AggregationPolicy.MAX => statistics.getMax()
-  }
-  def getScoreError(): Double = if (policy == AggregationPolicy.AVG) statistics.getMeanErrorAt(0.999) else Double.NaN
+
+  def getScoreError(): Double = if policy == AggregationPolicy.AVG then statistics.getMeanErrorAt(0.999) else Double.NaN
+
   def getScoreConfidence(): Array[Double] =
-    if (policy == AggregationPolicy.AVG) statistics.getConfidenceIntervalAt(0.999) else Array(getScore(), getScore())
+    if policy == AggregationPolicy.AVG then statistics.getConfidenceIntervalAt(0.999) else Array(getScore(), getScore())
+
   def extendedInfo(): String = simpleExtendedInfo()
-  protected def simpleExtendedInfo(): String = {
+
+  protected def simpleExtendedInfo(): String =
     val stats = getStatistics()
     val newline = System.lineSeparator()
-    if (stats.getN() > 2 && !ScoreFormatter.isApproximate(getScore())) {
+    if stats.getN() > 2 && !ScoreFormatter.isApproximate(getScore()) then
       val interval = getScoreConfidence()
-      s"  ${ScoreFormatter.format(getScore())} ±(99.9%) ${ScoreFormatter.formatError((interval(1) - interval(0)) / 2)} ${getScoreUnit()} [$policy]" + newline +
-        s"  (min, avg, max) = (${ScoreFormatter.format(stats.getMin())}, ${ScoreFormatter.format(stats.getMean())}, ${ScoreFormatter.format(stats.getMax())}), stdev = ${ScoreFormatter.formatError(stats.getStandardDeviation())}" + newline +
-        s"  CI (99.9%): [${ScoreFormatter.format(interval(0))}, ${ScoreFormatter.format(interval(1))}] (assumes normal distribution)" + newline
-    } else s"  ${ScoreFormatter.format(stats.getMean())} ${getScoreUnit()}" + newline
-  }
-  protected def distributionExtendedInfo(): String = {
+      s"  ${ScoreFormatter.format(getScore())} ±(99.9%) ${ScoreFormatter.formatError((interval(1) - interval(0)) / 2)} ${getScoreUnit()} [$policy]" +
+        newline +
+        s"  (min, avg, max) = (${ScoreFormatter.format(stats.getMin())}, ${ScoreFormatter.format(stats.getMean())}, ${ScoreFormatter.format(stats.getMax())}), stdev = ${ScoreFormatter.formatError(stats.getStandardDeviation())}" +
+        newline +
+        s"  CI (99.9%): [${ScoreFormatter.format(interval(0))}, ${ScoreFormatter.format(interval(1))}] (assumes normal distribution)" +
+        newline
+    else s"  ${ScoreFormatter.format(stats.getMean())} ${getScoreUnit()}" + newline
+
+  protected def distributionExtendedInfo(): String =
     val stats = getStatistics()
-    if (stats.getN() <= 2) return ""
+    if stats.getN() <= 2 then return ""
     val interval = stats.getConfidenceIntervalAt(0.999)
     val text = new StringBuilder
     text.append("  N = ").append(stats.getN()).append("\n")
     text.append(
-      s"  mean = ${ScoreFormatter.format(10, stats.getMean())} ±(99.9%) ${ScoreFormatter.formatError((interval(1) - interval(0)) / 2)} ${getScoreUnit()}\n"
+      s"  mean = ${ScoreFormatter.format(10, stats.getMean())} ±(99.9%) ${ScoreFormatter.formatError((interval(1) -
+          interval(0)) / 2)} ${getScoreUnit()}\n"
     )
     text.append("\n  Histogram, ").append(getScoreUnit()).append(":\n")
     var min = stats.getMin()
@@ -93,10 +102,10 @@ abstract class Result[T <: Result[T]](
     min = math.floor(min / binSize) * binSize
     max = math.ceil(max / binSize) * binSize
     val range = max - min
-    val levels = if (range > 0) {
-      while (range / binSize < Result.histogramBins) binSize /= 2
+    val levels = if range > 0 then
+      while range / binSize < Result.histogramBins do binSize /= 2
       Array.tabulate(math.max(2, math.ceil(range / binSize).toInt))(i => min + i * binSize)
-    } else Array(stats.getMin() - math.ulp(stats.getMin()), stats.getMax() + math.ulp(stats.getMax()))
+    else Array(stats.getMin() - math.ulp(stats.getMin()), stats.getMax() + math.ulp(stats.getMax()))
     val width = ScoreFormatter.format(1, max).length
     stats.getHistogram(levels).zipWithIndex.foreach { case (count, index) =>
       text.append(
@@ -121,29 +130,35 @@ abstract class Result[T <: Result[T]](
       )
     }
     text.toString
-  }
+
+  end distributionExtendedInfo
+
   private[results] def aggregationPolicy: AggregationPolicy = policy
+
   protected def getDerivativeResults(): java.util.Collection[? <: Result[?]] =
     java.util.Collections.emptyList[Result[?]]()
-  private[results] final def derivativeResults: java.util.Collection[? <: Result[?]] = getDerivativeResults()
+
+  final private[results] def derivativeResults: java.util.Collection[? <: Result[?]] = getDerivativeResults()
   protected def getThreadAggregator(): Aggregator[T]
   protected def getIterationAggregator(): Aggregator[T]
   protected def getZeroResult(): T = null.asInstanceOf[T]
-  private[results] final def aggregateResults(values: Vector[Result[?]], threads: Boolean): Result[?] = {
+
+  final private[results] def aggregateResults(values: Vector[Result[?]], threads: Boolean): Result[?] =
     import scala.jdk.CollectionConverters.*
-    val aggregator = if (threads) getThreadAggregator() else getIterationAggregator()
-    if (aggregator != null) aggregator.aggregate(values.asJava.asInstanceOf[java.util.Collection[T]])
-    else if (!threads && values.size == 1) values.head
+    val aggregator = if threads then getThreadAggregator() else getIterationAggregator()
+    if aggregator != null then aggregator.aggregate(values.asJava.asInstanceOf[java.util.Collection[T]])
+    else if !threads && values.size == 1 then values.head
     else throw new IllegalStateException("No aggregator for " + label)
-  }
-  private[results] final def zeroResult: Result[?] = getZeroResult()
-  override def toString(): String = {
+
+  final private[results] def zeroResult: Result[?] = getZeroResult()
+
+  override def toString(): String =
     val error = getScoreError()
-    if (!error.isNaN && !ScoreFormatter.isApproximate(getScore()))
+    if !error.isNaN && !ScoreFormatter.isApproximate(getScore()) then
       s"${ScoreFormatter.format(getScore())} ±(99.9%) ${ScoreFormatter.formatError(error)} ${getScoreUnit()}"
     else s"${ScoreFormatter.format(getScore())} ${getScoreUnit()}"
-  }
-}
+
+end Result
 
 /** Immutable metric view populated with raw observations by the runtime. */
 final class MetricResult(
@@ -152,36 +167,35 @@ final class MetricResult(
     statistics0: Statistics,
     unit0: String,
     policy0: AggregationPolicy = AggregationPolicy.AVG
-) extends Result[MetricResult](role0, label0, statistics0, unit0, policy0) {
-  private def aggregator = new Aggregator[MetricResult] {
-    def aggregate(results: java.util.Collection[MetricResult]): MetricResult = {
+) extends Result[MetricResult](role0, label0, statistics0, unit0, policy0):
+
+  private def aggregator = new Aggregator[MetricResult]:
+    def aggregate(results: java.util.Collection[MetricResult]): MetricResult =
       import scala.jdk.CollectionConverters.*
       val values = new org.openjdk.jmh.util.ListStatistics
       results.asScala.foreach(r => values.addValue(r.getScore()))
       new MetricResult(role, label, values, unit, policy)
-    }
-  }
+
   protected def getThreadAggregator(): Aggregator[MetricResult] = aggregator
   protected def getIterationAggregator(): Aggregator[MetricResult] = aggregator
-}
 
-object Result {
+object Result:
   private lazy val histogramBins = org.openjdk.jmh.util.IntegerProperties.read("jmh.histogramBins", 10)
   private val strings = new java.util.concurrent.ConcurrentHashMap[String, String]
-  private def dedup(value: String): String = {
-    if (value == null) throw new NullPointerException("Result labels and units cannot be null")
-    val previous = strings.putIfAbsent(value, value)
-    if (previous == null) value else previous
-  }
-  def of(value: Double): Statistics = new org.openjdk.jmh.util.SingletonStatistics(value)
-}
 
-object AggregationPolicy {
+  private def dedup(value: String): String =
+    if value == null then throw new NullPointerException("Result labels and units cannot be null")
+    val previous = strings.putIfAbsent(value, value)
+    if previous == null then value else previous
+
+  def of(value: Double): Statistics = new org.openjdk.jmh.util.SingletonStatistics(value)
+
+object AggregationPolicy:
+
   @scala.annotation.targetName("javaValues")
   def values(): Array[AggregationPolicy] = Array(AVG, SUM, MAX, MIN)
-}
 
-object ResultRole {
+object ResultRole:
+
   @scala.annotation.targetName("javaValues")
   def values(): Array[ResultRole] = Array(PRIMARY, SECONDARY, SECONDARY_DERIVATIVE, OMITTED)
-}

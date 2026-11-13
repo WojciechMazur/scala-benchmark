@@ -25,29 +25,37 @@
  */
 package org.openjdk.jmh.util
 
-class ScoreFormatter { ScoreFormatter.initialize() }
-object ScoreFormatter {
+class ScoreFormatter:
+  ScoreFormatter.initialize()
+
+object ScoreFormatter:
   private def initialize(): Unit = ()
   private val precision = IntegerProperties.read("jmh.scorePrecision", 3)
   private val ulp = 1.0 / math.pow(10, precision)
   private val threshold = ulp / 2
   def isApproximate(score: Double): Boolean = score < threshold
-  private def approximate(score: Double): String = {
+
+  private def approximate(score: Double): String =
     val power = math.round(math.log10(score)).toInt
-    "≈ " + (if (power == 0) "0" else "10" + superscript(power.toString))
-  }
+    "≈ " + (if power == 0 then "0" else "10" + superscript(power.toString))
+
   private def fixed(prefix: String, score: Double): String =
     String.format("%" + prefix + "." + precision + "f", java.lang.Double.valueOf(score))
-  def format(score: Double): String = if (isApproximate(score)) approximate(score) else fixed("", score)
+
+  def format(score: Double): String = if isApproximate(score) then approximate(score) else fixed("", score)
+
   def format(width: Int, score: Double): String =
-    if (isApproximate(score)) String.format("%" + width + "s", approximate(score)) else fixed(width.toString, score)
+    if isApproximate(score) then String.format("%" + width + "s", approximate(score)) else fixed(width.toString, score)
+
   def formatExact(width: Int, score: Double): String = fixed(width.toString, score)
   def formatError(error: Double): String = fixed("", math.max(error, ulp))
   def formatError(width: Int, error: Double): String = fixed(width.toString, math.max(error, ulp))
-  def formatLatex(score: Double): String = if (isApproximate(score)) {
+
+  def formatLatex(score: Double): String = if isApproximate(score) then
     val power = math.round(math.log10(score)).toInt
-    "$\\approx " + (if (power == 0) "0" else "10^{" + power + "}") + "$"
-  } else fixed("", score)
+    "$\\approx " + (if power == 0 then "0" else "10^{" + power + "}") + "$"
+  else fixed("", score)
+
   def superscript(text: String): String = text.map {
     case '-' => '⁻'
     case '0' => '⁰'
@@ -62,23 +70,27 @@ object ScoreFormatter {
     case '9' => '⁹'
     case c   => c
   }
-}
 
-private[jmh] object IntegerProperties {
-  def read(name: String, fallback: Int): Int = {
+end ScoreFormatter
+
+private[jmh] object IntegerProperties:
+
+  def read(name: String, fallback: Int): Int =
     val text = System.getProperty(name)
-    if (text == null) return fallback
-    try {
+    if text == null then return fallback
+    try
       var index = 0
       var negative = false
-      if (text.nonEmpty && (text(0) == '-' || text(0) == '+')) { negative = text(0) == '-'; index = 1 }
-      val radix = if (text.startsWith("0x", index) || text.startsWith("0X", index)) { index += 2; 16 }
-      else if (text.startsWith("#", index)) { index += 1; 16 }
-      else if (text.startsWith("0", index) && text.length > index + 1) { index += 1; 8 }
+      if text.nonEmpty && (text(0) == '-' || text(0) == '+') then
+        negative = text(0) == '-'; index = 1
+      val radix = if text.startsWith("0x", index) || text.startsWith("0X", index) then
+        index += 2; 16
+      else if text.startsWith("#", index) then
+        index += 1; 16
+      else if text.startsWith("0", index) && text.length > index + 1 then
+        index += 1; 8
       else 10
       val digits = text.substring(index)
-      if (digits.startsWith("-") || digits.startsWith("+")) throw new NumberFormatException("Invalid sign")
-      java.lang.Integer.parseInt((if (negative) "-" else "") + digits, radix)
-    } catch { case _: NumberFormatException => fallback }
-  }
-}
+      if digits.startsWith("-") || digits.startsWith("+") then throw new NumberFormatException("Invalid sign")
+      java.lang.Integer.parseInt((if negative then "-" else "") + digits, radix)
+    catch case _: NumberFormatException => fallback

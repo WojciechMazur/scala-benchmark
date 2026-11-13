@@ -24,11 +24,10 @@
  */
 package org.openjdk.jmh.annotations
 
-enum Scope extends java.lang.Enum[Scope] {
+enum Scope extends java.lang.Enum[Scope]:
   case Benchmark, Group, Thread
-}
 
-object Scope {
+object Scope:
+
   @scala.annotation.targetName("javaValues")
   def values(): Array[Scope] = Array(Benchmark, Group, Thread)
-}

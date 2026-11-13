@@ -24,8 +24,9 @@
  */
 package org.openjdk.jmh.results
 
-import org.openjdk.jmh.util.SingletonStatistics
 import scala.jdk.CollectionConverters.*
+
+import org.openjdk.jmh.util.SingletonStatistics
 
 class TextResult(private[results] val output: String, label: String)
     extends Result[TextResult](
@@ -34,22 +35,21 @@ class TextResult(private[results] val output: String, label: String)
       new SingletonStatistics(Double.NaN),
       "---",
       AggregationPolicy.AVG
-    ) {
+    ):
   protected def getThreadAggregator(): Aggregator[TextResult] = new TextResultAggregator
   protected def getIterationAggregator(): Aggregator[TextResult] = new TextResultAggregator
   override def toString(): String = "(text only)"
   override def extendedInfo(): String = output
-}
-private[results] class TextResultAggregator extends Aggregator[TextResult] {
-  def aggregate(results: java.util.Collection[TextResult]): TextResult = {
+
+private[results] class TextResultAggregator extends Aggregator[TextResult]:
+
+  def aggregate(results: java.util.Collection[TextResult]): TextResult =
     val output = new StringBuilder
     var label: String = null
     results.asScala.foreach { result =>
       output.append(result.output)
-      if (label == null) label = result.getLabel()
-      else if (!label.equalsIgnoreCase(result.getLabel()))
+      if label == null then label = result.getLabel()
+      else if !label.equalsIgnoreCase(result.getLabel()) then
         throw new IllegalStateException("Trying to aggregate different labels: " + label + ", " + result.getLabel())
     }
     new TextResult(output.toString, label)
-  }
-}

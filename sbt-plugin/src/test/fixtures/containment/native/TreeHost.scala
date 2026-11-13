@@ -1,7 +1,8 @@
 package scala.benchmark.examples
 
-object TreeHost {
-  def start(path: String): Unit = {
+object TreeHost:
+
+  def start(path: String): Unit =
     new ProcessBuilder(
       "sh",
       "-c",
@@ -19,8 +20,7 @@ object TreeHost {
           .matches("[0-9]+ [0-9]+")
       )
       .getOrElse(false)
-    while (!ready && System.nanoTime() - started < 2000000000L) Thread.sleep(1)
+    while !ready && System.nanoTime() - started < 2000000000L do Thread.sleep(1)
     require(ready, "Tree child did not start")
-  }
+
   def crash(): Unit = System.exit(23)
-}

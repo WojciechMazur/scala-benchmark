@@ -1,28 +1,36 @@
 package scala.benchmark
 
 /** Java static modules need explicit Scala terms; portable backends export the original Scala companions. */
-object TimeValue {
+object TimeValue:
+
   export org.openjdk.jmh.runner.options.TimeValue.{
-    NONE,
     days,
+    fromString,
     hours,
-    minutes,
-    seconds,
-    milliseconds,
     microseconds,
+    milliseconds,
+    minutes,
     nanoseconds,
+    seconds,
     tuToString,
     valueOf,
-    fromString
+    NONE
   }
-}
-object VerboseMode { export org.openjdk.jmh.runner.options.VerboseMode.{SILENT, NORMAL, EXTRA, values, valueOf} }
-object WarmupMode { export org.openjdk.jmh.runner.options.WarmupMode.{INDI, BULK, BULK_INDI, values, valueOf} }
-object ResultFormatType {
-  export org.openjdk.jmh.results.format.ResultFormatType.{TEXT, CSV, SCSV, JSON, LATEX, values, valueOf}
-}
-object RunResult { export org.openjdk.jmh.results.RunResult.DEFAULT_SORT_COMPARATOR }
 
-object ResultFormatFactory { export org.openjdk.jmh.results.format.ResultFormatFactory.getInstance }
+object VerboseMode:
+  export org.openjdk.jmh.runner.options.VerboseMode.{valueOf, values, EXTRA, NORMAL, SILENT}
 
-object OutputFormatFactory { export org.openjdk.jmh.runner.format.OutputFormatFactory.createFormatInstance }
+object WarmupMode:
+  export org.openjdk.jmh.runner.options.WarmupMode.{valueOf, values, BULK, BULK_INDI, INDI}
+
+object ResultFormatType:
+  export org.openjdk.jmh.results.format.ResultFormatType.{valueOf, values, CSV, JSON, LATEX, SCSV, TEXT}
+
+object RunResult:
+  export org.openjdk.jmh.results.RunResult.DEFAULT_SORT_COMPARATOR
+
+object ResultFormatFactory:
+  export org.openjdk.jmh.results.format.ResultFormatFactory.getInstance
+
+object OutputFormatFactory:
+  export org.openjdk.jmh.runner.format.OutputFormatFactory.createFormatInstance

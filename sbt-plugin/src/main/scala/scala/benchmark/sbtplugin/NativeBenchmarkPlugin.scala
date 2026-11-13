@@ -1,21 +1,19 @@
 package scala.benchmark.sbtplugin
 
-import sbt.{*, given}
-import sbt.Keys.*
-import sbt.complete.DefaultParsers.spaceDelimited
-
 import scala.scalanative.build.Mode
 import scala.scalanative.sbtplugin.{ScalaNativePlatform, ScalaNativePlugin, ScalaNativePluginInternal}
 import scala.scalanative.sbtplugin.ScalaNativePlugin.autoImport.*
 import scala.sys.process.Process
 
+import BenchmarkPlugin.autoImport.*
 import pl.project13.scala.sbt.JmhPlugin
 import pl.project13.scala.sbt.JmhPlugin.JmhKeys.*
-
-import BenchmarkPlugin.autoImport.*
+import sbt.{*, given}
+import sbt.Keys.*
+import sbt.complete.DefaultParsers.spaceDelimited
 
 /** Scala Native backend: the `Jmh` configuration links an optimized executable that hosts the derived harnesses. */
-object NativeBenchmarkPlugin extends AutoPlugin {
+object NativeBenchmarkPlugin extends AutoPlugin:
   override def requires: Plugins = BenchmarkPlugin && ScalaNativePlugin
   override def trigger: PluginTrigger = allRequirements
 
@@ -53,7 +51,8 @@ object NativeBenchmarkPlugin extends AutoPlugin {
           val arguments = spaceDelimited("<JMH option>").parsed
           val executable = fileConverter.value.toPath((Jmh / nativeLink).value).toAbsolutePath.toString
           val exit = Process(executable +: arguments, baseDirectory.value, (Jmh / run / envVars).value.toSeq*).!
-          if (exit != 0) sys.error(s"Benchmark executable exited with $exit")
+          if exit != 0 then sys.error(s"Benchmark executable exited with $exit")
         }
       )
-}
+
+end NativeBenchmarkPlugin

@@ -31,7 +31,6 @@ final class Measurement(
     val batchSize: Int = -1
 ) extends scala.annotation.StaticAnnotation
 
-object Measurement {
+object Measurement:
   final val BLANK_ITERATIONS = -1; final val BLANK_TIME = -1;
   final val BLANK_BATCHSIZE = -1
-}

@@ -1,45 +1,47 @@
 package scala.benchmark.runtime.outputformat
 
 import scala.benchmark.*
+import scala.jdk.CollectionConverters.*
+
 import org.openjdk.jmh.infra.{BenchmarkParams, IterationParams}
 import org.openjdk.jmh.results.{BenchmarkResult, IterationResult, RunResult}
 import org.openjdk.jmh.runner.format.OutputFormat
 import org.openjdk.jmh.runner.options.VerboseMode
-import scala.jdk.CollectionConverters.*
 
 @State(Scope.Thread)
 @BenchmarkMode(Array(Mode.SingleShotTime))
-class OutputTarget {
+class OutputTarget:
   @Param(Array("none")) var failure: String = ""
   @Param(Array("unused")) var journal: String = ""
   private var measured = 0
   @Setup def setup(): Unit = Journal.append(journal, "setupTrial")
   @TearDown def teardown(): Unit = Journal.append(journal, "teardownTrial")
-  @Benchmark def execute(params: IterationParams): Int = {
+
+  @Benchmark def execute(params: IterationParams): Int =
     val measurement = params.getType() == org.openjdk.jmh.runner.IterationType.MEASUREMENT
-    if (measurement) measured += 1
+    if measurement then measured += 1
     Journal.append(journal, "work:" + params.getType() + ":" + measured)
-    if (measurement && failure == "crash" && measured == 2) Journal.crash()
-    if (measurement && (failure == "early" || (failure == "late" && measured == 2)))
+    if measurement && failure == "crash" && measured == 2 then Journal.crash()
+    if measurement && (failure == "early" || (failure == "late" && measured == 2)) then
       throw new IllegalStateException("output-format-" + failure)
     1
-  }
-}
+
 @BenchmarkMode(Array(Mode.SingleShotTime))
 @Warmup(iterations = 0)
 @Measurement(iterations = 1)
 @Fork(0)
-class OutputFormatApiBenchmark {
-  @Benchmark def execute(): Int = {
-    for (forks <- Vector(0, 1); failure <- Vector("none", "early", "late")) {
+class OutputFormatApiBenchmark:
+
+  @Benchmark def execute(): Int =
+    for forks <- Vector(0, 1); failure <- Vector("none", "early", "late") do
       val journal = Journal.create(s"forks-$forks-$failure-")
       def record(event: String): Unit = Journal.append(journal.toString, event)
-      val format = new OutputFormat {
+      val format = new OutputFormat:
         def startRun(): Unit = record("startRun")
         def endRun(results: java.util.Collection[RunResult]): Unit = record("endRun:" + results.size())
         def startBenchmark(params: BenchmarkParams): Unit = record("startBenchmark")
         def endBenchmark(result: BenchmarkResult): Unit = record(
-          "endBenchmark:" + (if (result == null) "null" else result.getIterationResults().size().toString)
+          "endBenchmark:" + (if result == null then "null" else result.getIterationResults().size().toString)
         )
         def iteration(params: BenchmarkParams, iteration: IterationParams, index: Int): Unit =
           record("iteration:" + iteration.getType() + ":" + index)
@@ -57,7 +59,6 @@ class OutputFormatApiBenchmark {
         def write(bytes: Array[Byte]): Unit = ()
         def flush(): Unit = record("flush")
         def close(): Unit = record("close")
-      }
       val options = new OptionsBuilder()
         .include("scala.benchmark.runtime.outputformat.OutputTarget.execute")
         .mode(Mode.SingleShotTime)
@@ -70,10 +71,10 @@ class OutputFormatApiBenchmark {
         .param("failure", failure)
         .param("journal", journal.toString)
         .build()
-      try {
+      try
         val results = new org.openjdk.jmh.runner.Runner(options, format).run()
         record("returned:" + results.size())
-      } catch { case error: Throwable => record("threw:" + error.getClass.getName) }
+      catch case error: Throwable => record("threw:" + error.getClass.getName)
       val trace = Journal.read(journal)
       println(s"OUTPUT_FORMAT_TRACE:$forks:$failure:" + trace.mkString(","))
       val callbackTrace = trace
@@ -82,7 +83,7 @@ class OutputFormatApiBenchmark {
             e.startsWith("endBenchmark") || e.startsWith("endRun") || e == "flush" || e == "close" ||
             e.startsWith("returned:") || e.startsWith("threw:")
         )
-        .map(e => if (e.startsWith("threw:")) "threw" else e)
+        .map(e => if e.startsWith("threw:") then "threw" else e)
       val prefix = Vector(
         "startRun",
         "startBenchmark",
@@ -90,8 +91,8 @@ class OutputFormatApiBenchmark {
         "iterationResult:WARMUP:1:1",
         "iteration:MEASUREMENT:1"
       )
-      val workerClose = if (forks == 1) Vector("flush", "close") else Vector.empty
-      val expected = failure match {
+      val workerClose = if forks == 1 then Vector("flush", "close") else Vector.empty
+      val expected = failure match
         case "none" =>
           prefix ++ Vector(
             "iterationResult:MEASUREMENT:1:1",
@@ -100,28 +101,28 @@ class OutputFormatApiBenchmark {
           ) ++
             workerClose ++ Vector("endBenchmark:2", "endRun:1", "flush", "close", "returned:1")
         case "early" =>
-          prefix ++ workerClose ++ (if (forks == 1) Vector("endBenchmark:null") else Vector.empty) ++
+          prefix ++ workerClose ++ (if forks == 1 then Vector("endBenchmark:null") else Vector.empty) ++
             Vector("endRun:0", "flush", "close", "returned:0")
         case "late" if forks == 0 =>
           prefix ++ Vector("iterationResult:MEASUREMENT:1:1", "iteration:MEASUREMENT:2", "threw")
         case "late" =>
           prefix ++ Vector("iterationResult:MEASUREMENT:1:1", "iteration:MEASUREMENT:2") ++ workerClose ++
             Vector("endBenchmark:1", "endRun:1", "flush", "close", "returned:1")
-      }
       assert(callbackTrace == expected, s"forks=$forks failure=$failure callbacks=$callbackTrace expected=$expected")
       assert(trace.head == "startRun", trace.mkString(","))
       assert(trace.contains("startBenchmark"))
       assert(trace.contains("iteration:WARMUP:1"))
       assert(trace.contains("iterationResult:WARMUP:1:1"))
-      if (forks == 0) assert(trace.indexOf("iteration:WARMUP:1") < trace.indexOf("setupTrial"))
-      if (failure == "none") {
+      if forks == 0 then assert(trace.indexOf("iteration:WARMUP:1") < trace.indexOf("setupTrial"))
+      if failure == "none" then
         assert(trace.contains("endBenchmark:2"))
         assert(trace.contains("endRun:1"))
         assert(trace.contains("returned:1"))
         assert(trace.indexOf("teardownTrial") < trace.indexOf("iterationResult:MEASUREMENT:2:1"))
-      }
-    }
+    end for
     println("OUTPUT_FORMAT_REFERENCE_OK")
     1
-  }
-}
+
+  end execute
+
+end OutputFormatApiBenchmark

@@ -25,27 +25,26 @@
 package org.openjdk.jmh.results.format
 
 import java.io.PrintStream
-import org.openjdk.jmh.results.RunResult
+
 import scala.benchmark.internal.RunnerServices
 
-trait ResultFormat {
+import org.openjdk.jmh.results.RunResult
+
+trait ResultFormat:
   def writeOut(results: java.util.Collection[RunResult]): Unit
-}
 
 class ResultFormatFactory private ()
-object ResultFormatFactory {
-  def getInstance(format: ResultFormatType, file: String): ResultFormat = new ResultFormat {
+
+object ResultFormatFactory:
+
+  def getInstance(format: ResultFormatType, file: String): ResultFormat = new ResultFormat:
     def writeOut(results: java.util.Collection[RunResult]): Unit =
       RunnerServices.current.writeResultsFile(results, format, file)
-  }
-  def getInstance(format: ResultFormatType, out: PrintStream): ResultFormat = {
-    if (format == null) throw new NullPointerException("format")
-    if (format == ResultFormatType.JSON) scala.benchmark.internal.JsonReportOptions.initialize()
-    new ResultFormat {
-      def writeOut(results: java.util.Collection[RunResult]): Unit = {
-        if (out == null) throw new NullPointerException("out")
+
+  def getInstance(format: ResultFormatType, out: PrintStream): ResultFormat =
+    if format == null then throw new NullPointerException("format")
+    if format == ResultFormatType.JSON then scala.benchmark.internal.JsonReportOptions.initialize()
+    new ResultFormat:
+      def writeOut(results: java.util.Collection[RunResult]): Unit =
+        if out == null then throw new NullPointerException("out")
         out.print(RunnerServices.current.renderResults(results, format))
-      }
-    }
-  }
-}

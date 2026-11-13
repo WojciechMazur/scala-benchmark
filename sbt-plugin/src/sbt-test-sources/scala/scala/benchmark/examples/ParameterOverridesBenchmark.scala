@@ -7,8 +7,9 @@ import scala.benchmark.*
 @Warmup(iterations = 0)
 @Measurement(iterations = 1)
 @Fork(0)
-class ParameterOverridesBenchmark {
+class ParameterOverridesBenchmark:
   @Param(Array("false")) var flag: Boolean = false
   @Param(Array("z")) var character: Char = 'z'
-  @Benchmark def execute(): Int = { assert(flag && character == 'a'); 1 }
-}
+
+  @Benchmark def execute(): Int =
+    assert(flag && character == 'a'); 1

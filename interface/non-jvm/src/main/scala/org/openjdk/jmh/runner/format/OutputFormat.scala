@@ -3,7 +3,7 @@ package org.openjdk.jmh.runner.format
 import org.openjdk.jmh.infra.{BenchmarkParams, IterationParams}
 import org.openjdk.jmh.results.{BenchmarkResult, IterationResult, RunResult}
 
-trait OutputFormat {
+trait OutputFormat:
   def iteration(params: BenchmarkParams, iteration: IterationParams, index: Int): Unit
   def iterationResult(params: BenchmarkParams, iteration: IterationParams, index: Int, result: IterationResult): Unit
   def startBenchmark(params: BenchmarkParams): Unit
@@ -17,4 +17,3 @@ trait OutputFormat {
   def write(bytes: Array[Byte]): Unit
   def flush(): Unit
   def close(): Unit
-}

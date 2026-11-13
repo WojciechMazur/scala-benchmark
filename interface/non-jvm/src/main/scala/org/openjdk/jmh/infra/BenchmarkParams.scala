@@ -1,6 +1,7 @@
 package org.openjdk.jmh.infra
 
 import java.util.concurrent.TimeUnit
+
 import org.openjdk.jmh.annotations.Mode
 import org.openjdk.jmh.runner.WorkloadParams
 import org.openjdk.jmh.runner.options.TimeValue
@@ -28,7 +29,7 @@ class BenchmarkParams(
     private val jmhVersion: String,
     private val timeout: TimeValue
 ) extends Comparable[BenchmarkParams]
-    with Serializable {
+    with Serializable:
   def getBenchmark(): String = benchmark
   def generatedBenchmark(): String = generatedTarget
   def shouldSynchIterations(): Boolean = synchIterations
@@ -41,7 +42,7 @@ class BenchmarkParams(
   def getMeasurement(): IterationParams = measurement
   def getMode(): Mode = mode
   def getParamsKeys(): java.util.Collection[String] = params.keys()
-  def getParam(key: String): String = if (params == null) null else params.get(key)
+  def getParam(key: String): String = if params == null then null else params.get(key)
   def getTimeUnit(): TimeUnit = timeUnit
   def getOpsPerInvocation(): Int = opsPerInvocation
   def getJvm(): String = jvm
@@ -51,29 +52,31 @@ class BenchmarkParams(
   def getVmVersion(): String = vmVersion
   def getJmhVersion(): String = jmhVersion
   def getTimeout(): TimeValue = timeout
-  def id(): String = {
+
+  def id(): String =
     import scala.jdk.CollectionConverters.*
     def escaped(value: String): String = scala.benchmark.internal.Ascii.formEncode(value)
-    escaped(benchmark) + "-" + mode.toString + params
-      .keys()
-      .asScala
-      .map(k => "-" + escaped(k) + "-" + escaped(params.get(k)))
-      .mkString
-  }
-  def compareTo(that: BenchmarkParams): Int = {
+    escaped(benchmark) + "-" + mode.toString +
+      params
+        .keys()
+        .asScala
+        .map(k => "-" + escaped(k) + "-" + escaped(params.get(k)))
+        .mkString
+
+  def compareTo(that: BenchmarkParams): Int =
     val byMode = mode.compareTo(that.mode)
-    if (byMode != 0) byMode
-    else {
+    if byMode != 0 then byMode
+    else
       val byName = benchmark.compareTo(that.benchmark)
-      if (byName != 0) byName
-      else if (params == null || that.params == null) 0
+      if byName != 0 then byName
+      else if params == null || that.params == null then 0
       else params.compareTo(that.params)
-    }
-  }
-  override def equals(other: Any): Boolean = other match {
+
+  override def equals(other: Any): Boolean = other match
     case that: BenchmarkParams =>
       getClass == that.getClass && benchmark == that.benchmark && mode == that.mode && params == that.params
     case _ => false
-  }
+
   override def hashCode(): Int = 31 * (31 * benchmark.hashCode() + mode.hashCode()) + params.hashCode()
-}
+
+end BenchmarkParams

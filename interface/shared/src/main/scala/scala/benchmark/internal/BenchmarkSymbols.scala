@@ -109,11 +109,11 @@ class BenchmarkSymbols[Q <: Quotes](using val quotes: Q):
       catch case _: Exception => None
 
   def constant(term: Term): Option[String] = term match
-    case Literal(value)                     => Option(value.value).map(_.toString)
-    case NamedArg(_, value)                 => constant(value)
-    case Typed(value, _)                    => constant(value)
-    case Inlined(_, _, value)               => constant(value)
-    case _: Ident if binding(term).nonEmpty => binding(term).flatMap(constant)
+    case Literal(value)                                   => Option(value.value).map(_.toString)
+    case NamedArg(_, value)                               => constant(value)
+    case Typed(value, _)                                  => constant(value)
+    case Inlined(_, _, value)                             => constant(value)
+    case _: Ident if binding(term).nonEmpty               => binding(term).flatMap(constant)
     case _ if !term.symbol.isNoSymbol && !isDefault(term) =>
       term.tpe.widenTermRefByName match
         case ConstantType(value) => Some(value.value.toString)
@@ -160,7 +160,7 @@ class BenchmarkSymbols[Q <: Quotes](using val quotes: Q):
       def platform(term: Term): Option[String] = term match
         case Typed(value, _)      => platform(value)
         case Inlined(_, _, value) => platform(value)
-        case _ =>
+        case _                    =>
           val symbol = term.symbol
           Option.when(!symbol.isNoSymbol && symbol.owner == platformCases && allPlatforms.contains(symbol.name))(
             symbol.name
@@ -180,7 +180,7 @@ class BenchmarkSymbols[Q <: Quotes](using val quotes: Q):
       val reasons = args.get("reason").toList.flatMap {
         case Literal(StringConstant(text)) => Option(text).filter(_.nonEmpty)
         case term if isDefault(term)       => None
-        case term =>
+        case term                          =>
           term.tpe.widenTermRefByName match
             case ConstantType(StringConstant(text)) => Option(text).filter(_.nonEmpty)
             case _                                  => fail("@Platforms reason must be a constant string", symbol)
@@ -197,7 +197,8 @@ class BenchmarkSymbols[Q <: Quotes](using val quotes: Q):
   /** Class, inherited and method restrictions are intersected. */
   def restriction(cls: Symbol, method: Symbol): Restriction =
     val result =
-      intersect(cls.typeRef.baseClasses.flatMap(declaredRestrictions) ::: overridden(method).flatMap(declaredRestrictions))
+      intersect(cls.typeRef.baseClasses.flatMap(declaredRestrictions) :::
+        overridden(method).flatMap(declaredRestrictions))
     if result.allowed.isEmpty then fail("Empty effective @Platforms intersection" + describe(result.reasons), method)
     result
 
@@ -215,3 +216,5 @@ class BenchmarkSymbols[Q <: Quotes](using val quotes: Q):
 
   private def describe(reasons: List[String]): String =
     if reasons.isEmpty then "" else reasons.mkString(": ", "; ", "")
+
+end BenchmarkSymbols

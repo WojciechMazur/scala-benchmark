@@ -2,51 +2,46 @@ package scala.benchmark.sbtplugin
 
 import java.io.File
 
-import sbt.*
-
 import scala.benchmark.internal.reporting.{HtmlReport, ResultTable}
+
+import sbt.*
 import sjsonnew.shaded.scalajson.ast.unsafe.*
 import sjsonnew.support.scalajson.unsafe.{CompactPrinter, Parser}
 
 /** HTML and LaTeX reports for the JVM, rendered from JMH's own JSON results. Benchmark execution stays in JMH. */
-private[sbtplugin] object JvmReport {
+private[sbtplugin] object JvmReport:
   private val extensions = Map("html" -> "html", "latex" -> "tex")
 
   /** A `Jmh / run` invocation asking for a result format that JMH does not provide. */
-  final case class Request(format: String, output: File, private val forwarded: Seq[String]) {
+  final case class Request(format: String, output: File, private val forwarded: Seq[String]):
 
     /** The original arguments, with the result format redirected to a JSON file. */
     def jmhArguments(json: File): Seq[String] = forwarded ++ Seq("-rf", "json", "-rff", json.getAbsolutePath)
-  }
 
-  object Request {
-    def apply(arguments: Seq[String], workingDirectory: File): Option[Request] = {
-      def option(name: String): Option[String] = {
+  object Request:
+
+    def apply(arguments: Seq[String], workingDirectory: File): Option[Request] =
+      def option(name: String): Option[String] =
         val index = arguments.indexOf(name)
         require(index < 0 || index + 1 < arguments.size, s"Missing value of $name")
         Option.when(index >= 0)(arguments(index + 1))
-      }
-      for {
+      for
         format <- option("-rf").map(_.toLowerCase)
         extension <- extensions.get(format)
-      } yield {
+      yield
         val selected = file(option("-rff").getOrElse("jmh-result." + extension))
-        val output = if (selected.isAbsolute) selected else workingDirectory / selected.getPath
+        val output = if selected.isAbsolute then selected else workingDirectory / selected.getPath
         Request(format, output, withoutResultOptions(arguments))
-      }
-    }
 
-    private def withoutResultOptions(arguments: Seq[String]): Seq[String] = arguments match {
+    private def withoutResultOptions(arguments: Seq[String]): Seq[String] = arguments match
       case ("-rf" | "-rff") +: _ +: rest => withoutResultOptions(rest)
       case argument +: rest              => argument +: withoutResultOptions(rest)
       case _                             => Nil
-    }
-  }
 
-  def render(file: File, format: String): String = {
+  def render(file: File, format: String): String =
     val entries = read(file)
-    if (format == "html") HtmlReport.render(entries)
-    else {
+    if format == "html" then HtmlReport.render(entries)
+    else
       val names = entries.flatMap(_.parameters.map(_._1)).distinct.sorted
       val header = Vector("Benchmark", "Mode", "Threads", "Samples", "Score", "Score Error (99.9%)", "Unit") ++
         names.map("Param: " + _)
@@ -64,29 +59,23 @@ private[sbtplugin] object JvmReport {
         ) ++ names.map(parameters.getOrElse(_, ""))
       }
       ResultTable.latex(header, rows)
-    }
-  }
 
-  private def read(file: File): Vector[HtmlReport.Entry] = {
-    def fields(value: JValue): Map[String, JValue] = value match {
+  private def read(file: File): Vector[HtmlReport.Entry] =
+    def fields(value: JValue): Map[String, JValue] = value match
       case obj: JObject => obj.value.iterator.map(f => f.field -> f.value).toMap
       case _            => Map.empty
-    }
-    def elements(value: JValue): Vector[JValue] = value match {
+    def elements(value: JValue): Vector[JValue] = value match
       case arr: JArray => arr.value.toVector
       case _           => Vector.empty
-    }
-    def text(value: JValue): String = value match {
+    def text(value: JValue): String = value match
       case s: JString => s.value
       case n: JNumber => n.value
       case _          => CompactPrinter(value)
-    }
     def number(value: JValue): Double = text(value).toDouble
-    def histogramCount(value: JValue): Long = {
+    def histogramCount(value: JValue): Long =
       val array = elements(value)
-      if (array.size == 2 && array.forall(_.isInstanceOf[JNumber])) number(array(1)).toLong
+      if array.size == 2 && array.forall(_.isInstanceOf[JNumber]) then number(array(1)).toLong
       else array.map(histogramCount).sum
-    }
     val records = elements(Parser.parseFromFile(file).get)
     records.flatMap { record =>
       val values = fields(record)
@@ -96,7 +85,7 @@ private[sbtplugin] object JvmReport {
       metrics.map { case (label, metricValue) =>
         val metric = fields(metricValue)
         val rawCount =
-          if (label.matches("(?:.*:)?p[0-9.]+")) 1L
+          if label.matches("(?:.*:)?p[0-9.]+") then 1L
           else
             metric
               .get("rawDataHistogram")
@@ -106,7 +95,7 @@ private[sbtplugin] object JvmReport {
         val metadata = values.toVector
           .filterNot { case (key, _) => Set("benchmark", "mode", "params", "primaryMetric", "secondaryMetrics")(key) }
           .map { case (key, value) => key -> text(value) } :+ ("Backend" -> "JMH (JVM)")
-        val name = text(values("benchmark")) + (if (label.isEmpty) "" else ":" + label)
+        val name = text(values("benchmark")) + (if label.isEmpty then "" else ":" + label)
         // One record per metric: the metric becomes the record's primary one.
         val raw = CompactPrinter(JObject(values.toArray.sortBy(_._1).map {
           case ("benchmark", _)        => JField("benchmark", JString(name))
@@ -133,5 +122,7 @@ private[sbtplugin] object JvmReport {
         )
       }
     }
-  }
-}
+
+  end read
+
+end JvmReport

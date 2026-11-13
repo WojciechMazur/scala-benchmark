@@ -27,4 +27,5 @@ package org.openjdk.jmh.annotations
 @scala.annotation.meta.field
 final class Param(val value: Array[String] = Array(Param.BLANK_ARGS)) extends scala.annotation.StaticAnnotation
 
-object Param { final val BLANK_ARGS = "blank_blank_blank_2014" }
+object Param:
+  final val BLANK_ARGS = "blank_blank_blank_2014"

@@ -1,67 +1,76 @@
 package scala.benchmark.examples
 
-import scala.benchmark.*
 import java.util.concurrent.{CountDownLatch, TimeUnit}
 
+import scala.benchmark.*
+
 @State(Scope.Group)
-class FailureGroupState {
+class FailureGroupState:
   @Param(Array("none")) var boundary: String = ""
   @Param(Array("cooperative")) var behavior: String = ""
   @Param(Array("1")) var failAtIteration: Int = 1
   @volatile private var iteration = 0
   var peerEntered = new CountDownLatch(1)
-  def event(stage: String, p: ThreadParams): Unit = {
+
+  def event(stage: String, p: ThreadParams): Unit =
     println(s"GROUP_EVENT\t${p.getGroupIndex()}\t${p.getThreadIndex()}\t$stage\tEND")
-  }
-  def fail(stage: String, p: ThreadParams): Unit = if (
-    boundary == stage && p.getGroupIndex() == 0 && (stage == "trialSetup" || iteration >= failAtIteration)
-  ) {
-    event("failure:" + stage, p)
-    throw new IllegalStateException("injected group failure: " + stage)
-  }
+
+  def fail(stage: String, p: ThreadParams): Unit =
+    if
+      boundary == stage && p.getGroupIndex() == 0 && (stage == "trialSetup" || iteration >= failAtIteration)
+    then
+      event("failure:" + stage, p)
+      throw new IllegalStateException("injected group failure: " + stage)
+
   def failingInvocation: Boolean = boundary == "invoke" && iteration >= failAtIteration
   @Setup(Level.Trial) def trialSetup(p: ThreadParams): Unit = fail("trialSetup", p)
-  @Setup(Level.Iteration) def iterationSetup(p: ThreadParams): Unit = {
+
+  @Setup(Level.Iteration) def iterationSetup(p: ThreadParams): Unit =
     iteration += 1
     peerEntered = new CountDownLatch(1)
     event("iteration:" + iteration, p)
     fail("iterationSetup", p)
-  }
+
   @Setup(Level.Invocation) def invocationSetup(p: ThreadParams): Unit = fail("invocationSetup", p)
   @TearDown(Level.Invocation) def invocationTeardown(p: ThreadParams): Unit = fail("invocationTeardown", p)
   @TearDown(Level.Iteration) def iterationTeardown(p: ThreadParams): Unit = fail("iterationTeardown", p)
   @TearDown(Level.Trial) def trialTeardown(p: ThreadParams): Unit = fail("trialTeardown", p)
-}
+
+end FailureGroupState
 
 @State(Scope.Thread)
 @AuxCounters(AuxCounters.Type.EVENTS)
-class FailureGroupCounters {
+class FailureGroupCounters:
   private var group: FailureGroupState = null
   private var params: ThreadParams = null
   private var count = 0L
-  @Setup(Level.Trial) def setup(g: FailureGroupState, p: ThreadParams): Unit = { group = g; params = p }
+
+  @Setup(Level.Trial) def setup(g: FailureGroupState, p: ThreadParams): Unit =
+    group = g; params = p
+
   def increment(): Unit = count += 1
-  def events(): Long = {
+
+  def events(): Long =
     group.event("counterRead", params)
-    if (params.getSubgroupIndex() == 0) group.fail("counter", params)
+    if params.getSubgroupIndex() == 0 then group.fail("counter", params)
     count
-  }
-}
 
 @State(Scope.Thread)
 @AuxCounters(AuxCounters.Type.OPERATIONS)
-class FailureGroupOperations {
+class FailureGroupOperations:
   private var group: FailureGroupState = null
   private var params: ThreadParams = null
   private var count = 0L
-  @Setup(Level.Trial) def setup(g: FailureGroupState, p: ThreadParams): Unit = { group = g; params = p }
+
+  @Setup(Level.Trial) def setup(g: FailureGroupState, p: ThreadParams): Unit =
+    group = g; params = p
+
   def increment(): Unit = count += 1
-  def operations(): Long = {
+
+  def operations(): Long =
     group.event("operationsRead", params)
-    if (params.getSubgroupIndex() == 0) group.fail("operations", params)
+    if params.getSubgroupIndex() == 0 then group.fail("operations", params)
     count
-  }
-}
 
 @Platforms(Array(Platform.JVM, Platform.Native), reason = "Requires concurrent group workers")
 @BenchmarkMode(Array(Mode.SingleShotTime))
@@ -69,22 +78,22 @@ class FailureGroupOperations {
 @Measurement(iterations = 2)
 @Threads(2)
 @Fork(1)
-class GroupFailureBenchmark {
+class GroupFailureBenchmark:
+
   @Benchmark @Group("pair") @GroupThreads(1)
   def a(
       group: FailureGroupState,
       counters: FailureGroupCounters,
       operations: FailureGroupOperations,
       p: ThreadParams
-  ): Int = {
+  ): Int =
     counters.increment()
     operations.increment()
-    if (group.failingInvocation && p.getGroupIndex() == 0) {
+    if group.failingInvocation && p.getGroupIndex() == 0 then
       assert(group.peerEntered.await(2, TimeUnit.SECONDS), "Peer never entered grouped work")
       group.fail("invoke", p)
-    }
     1
-  }
+
   @Benchmark @Group("pair") @GroupThreads(1)
   def b(
       group: FailureGroupState,
@@ -92,36 +101,37 @@ class GroupFailureBenchmark {
       operations: FailureGroupOperations,
       p: ThreadParams,
       control: Control
-  ): Int = {
+  ): Int =
     counters.increment()
     operations.increment()
-    if (group.failingInvocation && p.getGroupIndex() == 0) {
+    if group.failingInvocation && p.getGroupIndex() == 0 then
       group.event("peerEntered", p)
       group.peerEntered.countDown()
-      if (group.behavior == "stubborn") while (true) ()
-      else while (!control.stopMeasurement && !Thread.currentThread().isInterrupted) ()
+      if group.behavior == "stubborn" then while true do ()
+      else while !control.stopMeasurement && !Thread.currentThread().isInterrupted do ()
       group.event("peerReleased", p)
-    }
     1
-  }
-}
+
+end GroupFailureBenchmark
 
 @Platforms(Array(Platform.JVM, Platform.Native), reason = "Grouped failure recovery probe")
 @BenchmarkMode(Array(Mode.SingleShotTime))
 @Warmup(iterations = 0)
 @Measurement(iterations = 1)
 @Fork(1)
-class GroupRecoveryBenchmark {
-  @Benchmark def execute(): Int = { println("GROUP_RECOVERY"); 1 }
-}
+class GroupRecoveryBenchmark:
+
+  @Benchmark def execute(): Int =
+    println("GROUP_RECOVERY"); 1
 
 @Platforms(Array(Platform.JVM, Platform.Native), reason = "Programmatic grouped failure recovery")
 @BenchmarkMode(Array(Mode.SingleShotTime))
 @Warmup(iterations = 0)
 @Measurement(iterations = 1)
 @Fork(0)
-class GroupApiRecoveryBenchmark {
-  @Benchmark def execute(): Int = {
+class GroupApiRecoveryBenchmark:
+
+  @Benchmark def execute(): Int =
     import org.openjdk.jmh.runner.Runner
     import org.openjdk.jmh.runner.options.{OptionsBuilder, TimeValue, VerboseMode}
     val options = new OptionsBuilder()
@@ -142,5 +152,3 @@ class GroupApiRecoveryBenchmark {
     assert(results.iterator().next().getParams().getBenchmark().endsWith("GroupRecoveryBenchmark.execute"))
     println("GROUP_API_RECOVERY")
     results.size()
-  }
-}

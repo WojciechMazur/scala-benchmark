@@ -1,60 +1,61 @@
 package scala.benchmark.examples
 
-import scala.benchmark.*
 import java.util.concurrent.TimeUnit
+
+import scala.benchmark.*
 
 @State(Scope.Thread)
 @BenchmarkMode(Array(Mode.AverageTime))
 @Warmup(iterations = 0)
 @Measurement(iterations = 1, time = 5, timeUnit = TimeUnit.MILLISECONDS)
 @Fork(1)
-class ExecutionReadinessBenchmark {
+class ExecutionReadinessBenchmark:
   private var stoppedDuringSetup = false
-  @Setup(Level.Iteration) def prepare(params: BenchmarkParams, control: Control): Unit = {
-    if (!params.shouldSynchIterations()) {
+
+  @Setup(Level.Iteration) def prepare(params: BenchmarkParams, control: Control): Unit =
+    if !params.shouldSynchIterations() then
       val start = System.nanoTime()
-      while (!control.stopMeasurement && System.nanoTime() - start < 2000000000L) ()
+      while !control.stopMeasurement && System.nanoTime() - start < 2000000000L do ()
       require(control.stopMeasurement, "Unsynchronized iteration timer did not run during setup")
       stoppedDuringSetup = true
-    }
-  }
-  @Benchmark def execute(params: BenchmarkParams): Int = {
+
+  @Benchmark def execute(params: BenchmarkParams): Int =
     assert(params.shouldSynchIterations() || stoppedDuringSetup)
     1
-  }
-}
 
-object ExecutionFailureJournal {
+object ExecutionFailureJournal:
   var failAt = ""
   val events = scala.collection.mutable.ArrayBuffer.empty[String]
-  def record(stage: String): Unit = {
+
+  def record(stage: String): Unit =
     events += stage
-    if (stage == failAt) throw new IllegalStateException(stage)
-  }
-}
+    if stage == failAt then throw new IllegalStateException(stage)
 
 @State(Scope.Thread)
 @BenchmarkMode(Array(Mode.SingleShotTime))
 @Warmup(iterations = 0)
 @Measurement(iterations = 1)
 @Fork(0)
-class ExecutionFailureTarget {
+class ExecutionFailureTarget:
   ExecutionFailureJournal.record("construct")
   @Setup(Level.Trial) def startTrial(): Unit = ExecutionFailureJournal.record("trialSetup")
   @Setup(Level.Iteration) def startIteration(): Unit = ExecutionFailureJournal.record("iterationSetup")
   @Setup(Level.Invocation) def startInvocation(): Unit = ExecutionFailureJournal.record("invocationSetup")
-  @Benchmark def execute(): Int = { ExecutionFailureJournal.record("invoke"); 1 }
+
+  @Benchmark def execute(): Int =
+    ExecutionFailureJournal.record("invoke"); 1
+
   @TearDown(Level.Invocation) def endInvocation(): Unit = ExecutionFailureJournal.record("invocationTeardown")
   @TearDown(Level.Iteration) def endIteration(): Unit = ExecutionFailureJournal.record("iterationTeardown")
   @TearDown(Level.Trial) def endTrial(): Unit = ExecutionFailureJournal.record("trialTeardown")
-}
 
 @BenchmarkMode(Array(Mode.SingleShotTime))
 @Warmup(iterations = 0)
 @Measurement(iterations = 1)
 @Fork(1)
-class ExecutionFailureProbe {
-  @Benchmark def execute(): Int = {
+class ExecutionFailureProbe:
+
+  @Benchmark def execute(): Int =
     val complete = Vector(
       "construct",
       "trialSetup",
@@ -65,7 +66,7 @@ class ExecutionFailureProbe {
       "iterationTeardown",
       "trialTeardown"
     )
-    for (stage <- "" +: complete) {
+    for stage <- "" +: complete do
       ExecutionFailureJournal.events.clear()
       ExecutionFailureJournal.failAt = stage
       var failed = false
@@ -81,31 +82,30 @@ class ExecutionFailureProbe {
             .verbosity(org.openjdk.jmh.runner.options.VerboseMode.SILENT)
             .build()
         ).runSingle()
-      catch {
+      catch
         case error: RunnerException =>
           failed = true
           var pending = List[Throwable](error)
           var visited = Set.empty[Throwable]
           var found = false
-          while (pending.nonEmpty) {
+          while pending.nonEmpty do
             val cause = pending.head
             pending = pending.tail
-            if (!visited(cause)) {
+            if !visited(cause) then
               visited += cause
-              if (Option(cause.getMessage).exists(_.contains(stage))) found = true
+              if Option(cause.getMessage).exists(_.contains(stage)) then found = true
               pending = Option(cause.getCause).toList ::: cause.getSuppressed.toList ::: pending
-            }
-          }
           assert(found, "Primary lifecycle failure was lost: " + stage)
-      }
       assert(failed == stage.nonEmpty, "Unexpected success/failure at " + stage)
-      val expected = if (stage.isEmpty) complete else complete.take(complete.indexOf(stage) + 1)
+      val expected = if stage.isEmpty then complete else complete.take(complete.indexOf(stage) + 1)
       assert(
         ExecutionFailureJournal.events.toVector == expected,
         s"$stage: expected $expected; actual ${ExecutionFailureJournal.events.toVector}"
       )
-    }
+    end for
     ExecutionFailureJournal.failAt = ""
     1
-  }
-}
+
+  end execute
+
+end ExecutionFailureProbe

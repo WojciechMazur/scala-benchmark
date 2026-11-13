@@ -7,43 +7,48 @@ import scala.benchmark.*
 @Warmup(iterations = 0)
 @Measurement(iterations = 2)
 @Fork(value = 2, warmups = 1)
-class ASequenceBenchmark {
+class ASequenceBenchmark:
   @Param(Array("unused")) var ledger: String = ""
   @Param(Array("99")) var failFork: Int = 99
   @Param(Array("work")) var boundary: String = ""
   private var index = 0
-  private def event(stage: String): Unit = {
+
+  private def event(stage: String): Unit =
     println(s"FORK_EVENT\t$index\t$stage\tEND")
-    if (index == failFork && stage == boundary) throw new IllegalStateException(s"injected fork $index $stage")
-    if (index == failFork && boundary == "crash" && stage == "work") ForkJournal.crash()
-  }
-  @Setup(Level.Trial) def setup(): Unit = { index = ForkJournal.next(ledger); event("setup") }
-  @Benchmark def execute(): Int = { event("work"); index }
-  @TearDown(Level.Trial) def teardown(): Unit = {
-    event("teardown"); if (boundary == "output" && index == failFork) ForkJournal.flood()
-  }
-}
+    if index == failFork && stage == boundary then throw new IllegalStateException(s"injected fork $index $stage")
+    if index == failFork && boundary == "crash" && stage == "work" then ForkJournal.crash()
+
+  @Setup(Level.Trial) def setup(): Unit =
+    index = ForkJournal.next(ledger); event("setup")
+
+  @Benchmark def execute(): Int =
+    event("work"); index
+
+  @TearDown(Level.Trial) def teardown(): Unit =
+    event("teardown"); if boundary == "output" && index == failFork then ForkJournal.flood()
 
 @BenchmarkMode(Array(Mode.SingleShotTime))
 @Warmup(iterations = 0)
 @Measurement(iterations = 1)
 @Fork(1)
 @State(Scope.Thread)
-class ZSequenceRecoveryBenchmark {
+class ZSequenceRecoveryBenchmark:
   @Param(Array("unused")) var ledger: String = ""
   @Param(Array("99")) var failFork: Int = 99
   @Param(Array("work")) var boundary: String = ""
-  @Benchmark def execute(): Int = { println("FORK_RECOVERY"); 1 }
-}
+
+  @Benchmark def execute(): Int =
+    println("FORK_RECOVERY"); 1
 
 @State(Scope.Thread)
 @BenchmarkMode(Array(Mode.SingleShotTime))
 @Warmup(iterations = 0)
 @Measurement(iterations = 1)
 @Fork(0)
-class SequenceApiBenchmark {
+class SequenceApiBenchmark:
   @Param(Array("unused")) var ledger: String = ""
-  @Benchmark def execute(): Int = {
+
+  @Benchmark def execute(): Int =
     import org.openjdk.jmh.runner.Runner
     import org.openjdk.jmh.runner.options.{OptionsBuilder, VerboseMode}
     val options = new OptionsBuilder()
@@ -90,13 +95,14 @@ class SequenceApiBenchmark {
     assert(late.find(_.getIterationResults().size() == 2).get.getMetadata() != null)
     println("FORK_API_RECOVERY_VERIFIED")
     results.size()
-  }
-}
+
+  end execute
+
+end SequenceApiBenchmark
 
 @BenchmarkMode(Array(Mode.SingleShotTime))
 @Warmup(iterations = 0)
 @Measurement(iterations = 1)
 @Fork(1)
-class A0SequenceHealthyBenchmark {
+class A0SequenceHealthyBenchmark:
   @Benchmark def execute(): Int = 1
-}

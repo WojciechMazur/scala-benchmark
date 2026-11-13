@@ -1,6 +1,4 @@
-import sbt.{*, given}
-import sbt.Keys.*
-
+import scala.benchmark.sbtplugin.ScalaJSBenchmarkPlugin
 import scala.scalanative.build.LTO
 import scala.scalanative.sbtplugin.ScalaNativePlugin
 import scala.scalanative.sbtplugin.ScalaNativePlugin.autoImport.nativeConfig
@@ -10,9 +8,10 @@ import org.scalajs.sbtplugin.ScalaJSPlugin
 import org.scalajs.sbtplugin.ScalaJSPlugin.autoImport.scalaJSLinkerConfig
 import pl.project13.scala.sbt.JmhPlugin
 import pl.project13.scala.sbt.JmhPlugin.JmhKeys.Jmh
-import scala.benchmark.sbtplugin.ScalaJSBenchmarkPlugin
+import sbt.{*, given}
+import sbt.Keys.*
 
-object FixtureBuild {
+object FixtureBuild:
   private val testScalaVersion = sys.props("benchmark.scala.version")
   private val repository = file(sys.props("benchmark.scripted.support")).getParentFile
   private val sharedSources = file(sys.props("benchmark.test.sources"))
@@ -23,21 +22,19 @@ object FixtureBuild {
   val allPlatforms: Seq[String] = Seq("jvm", "native", "js", "wasm")
 
   /** Platforms under test: `-Dbenchmark.platforms=jvm,native`. The JVM runs first, as the reference. */
-  val selectedPlatforms: Seq[String] = {
+  val selectedPlatforms: Seq[String] =
     val requested = sys.props.get("benchmark.platforms").fold(Seq("jvm", "native", "js"))(_.split(",").toSeq)
     require(requested.forall(allPlatforms.contains), s"Unknown platform in: ${requested.mkString(",")}")
     allPlatforms.filter(requested.contains)
-  }
 
   val fixturePlatform = settingKey[String]("Platform exercised by this row of the benchmark fixture")
 
   /** Wasm shares the Scala.js platform; a second row needs an axis of its own. */
-  private case object WasmAxis extends VirtualAxis.WeakAxis {
+  private case object WasmAxis extends VirtualAxis.WeakAxis:
     val idSuffix = "Wasm"
     val directorySuffix = "wasm"
-  }
 
-  private def platformSettings(platform: String): Seq[Setting[?]] = platform match {
+  private def platformSettings(platform: String): Seq[Setting[?]] = platform match
     case "jvm" =>
       Seq(
         Jmh / javaOptions += "-Djmh.ignoreLock=true",
@@ -47,13 +44,12 @@ object FixtureBuild {
       )
     case "native" =>
       Seq(nativeConfig ~= (_.withLTO(LTO(sys.env.getOrElse("SCALANATIVE_LTO", "none")))))
-    case "js" => Nil
+    case "js"   => Nil
     case "wasm" =>
       Seq(
         moduleName := "benchmarks-wasm",
         scalaJSLinkerConfig ~= (_.withESFeatures(_.withESVersion(ESVersion.ES2022).withUseWebAssembly(true)))
       )
-  }
 
   /** One project per platform under test, all compiling the same sources.
     *
@@ -64,20 +60,18 @@ object FixtureBuild {
     * @param settings
     *   sources and checks of the test, given the row's platform
     */
-  def matrix(supported: String*)(settings: String => Seq[Setting[?]]): ProjectMatrix = {
+  def matrix(supported: String*)(settings: String => Seq[Setting[?]]): ProjectMatrix =
     val base = ProjectMatrix("benchmarks", file("benchmarks"), getClass.getClassLoader)
     selectedPlatforms.filter(supported.contains).foldLeft(base) { (matrix, platform) =>
-      val axes = platform match {
+      val axes = platform match
         case "jvm"    => Seq(VirtualAxis.jvm)
         case "native" => Seq(VirtualAxis.native)
         case "js"     => Seq(VirtualAxis.js)
         case "wasm"   => Seq(VirtualAxis.js, WasmAxis)
-      }
-      val plugins: Seq[AutoPlugin] = platform match {
+      val plugins: Seq[AutoPlugin] = platform match
         case "jvm"         => Nil
         case "native"      => Seq(ScalaNativePlugin)
         case "js" | "wasm" => Seq(ScalaJSPlugin)
-      }
       matrix.customRow(
         Seq(testScalaVersion),
         axes,
@@ -101,7 +95,8 @@ object FixtureBuild {
             .settings(Compile / sources := (Compile / sources).value.filterNot(isOtherHost(platform)))
       )
     }
-  }
+
+  end matrix
 
   /** Results of the JVM reference and of the platforms compared with it, kept for CI artifacts. */
   val evidence: File = repository.getParentFile.getParentFile / "target/execution-parity"
@@ -111,13 +106,12 @@ object FixtureBuild {
     "runtime/shared/src/test/scala/scala/benchmark/runtime/TrialObserverChecks.scala"
 
   /** Fixture directory with the host services of a platform: processes or the Node.js host. */
-  def host(platform: String): String = if (platform == "jvm" || platform == "native") "process" else "js"
+  def host(platform: String): String = if platform == "jvm" || platform == "native" then "process" else "js"
 
   /** Fixture directories are added recursively; sources for the other kind of host must stay out. */
-  private def isOtherHost(platform: String)(source: File): Boolean = {
-    val other = if (host(platform) == "process") "js" else "process"
+  private def isOtherHost(platform: String)(source: File): Boolean =
+    val other = if host(platform) == "process" then "js" else "process"
     source.getParentFile.getName == other
-  }
 
   /** Preloads a module into every Node.js process of the benchmark. */
   def nodeImport(module: File): Seq[Setting[?]] =
@@ -137,16 +131,15 @@ object FixtureBuild {
 
   private val SucceededMarker = "fixtureCommandSucceeded"
 
-  private def rows(state: State): Seq[(String, String)] = {
+  private def rows(state: State): Seq[(String, String)] =
     val structure = Project.extract(state).structure
     val found = structure.allProjectRefs.flatMap { reference =>
       (reference / fixturePlatform).get(structure.data).map(_ -> reference.project)
     }
     selectedPlatforms.flatMap(platform => found.find(_._1 == platform))
-  }
 
   /** Runs a command to completion and reports whether it succeeded, without ending the script on failure. */
-  private def succeeds(state: State, command: String): (State, Boolean) = {
+  private def succeeds(state: State, command: String): (State, Boolean) =
     val isolated = state.copy(
       remainingCommands = List(Exec(SucceededMarker, None), Exec(BasicCommandStrings.FailureWall, None)),
       onFailure = None
@@ -154,11 +147,10 @@ object FixtureBuild {
     val result = Command.process(command, isolated, message => state.log.error(message))
     val succeeded = result.remainingCommands.headOption.exists(_.commandLine == SucceededMarker)
     (result.copy(remainingCommands = state.remainingCommands, onFailure = state.onFailure), succeeded)
-  }
 
   /** `@` in a command stands for the project id; otherwise the command is a key of the project. */
   private def scoped(project: String, command: String): String =
-    if (command.contains("@")) command.replace("@", project) else s"$project/$command"
+    if command.contains("@") then command.replace("@", project) else s"$project/$command"
 
   private def runOn(state: State, platforms: Option[Set[String]], command: String, expectSuccess: Boolean): State =
     rows(state)
@@ -166,12 +158,11 @@ object FixtureBuild {
       .foldLeft(Option(state)) {
         case (Some(current), (platform, project)) =>
           val (next, succeeded) = succeeds(current, scoped(project, command))
-          if (succeeded == expectSuccess) Some(next)
-          else {
-            val outcome = if (succeeded) "succeeded" else "failed"
+          if succeeded == expectSuccess then Some(next)
+          else
+            val outcome = if succeeded then "succeeded" else "failed"
             current.log.error(s"[$platform] `$command` unexpectedly $outcome")
             None
-          }
         case (None, _) => None
       }
       .getOrElse(state.fail)
@@ -218,6 +209,7 @@ object FixtureBuild {
   val verifyRenamed = taskKey[Unit]("Verify renamed products")
   val verifyRemoved = taskKey[Unit]("Verify deleted products")
   def probe(root: File) = root / "benchmarks/src/main/scala/IncrementalProbe.scala"
+
   def writeProbe(root: File, name: String): Unit =
     IO.write(probe(root), s"package probe; import scala.benchmark.*; class $name { @Benchmark def run(): Int = 1 }")
 
@@ -232,16 +224,15 @@ object FixtureBuild {
         converter.toPath(entry.data).getFileName.toString
       )
       assert(names.exists(_.startsWith("jmh-core")) == (backend == "jvm"))
-      if (backend != "jvm") assert(!names.exists(_.startsWith("jmh-generator")))
+      if backend != "jvm" then assert(!names.exists(_.startsWith("jmh-generator")))
     },
     verifyWarmupAndOutput := Def.uncached {
       val directory = baseDirectory.value
-      for (mode <- Vector("INDI", "BULK", "BULK_INDI")) {
+      for mode <- Vector("INDI", "BULK", "BULK_INDI") do
         val result = ujson.read(IO.read(directory / s"bulk-$mode.json")).arr
         assert(result.size == 1 && result.head("benchmark").str.endsWith("BulkWarmupBenchmark.execute"))
-        assert(result.head("warmupIterations").num == (if (mode == "BULK") 0 else 1))
+        assert(result.head("warmupIterations").num == (if mode == "BULK" then 0 else 1))
         assert(result.head("primaryMetric")("rawData").arr.head.arr.size == 1)
-      }
       val human = IO.read(directory / "human.log")
       assert(human.contains("PlatformBenchmarks.everywhere"))
       assert(IO.read(directory / "quiet.log").isEmpty)
@@ -296,17 +287,16 @@ object FixtureBuild {
       val results = ujson.read(IO.read(directory / "results.json")).arr
       assert(results.map(_("mode").str).toSet == Set("thrpt", "avgt", "sample", "ss"))
       results.foreach { result =>
-        assert(result("threads").num == (if (backend == "native") 2 else 1) && result("forks").num == 2)
+        assert(result("threads").num == (if backend == "native" then 2 else 1) && result("forks").num == 2)
         assert(result("params")("size").str == "16")
-        assert(result(if (backend == "native") "native" else "javascript")("scalaVersion").str == testScalaVersion)
-        if (backend != "native") {
+        assert(result(if backend == "native" then "native" else "javascript")("scalaVersion").str == testScalaVersion)
+        if backend != "native" then
           assert(result("javascript")("backend").str == backend)
           assert(result("javascript")("engine").str == "V8")
-        }
         val metric = result("primaryMetric")
         assert(metric("score").num.isFinite && metric("score").num >= 0)
-        if (result("mode").str != "ss") assert(metric("score").num > 0)
-        if (result("mode").str == "sample") assert(metric("rawDataHistogram").arr.size == 2)
+        if result("mode").str != "ss" then assert(metric("score").num > 0)
+        if result("mode").str == "sample" then assert(metric("rawDataHistogram").arr.size == 2)
         else assert(metric("rawData").arr.map(_.arr.size).toSeq == Seq(3, 3))
       }
       val csv = IO.readLines(directory / "results.csv")
@@ -324,16 +314,17 @@ object FixtureBuild {
       assert(latex.startsWith("\\begin{tabular}") && latex.endsWith("\\end{tabular}\n"))
       assert(latex.contains("FacadeBenchmark.execute") && latex.contains("99.9\\%"))
     },
-    writeFirst := Def.uncached { writeProbe((LocalRootProject / baseDirectory).value, "First") },
-    writeSecond := Def.uncached { writeProbe((LocalRootProject / baseDirectory).value, "Second") },
-    removeProbe := Def.uncached { IO.delete(probe((LocalRootProject / baseDirectory).value)) },
-    verifyFirst := Def.uncached { checkGenerated(generatedEntryPoint.value, "First", present = true) },
+    writeFirst := Def.uncached(writeProbe((LocalRootProject / baseDirectory).value, "First")),
+    writeSecond := Def.uncached(writeProbe((LocalRootProject / baseDirectory).value, "Second")),
+    removeProbe := Def.uncached(IO.delete(probe((LocalRootProject / baseDirectory).value))),
+    verifyFirst := Def.uncached(checkGenerated(generatedEntryPoint.value, "First", present = true)),
     verifyRenamed := Def.uncached {
       checkGenerated(generatedEntryPoint.value, "First", present = false)
       checkGenerated(generatedEntryPoint.value, "Second", present = true)
     },
     verifyRemoved := Def.uncached {
-      for (name <- Seq("First", "Second")) checkGenerated(generatedEntryPoint.value, name, present = false)
+      for name <- Seq("First", "Second") do checkGenerated(generatedEntryPoint.value, name, present = false)
     }
   )
-}
+
+end FixtureBuild

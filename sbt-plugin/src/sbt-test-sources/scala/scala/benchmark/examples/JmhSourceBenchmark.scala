@@ -7,6 +7,5 @@ import org.openjdk.jmh.annotations.*
 @Warmup(iterations = 0)
 @Measurement(iterations = 1)
 @Fork(1)
-class JmhSourceBenchmark {
+class JmhSourceBenchmark:
   @Benchmark def execute(): Int = 42
-}

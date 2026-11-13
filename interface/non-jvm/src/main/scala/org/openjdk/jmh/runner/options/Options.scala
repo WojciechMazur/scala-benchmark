@@ -1,12 +1,14 @@
 package org.openjdk.jmh.runner.options
 
 import java.util.concurrent.TimeUnit
+
+import scala.jdk.CollectionConverters.*
+
 import org.openjdk.jmh.annotations.Mode
 import org.openjdk.jmh.results.format.ResultFormatType
 import org.openjdk.jmh.util.Optional
-import scala.jdk.CollectionConverters.*
 
-trait Options extends Serializable {
+trait Options extends Serializable:
   def getWarmupIterations(): Optional[java.lang.Integer]
   def getMeasurementIterations(): Optional[java.lang.Integer]
   def getWarmupBatchSize(): Optional[java.lang.Integer]
@@ -37,9 +39,10 @@ trait Options extends Serializable {
   def getJvmArgs(): Optional[java.util.Collection[String]]
   def getJvmArgsAppend(): Optional[java.util.Collection[String]]
   def getJvmArgsPrepend(): Optional[java.util.Collection[String]]
-}
 
-trait ChainedOptionsBuilder {
+end Options
+
+trait ChainedOptionsBuilder:
   def build(): Options
   def parent(options: Options): ChainedOptionsBuilder
   def include(regex: String): ChainedOptionsBuilder
@@ -73,4 +76,5 @@ trait ChainedOptionsBuilder {
   def result(value: String): ChainedOptionsBuilder
   def resultFormat(value: ResultFormatType): ChainedOptionsBuilder
   def jvm(value: String): ChainedOptionsBuilder
-}
+
+end ChainedOptionsBuilder

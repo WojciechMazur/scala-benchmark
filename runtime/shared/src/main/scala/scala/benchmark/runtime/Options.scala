@@ -22,8 +22,9 @@ final case class Options(
     verbosity: String = "NORMAL",
     warmupMode: String = "INDI",
     warmupIncludes: Vector[String] = Vector.empty
-) {
-  def configuration(default: Configuration): Configuration = {
+):
+
+  def configuration(default: Configuration): Configuration =
     def int(key: String, fallback: Int): Int =
       overrides.get(key).fold(fallback)(_.toInt)
     def time(key: String, fallback: Long): Long =
@@ -31,8 +32,8 @@ final case class Options(
     def originalTime(
         key: String,
         fallback: org.openjdk.jmh.runner.options.TimeValue
-    ): org.openjdk.jmh.runner.options.TimeValue = {
-      if (overrides.contains(key + ".time"))
+    ): org.openjdk.jmh.runner.options.TimeValue =
+      if overrides.contains(key + ".time") then
         new org.openjdk.jmh.runner.options.TimeValue(
           overrides(key + ".time").toLong,
           TimeUnit.valueOf(overrides(key + ".unit"))
@@ -42,21 +43,18 @@ final case class Options(
           .get(key)
           .map { value =>
             try org.openjdk.jmh.runner.options.TimeValue.fromString(value)
-            catch {
+            catch
               case _: NumberFormatException =>
                 org.openjdk.jmh.runner.options.TimeValue.nanoseconds(Options.duration(value))
-            }
           }
           .getOrElse(fallback)
-    }
     val threads = overrides.get("-t").fold(default.threads) {
       case value if value.equalsIgnoreCase("max") => -1
       case value                                  => value.toInt
-    } match {
+    } match
       case -1 => Platform.processorCount
       case -2 => math.max(1, Platform.processorCount / 2)
       case n  => n
-    }
     val c = default.copy(
       warmupIterations = int("-wi", default.warmupIterations),
       measurementIterations = int("-i", default.measurementIterations),
@@ -98,10 +96,13 @@ final case class Options(
       "Durations must be nonnegative"
     )
     c
-  }
-}
 
-object Options {
+  end configuration
+
+end Options
+
+object Options:
+
   val help =
     s"""Scala Benchmark (JMH 1.37 source compatibility)
       |Usage: benchmark [regex] [options]
@@ -131,8 +132,10 @@ object Options {
       | --suite <module>  Explicit generated suite
       | -h                Show this help
       |""".stripMargin
+
   def mode(value: String): Mode = Mode.deepValueOf(value)
-  def unit(value: String): String = value match {
+
+  def unit(value: String): String = value match
     case "ns" => "NANOSECONDS"
     case "us" => "MICROSECONDS"
     case "ms" => "MILLISECONDS"
@@ -141,32 +144,32 @@ object Options {
     case "h"  => "HOURS"
     case "d"  => "DAYS"
     case v    => TimeUnit.valueOf(v).name()
-  }
-  private def cliUnit(value: String): String = {
+
+  private def cliUnit(value: String): String =
     val normalized = scala.benchmark.internal.Ascii.lower(value)
     require(Set("ns", "us", "ms", "s", "m", "h")(normalized), s"Unknown time unit: $value")
     unit(normalized)
-  }
-  def duration(value: String): Long = {
+
+  def duration(value: String): Long =
     val split = value.indexWhere(c => !c.isDigit && c != '.')
-    val (number, suffix) = if (split < 0) (value, "s") else value.splitAt(split)
+    val (number, suffix) = if split < 0 then (value, "s") else value.splitAt(split)
     val count = number.toLong
     require(count >= 0, s"Invalid duration: $value")
     TimeUnit.valueOf(unit(suffix)).toNanos(count)
-  }
-  def parse(args: Array[String]): Options = {
+
+  def parse(args: Array[String]): Options =
     var options = Options()
     val scalars = scala.collection.mutable.Set.empty[String]
     var formatRequested = false
     var i = 0
-    while (i < args.length) {
+    while i < args.length do
       val key = args(i)
-      def argument(): String = {
+      def argument(): String =
         i += 1; require(i < args.length, s"Missing argument for $key"); args(i)
-      }
-      if (key.startsWith("-") && !Set("-e", "-p", "-bm", "-wmb", "--suite", "-l", "-lp", "-lrf", "-h", "--help")(key))
+      if key.startsWith("-") && !Set("-e", "-p", "-bm", "-wmb", "--suite", "-l", "-lp", "-lrf", "-h", "--help")(key)
+      then
         require(scalars.add(key), s"Repeated option: $key")
-      key match {
+      key match
         case "-h" | "--help" => options = options.copy(help = true)
         case "-wm"           =>
           val value = argument()
@@ -236,11 +239,13 @@ object Options {
           )
         case regex =>
           options = options.copy(includes = options.includes :+ regex)
-      }
+      end match
       i += 1
-    }
+    end while
     options.configuration(Configuration())
-    if (formatRequested && options.output.isEmpty) options.copy(output = Some("jmh-result." + options.format))
+    if formatRequested && options.output.isEmpty then options.copy(output = Some("jmh-result." + options.format))
     else options
-  }
-}
+
+  end parse
+
+end Options

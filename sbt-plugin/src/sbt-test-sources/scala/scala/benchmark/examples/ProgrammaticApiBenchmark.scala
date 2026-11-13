@@ -1,14 +1,16 @@
 package scala.benchmark.examples
 
 import scala.benchmark.*
+
 import org.openjdk.jmh.runner.options.TimeValue
 
 @BenchmarkMode(Array(Mode.SingleShotTime))
 @Warmup(iterations = 0)
 @Measurement(iterations = 1)
 @Fork(0)
-class ProgrammaticApiBenchmark {
-  @Benchmark def execute(): Int = {
+class ProgrammaticApiBenchmark:
+
+  @Benchmark def execute(): Int =
     val statistics: org.openjdk.jmh.util.AbstractStatistics =
       new org.openjdk.jmh.util.ListStatistics(Array[Long](3, 1, 3))
     val summary: org.apache.commons.math3.stat.descriptive.StatisticalSummary = statistics
@@ -55,7 +57,7 @@ class ProgrammaticApiBenchmark {
     ).runSingle()
     assert(events.getSecondaryResults().get("events").getScore() == 23.0)
     assert(events.getSecondaryResults().get("events").isInstanceOf[org.openjdk.jmh.results.ScalarResult])
-    for (mode <- Array(Mode.Throughput, Mode.AverageTime, Mode.SampleTime)) {
+    for mode <- Array(Mode.Throughput, Mode.AverageTime, Mode.SampleTime) do
       val measured = new Runner(
         new OptionsBuilder()
           .parent(parent.build())
@@ -65,7 +67,7 @@ class ProgrammaticApiBenchmark {
           .verbosity(org.openjdk.jmh.runner.options.VerboseMode.SILENT)
           .build()
       ).runSingle()
-      mode match {
+      mode match
         case Mode.Throughput =>
           assert(measured.getPrimaryResult().isInstanceOf[org.openjdk.jmh.results.ThroughputResult])
         case Mode.AverageTime =>
@@ -74,8 +76,6 @@ class ProgrammaticApiBenchmark {
           assert(measured.getPrimaryResult().isInstanceOf[org.openjdk.jmh.results.SampleTimeResult])
           assert(measured.getSecondaryResults().containsKey("p0.50"))
         case _ => ()
-      }
-    }
     val invalid = new OptionsBuilder()
       .parent(parent.build())
       .include("scala.benchmark.examples.PlatformBenchmarks.everywhere")
@@ -84,10 +84,12 @@ class ProgrammaticApiBenchmark {
       .build()
     var rejected = false
     try new Runner(invalid).run()
-    catch { case error: RunnerException => rejected = error.getMessage.contains("unavailable") }
+    catch case error: RunnerException => rejected = error.getMessage.contains("unavailable")
     assert(rejected)
     new Runner(new OptionsBuilder().include("scala.benchmark.examples.PlatformBenchmarks.nativeOnly").build())
       .list()
     1
-  }
-}
+
+  end execute
+
+end ProgrammaticApiBenchmark

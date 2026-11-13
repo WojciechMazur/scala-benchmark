@@ -1,9 +1,8 @@
 package scala.benchmark
 
 /** Execution targets. JavaScript and WebAssembly are distinct targets. */
-enum Platform {
+enum Platform:
   case JVM, Native, JS, Wasm
-}
 
 /** Restricts benchmark execution, while leaving ordinary Scala typechecking intact. Class, inherited and method
   * restrictions are intersected.

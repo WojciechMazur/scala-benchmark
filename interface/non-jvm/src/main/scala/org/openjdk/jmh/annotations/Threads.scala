@@ -26,4 +26,5 @@ package org.openjdk.jmh.annotations
 
 final class Threads(val value: Int) extends scala.annotation.StaticAnnotation
 
-object Threads { final val MAX = -1; final val HALF_MAX = -2 }
+object Threads:
+  final val MAX = -1; final val HALF_MAX = -2

@@ -10,6 +10,7 @@ import scala.jdk.CollectionConverters.*
 
 /** Compiles benchmark sources and then, as the sbt plugin does, a generated source that derives their harnesses. */
 object HarnessCompiler:
+
   val classpath: String =
     val stream = getClass.getResourceAsStream("/harness-test.classpath")
     try new String(stream.readAllBytes(), UTF_8)
@@ -62,3 +63,5 @@ object HarnessCompiler:
     val loader = new URLClassLoader(Array(output.toUri.toURL), getClass.getClassLoader)
     try body(loader)
     finally loader.close()
+
+end HarnessCompiler

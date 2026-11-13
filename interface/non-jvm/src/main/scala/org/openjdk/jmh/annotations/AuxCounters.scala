@@ -28,10 +28,12 @@ final class AuxCounters(
     val value: AuxCounters.Type = AuxCounters.Type.OPERATIONS
 ) extends scala.annotation.StaticAnnotation
 
-object AuxCounters {
-  enum Type extends java.lang.Enum[Type] { case OPERATIONS, EVENTS }
-  object Type {
+object AuxCounters:
+
+  enum Type extends java.lang.Enum[Type]:
+    case OPERATIONS, EVENTS
+
+  object Type:
+
     @scala.annotation.targetName("javaValues")
     def values(): Array[Type] = Array(OPERATIONS, EVENTS)
-  }
-}

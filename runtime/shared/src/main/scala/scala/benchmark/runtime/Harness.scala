@@ -19,7 +19,7 @@ object Harness:
 
   private def deriveImpl[T: Type](using Quotes): Expr[Suite] = new HarnessMacro(quotes).suite[T]
 
-private final class HarnessMacro[Q <: Quotes](q: Q) extends BenchmarkSymbols[Q](using q):
+final private class HarnessMacro[Q <: Quotes](q: Q) extends BenchmarkSymbols[Q](using q):
   import quotes.reflect.*
 
   private val blank = "blank_blank_blank_2014"
@@ -38,10 +38,11 @@ private final class HarnessMacro[Q <: Quotes](q: Q) extends BenchmarkSymbols[Q](
   )
 
   /** How a `@Param` text is checked at compile time and converted at run time. */
-  private final case class ParameterType(valid: String => Boolean, parse: Expr[String] => Expr[Any])
+  final private case class ParameterType(valid: String => Boolean, parse: Expr[String] => Expr[Any])
 
   private def parses(parse: String => Any): String => Boolean = text =>
-    try { parse(text); true }
+    try
+      parse(text); true
     catch case _: NumberFormatException => false
 
   private val parameterTypes: Map[Symbol, ParameterType] =
@@ -148,16 +149,17 @@ private final class HarnessMacro[Q <: Quotes](q: Q) extends BenchmarkSymbols[Q](
   /** JMH allocates Thread state per injection site. Benchmark/Group states collapse by class, with runtime workers
     * applying their sharing scope.
     */
-  private final case class StateInstance(cls: Symbol, id: Int, arguments: Map[Symbol, List[Int]]):
+  final private case class StateInstance(cls: Symbol, id: Int, arguments: Map[Symbol, List[Int]]):
     def dependencies: List[Int] = arguments.values.flatten.toList.distinct.sorted
 
-  private final class Model(val benchmarkClass: Symbol):
+  final private class Model(val benchmarkClass: Symbol):
     /** Every benchmark of the class, on any platform. Indices into this list identify members at runtime. */
     val inventory: List[Symbol] = benchmarks(benchmarkClass)
     val groups: Map[String, List[Symbol]] = inventory.groupBy(groupName)
 
     /** One representative per group, in metadata order. */
     val entries: List[Symbol] = groups.toList.sortBy(_._1).map(_._2.head)
+
     val restrictions: Map[String, Restriction] =
       groups.map((name, members) => name -> groupRestriction(benchmarkClass, members))
 
@@ -172,7 +174,9 @@ private final class HarnessMacro[Q <: Quotes](q: Q) extends BenchmarkSymbols[Q](
       if members.map(_.name).distinct.size != members.size then
         fail("Duplicate @Benchmark method name within a group", benchmarkClass)
     }
+
     if eligible.nonEmpty then visit(benchmarkClass)
+
     eligible.foreach { method =>
       if isRestricted(method) || method.flags.is(Flags.Deferred) then
         fail("Benchmark methods must be public and concrete", method)
@@ -186,6 +190,7 @@ private final class HarnessMacro[Q <: Quotes](q: Q) extends BenchmarkSymbols[Q](
     val instances = mutable.ArrayBuffer.empty[StateInstance]
     private val shared = mutable.Map.empty[Symbol, Int]
     val holders: Map[Symbol, Int] = eligible.map(method => method -> instantiate(benchmarkClass)).toMap
+
     val benchmarkArguments: Map[Symbol, List[Int]] =
       eligible.map(method => method -> stateArguments(method).map(instantiate)).toMap
 
@@ -210,7 +215,8 @@ private final class HarnessMacro[Q <: Quotes](q: Q) extends BenchmarkSymbols[Q](
         active += cls
         val helpers = allFixtures(cls)
         helpers.foreach { method =>
-          if isRestricted(method) || !returnsUnit(method) then fail("Fixture methods must be public and return Unit", method)
+          if isRestricted(method) || !returnsUnit(method) then
+            fail("Fixture methods must be public and return Unit", method)
         }
         val dependencies = helpers.flatMap(stateArguments).distinct
         if dependencies.exists(dependency => rank(scope(cls)) < rank(scope(dependency))) then
@@ -394,7 +400,8 @@ private final class HarnessMacro[Q <: Quotes](q: Q) extends BenchmarkSymbols[Q](
         if inherited[State](cls).isEmpty then fail("@Param requires @State", field)
         val values = parameterValues(field)
         values.foreach { text =>
-          if !parameterType(field).forall(_.valid(text)) then fail(s"Invalid @Param value '$text' for ${field.name}", field)
+          if !parameterType(field).forall(_.valid(text)) then
+            fail(s"Invalid @Param value '$text' for ${field.name}", field)
         }
         put(prefix + s"param.${field.name}.count", values.size.toString)
         values.zipWithIndex.foreach((text, index) => put(prefix + s"param.${field.name}.$index", text))
@@ -449,7 +456,9 @@ private final class HarnessMacro[Q <: Quotes](q: Q) extends BenchmarkSymbols[Q](
   // ---------------------------------------------------------------------------------------------------------------
 
   private def choose[A: Type](selector: Expr[Int], cases: List[(Int, Expr[A])], default: Expr[A]): Expr[A] =
-    cases.foldRight(default) { case ((index, body), next) => '{ if $selector == ${ Expr(index) } then $body else $next } }
+    cases.foldRight(default) { case ((index, body), next) =>
+      '{ if $selector == ${ Expr(index) } then $body else $next }
+    }
 
   private def sequence(statements: List[Term]): Expr[Unit] = Block(statements, '{ () }.asTerm).asExprOf[Unit]
 
@@ -457,7 +466,7 @@ private final class HarnessMacro[Q <: Quotes](q: Q) extends BenchmarkSymbols[Q](
     cls.typeRef.asType match
       case '[t] => '{ $target.asInstanceOf[t] }.asTerm
 
-  private final class Generator(model: Model):
+  final private class Generator(model: Model):
     import model.*
 
     def state(environment: Expr[Environment], id: Int): Term =
@@ -472,7 +481,7 @@ private final class HarnessMacro[Q <: Quotes](q: Q) extends BenchmarkSymbols[Q](
     def invoke(target: Term, method: Symbol, environment: Expr[Environment], states: List[Int] = Nil): Term =
       val remaining = states.iterator
       def applyLists(function: Term): Term = function.tpe.widen match
-        case poly: PolyType => applyLists(function.appliedToTypes(poly.paramBounds.map(_.hi)))
+        case poly: PolyType     => applyLists(function.appliedToTypes(poly.paramBounds.map(_.hi)))
         case method: MethodType =>
           applyLists(function.appliedToArgs(method.paramTypes.map(injected(environment, _, remaining))))
         case _ => function
@@ -499,10 +508,13 @@ private final class HarnessMacro[Q <: Quotes](q: Q) extends BenchmarkSymbols[Q](
           if !field.flags.is(Flags.Mutable) then fail("@Param requires a mutable var", field)
           // A macro cannot reach a private member of a class compiled earlier; JMH itself uses reflection here.
           if field.flags.is(Flags.Private) then
-            fail("@Param fields must not be private on Native and Scala.js; use a qualified private[...] instead", field)
+            fail(
+              "@Param fields must not be private on Native and Scala.js; use a qualified private[...] instead",
+              field
+            )
           val tpe = fieldType(field)
           val parsed = parameterType(field) match
-            case Some(parameter) => parameter.parse(text).asTerm
+            case Some(parameter)                                        => parameter.parse(text).asTerm
             case None if tpe.classSymbol.exists(_.flags.is(Flags.Enum)) =>
               Select.unique(Ref(tpe.classSymbol.get.companionModule), "valueOf").appliedTo(text.asTerm)
             case None => fail(s"Unsupported @Param type ${tpe.show}", field)
@@ -529,7 +541,8 @@ private final class HarnessMacro[Q <: Quotes](q: Q) extends BenchmarkSymbols[Q](
 
     private def subgroup(environment: Expr[Environment]): Expr[Int] = '{ $environment.threadParams.getSubgroupIndex() }
 
-    private def generatedEntries: List[(Symbol, Int)] = entries.zipWithIndex.filter((head, _) => eligible.contains(head))
+    private def generatedEntries: List[(Symbol, Int)] =
+      entries.zipWithIndex.filter((head, _) => eligible.contains(head))
 
     def auxiliary(benchmark: Expr[Int], environment: Expr[Environment]): Expr[Array[Double]] =
       val empty = '{ Array.emptyDoubleArray }
@@ -569,7 +582,8 @@ private final class HarnessMacro[Q <: Quotes](q: Q) extends BenchmarkSymbols[Q](
 
     /** The benchmark call, with its result consumed by the injected Blackhole. */
     private def call(benchmark: Symbol, environment: Expr[Environment]): Expr[Unit] =
-      val invocation = invoke(state(environment, holders(benchmark)), benchmark, environment, benchmarkArguments(benchmark))
+      val invocation =
+        invoke(state(environment, holders(benchmark)), benchmark, environment, benchmarkArguments(benchmark))
       val consumed =
         if returnsUnit(benchmark) then invocation.asExprOf[Unit]
         else Select.overloaded('{ $environment.blackhole }.asTerm, "consume", Nil, List(invocation)).asExprOf[Unit]
@@ -622,10 +636,17 @@ private final class HarnessMacro[Q <: Quotes](q: Q) extends BenchmarkSymbols[Q](
         val generated = members.filter(eligible.contains)
         generated.headOption.map { head =>
           entries.indexOf(head) ->
-            choose(subgroup(environment), generated.zipWithIndex.map((member, index) => index -> loops(member)), unknown)
+            choose(
+              subgroup(environment),
+              generated.zipWithIndex.map((member, index) => index -> loops(member)),
+              unknown
+            )
         }
       }
       choose(benchmark, cases, unknown)
+
+    end measure
+
   end Generator
 
   def suite[T: Type]: Expr[Suite] =
@@ -635,7 +656,7 @@ private final class HarnessMacro[Q <: Quotes](q: Q) extends BenchmarkSymbols[Q](
     val generator = new Generator(model)
     val descriptors = Expr.ofSeq(model.entries.map(benchmark => Expr(metadata(model, benchmark))))
     '{
-      new Suite {
+      new Suite:
         def metadata(): Array[String] = $descriptors.toArray
         def instantiate(state: Int): AnyRef = ${ generator.instantiate('state) }
         def assign(state: Int, target: AnyRef, parameter: String, value: String): Unit =
@@ -651,5 +672,6 @@ private final class HarnessMacro[Q <: Quotes](q: Q) extends BenchmarkSymbols[Q](
         @noinline @HarnessPlatform.boundary
         def measure(benchmark: Int, environment: Environment, control: IterationControl): RawResult =
           ${ generator.measure('benchmark, 'environment, 'control) }
-      }
     }
+
+end HarnessMacro

@@ -1,12 +1,13 @@
-import sbt.{*, given}
-import sbt.Keys.*
 import java.io.StringReader
 import javax.xml.parsers.DocumentBuilderFactory
 import javax.xml.xpath.{XPathConstants, XPathFactory}
-import org.xml.sax.InputSource
-import org.w3c.dom.{Document, NodeList}
 
-object ReportChecks {
+import org.w3c.dom.{Document, NodeList}
+import org.xml.sax.InputSource
+import sbt.{*, given}
+import sbt.Keys.*
+
+object ReportChecks:
   val verifyAllFormats = taskKey[Unit]("Validate report contents and escaping in every export format")
   val verifyAllModes = taskKey[Unit]("Verify HTML and JSON measurements for every benchmark mode")
   private val payload = "a;b,\"quoted\"\n<script>alert('x')</script>&_%#$price{}^~\\東京"
@@ -19,7 +20,7 @@ object ReportChecks {
       assert(report.size == 1)
       checkJson(report.head, backend)
 
-      for ((name, separator) <- Seq("csv" -> ',', "scsv" -> ';')) {
+      for (name, separator) <- Seq("csv" -> ',', "scsv" -> ';') do
         val records = delimited(IO.read(directory / s"report.$name"), separator)
         assert(records.size == 2 && records.map(_.size).distinct.size == 1, s"Malformed $name")
         val values = records.head.zip(records(1)).toMap
@@ -30,7 +31,6 @@ object ReportChecks {
         assert(values("Score Error (99.9%)").toDouble.isFinite)
         assert(values("Unit") == "ns/op")
         assert(values("Param: payload") == payload, s"$name did not preserve parameter content")
-      }
 
       val text = IO.read(directory / "report.txt")
       assert(text.contains("ReportFormatsBenchmark.execute") && text.contains("avgt") && text.contains("ns/op"))
@@ -68,7 +68,7 @@ object ReportChecks {
       assert(cells.item(7).getTextContent == jsonPayload(backend), "HTML changed parameter content")
 
       val raw = ujson.read(nodes(document, "//pre[@id='raw-0']").item(0).getTextContent)
-      val result = if (raw.isInstanceOf[ujson.Arr]) raw.arr.head else raw
+      val result = if raw.isInstanceOf[ujson.Arr] then raw.arr.head else raw
       checkJson(result, backend)
       val metric = result("primaryMetric")
       assert(cells.item(3).getAttributes.getNamedItem("data-value").getNodeValue.toDouble == metric("score").num)
@@ -85,7 +85,7 @@ object ReportChecks {
       assert(confidence.toSeq == metric("scoreConfidence").arr.map(_.num).toSeq)
       val percentiles = nodes(document, "//table[@id='percentiles']/tbody/tr/td")
       assert(percentiles.getLength == 8 && percentiles.item(7).getTextContent == jsonPayload(backend))
-      for ((point, index) <- Seq("50.0", "90.0", "99.0", "99.9").zipWithIndex)
+      for (point, index) <- Seq("50.0", "90.0", "99.0", "99.9").zipWithIndex do
         assert(
           percentiles.item(index + 2).getAttributes.getNamedItem("data-value").getNodeValue.toDouble == metric(
             "scorePercentiles"
@@ -110,7 +110,7 @@ object ReportChecks {
       assert(rows.getLength == json.map(result => 1 + result("secondaryMetrics").obj.size).sum)
       val seen = (0 until rows.getLength).map { index =>
         val raw = ujson.read(nodes(document, s"//pre[@id='raw-$index']").item(0).getTextContent)
-        val result = if (raw.isInstanceOf[ujson.Arr]) raw.arr.head else raw
+        val result = if raw.isInstanceOf[ujson.Arr] then raw.arr.head else raw
         val metric = result("primaryMetric")
         val cells = rows.item(index).getChildNodes
         assert(cells.getLength == 8)
@@ -118,16 +118,15 @@ object ReportChecks {
         assert(cells.item(3).getAttributes.getNamedItem("data-value").getNodeValue.toDouble == metric("score").num)
         assert(cells.item(6).getTextContent == metric("scoreUnit").str)
         assert(cells.item(7).getTextContent == jsonPayload(backend))
-        def histogramCount(value: ujson.Value): Long = {
+        def histogramCount(value: ujson.Value): Long =
           val array = value.arr
-          if (array.size == 2 && array.forall(_.isInstanceOf[ujson.Num])) array(1).num.toLong
+          if array.size == 2 && array.forall(_.isInstanceOf[ujson.Num]) then array(1).num.toLong
           else array.map(histogramCount).sum
-        }
         val expectedSamples = metric.obj
           .get("rawDataHistogram")
           .map(histogramCount)
           .getOrElse(metric("rawData").arr.map(_.arr.size.toLong).sum)
-        val count = if (result("benchmark").str.matches(".*:p[0-9.]+")) 1L else expectedSamples
+        val count = if result("benchmark").str.matches(".*:p[0-9.]+") then 1L else expectedSamples
         assert(count > 0 && cells.item(2).getTextContent.toLong == count)
         result("mode").str
       }.toSet
@@ -135,7 +134,7 @@ object ReportChecks {
     }
   )
 
-  private def checkJson(result: ujson.Value, backend: String): Unit = {
+  private def checkJson(result: ujson.Value, backend: String): Unit =
     assert(result("benchmark").str == benchmarkName && result("mode").str == "avgt")
     assert(result("threads").num == 1 && result("forks").num == 1)
     assert(result("warmupIterations").num == 0 && result("measurementIterations").num == 3)
@@ -150,60 +149,60 @@ object ReportChecks {
     val iterations = metric("rawData").arr
     assert(iterations.size == 1 && iterations.head.arr.size == 3)
     assert(iterations.head.arr.forall(v => v.num.isFinite && v.num >= 0))
-    for (point <- Seq("50.0", "90.0", "99.0", "99.9"))
+    for point <- Seq("50.0", "90.0", "99.0", "99.9") do
       assert(metric("scorePercentiles")(point).num.isFinite)
-  }
 
   // JMH 1.37's JSON exporter removes line breaks in string fields. HTML uses that JSON unchanged.
-  private def jsonPayload(backend: String): String = if (backend == "jvm") payload.replace("\n", "") else payload
+  private def jsonPayload(backend: String): String = if backend == "jvm" then payload.replace("\n", "") else payload
 
-  private def parseHtml(html: String): Document = {
+  private def parseHtml(html: String): Document =
     assert(html.startsWith("<!DOCTYPE html>"))
     val factory = DocumentBuilderFactory.newInstance()
     factory.setFeature("http://apache.org/xml/features/nonvalidating/load-external-dtd", false)
     factory.setAttribute(javax.xml.XMLConstants.ACCESS_EXTERNAL_DTD, "")
     factory.setAttribute(javax.xml.XMLConstants.ACCESS_EXTERNAL_SCHEMA, "")
     factory.newDocumentBuilder().parse(new InputSource(new StringReader(html)))
-  }
 
   private def nodes(document: Document, expression: String): NodeList =
     XPathFactory.newInstance().newXPath().evaluate(expression, document, XPathConstants.NODESET).asInstanceOf[NodeList]
 
   /** Parse quoted multiline fields, rather than checking output with substring matching. */
-  private def delimited(text: String, separator: Char): Vector[Vector[String]] = {
+  private def delimited(text: String, separator: Char): Vector[Vector[String]] =
     val rows = Vector.newBuilder[Vector[String]]
     var row = Vector.empty[String]
     val field = new StringBuilder
     var quoted = false
     var i = 0
-    def endField(): Unit = { row :+= field.toString; field.clear() }
-    def endRow(): Unit = { endField(); rows += row; row = Vector.empty }
-    while (i < text.length) {
+    def endField(): Unit =
+      row :+= field.toString; field.clear()
+    def endRow(): Unit =
+      endField(); rows += row; row = Vector.empty
+    while i < text.length do
       val c = text(i)
-      if (quoted) {
-        if (c == '"' && i + 1 < text.length && text(i + 1) == '"') { field.append('"'); i += 1 }
-        else if (c == '"') quoted = false
+      if quoted then
+        if c == '"' && i + 1 < text.length && text(i + 1) == '"' then
+          field.append('"'); i += 1
+        else if c == '"' then quoted = false
         else field.append(c)
-      } else if (c == '"' && field.isEmpty) quoted = true
-      else if (c == separator) endField()
-      else if (c == '\n') endRow()
-      else if (c != '\r') field.append(c)
+      else if c == '"' && field.isEmpty then quoted = true
+      else if c == separator then endField()
+      else if c == '\n' then endRow()
+      else if c != '\r' then field.append(c)
       i += 1
-    }
     assert(!quoted, "Unclosed quoted field")
-    if (field.nonEmpty || row.nonEmpty) endRow()
+    if field.nonEmpty || row.nonEmpty then endRow()
     rows.result()
-  }
 
-  private def splitLatexColumns(row: String): Vector[String] = {
+  private def splitLatexColumns(row: String): Vector[String] =
     val result = Vector.newBuilder[String]
     var start = 0
     var slashes = 0
     row.indices.foreach { i =>
-      if (row(i) == '&' && slashes % 2 == 0) { result += row.substring(start, i); start = i + 1 }
-      slashes = if (row(i) == '\\') slashes + 1 else 0
+      if row(i) == '&' && slashes % 2 == 0 then
+        result += row.substring(start, i); start = i + 1
+      slashes = if row(i) == '\\' then slashes + 1 else 0
     }
     result += row.substring(start)
     result.result()
-  }
-}
+
+end ReportChecks

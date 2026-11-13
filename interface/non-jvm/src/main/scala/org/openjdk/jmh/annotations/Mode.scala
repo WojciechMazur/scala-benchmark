@@ -24,39 +24,35 @@
  */
 package org.openjdk.jmh.annotations
 
-enum Mode extends java.lang.Enum[Mode] {
+enum Mode extends java.lang.Enum[Mode]:
   case Throughput, AverageTime, SampleTime, SingleShotTime, All
-  def shortLabel(): String = this match {
+
+  def shortLabel(): String = this match
     case Throughput     => "thrpt"
     case AverageTime    => "avgt"
     case SampleTime     => "sample"
     case SingleShotTime => "ss"
     case All            => "all"
-  }
 
-  def longLabel(): String = this match {
+  def longLabel(): String = this match
     case Throughput     => "Throughput, ops/time"
     case AverageTime    => "Average time, time/op"
     case SampleTime     => "Sampling time"
     case SingleShotTime => "Single shot invocation time"
     case All            => "All benchmark modes"
-  }
 
-}
+object Mode:
 
-object Mode {
   @scala.annotation.targetName("javaValues")
   def values(): Array[Mode] = Array(Throughput, AverageTime, SampleTime, SingleShotTime, All)
 
-  def deepValueOf(name: String): Mode = {
+  def deepValueOf(name: String): Mode =
     values.find(_.name() == name).getOrElse {
       val matches = values.filter(_.shortLabel().startsWith(name))
-      if (matches.length == 1) matches.head
+      if matches.length == 1 then matches.head
       else throw new IllegalStateException("Unable to parse benchmark mode: " + name + "; known values: " + getKnown())
     }
-  }
-  def getKnown(): java.util.List[String] = {
+
+  def getKnown(): java.util.List[String] =
     import scala.jdk.CollectionConverters.*
     values.toVector.map(mode => mode.name() + "/" + mode.shortLabel()).asJava
-  }
-}

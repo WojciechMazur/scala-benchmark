@@ -1,17 +1,20 @@
 package scala.benchmark.examples
 
-import scala.benchmark.*
 import java.util.concurrent.TimeUnit
-import org.openjdk.jmh.infra.{BenchmarkParams, IterationParams}
-import org.openjdk.jmh.runner.options.{CommandLineOptions, CommandLineOptionException, TimeValue, VerboseMode}
+
+import scala.benchmark.*
 import scala.jdk.CollectionConverters.*
+
+import org.openjdk.jmh.infra.{BenchmarkParams, IterationParams}
+import org.openjdk.jmh.runner.options.{CommandLineOptionException, CommandLineOptions, TimeValue, VerboseMode}
 
 @BenchmarkMode(Array(Mode.SingleShotTime))
 @Warmup(iterations = 0)
 @Measurement(iterations = 1)
 @Fork(0)
-class ConfigurationApiBenchmark {
-  @Benchmark def execute(): Int = {
+class ConfigurationApiBenchmark:
+
+  @Benchmark def execute(): Int =
     val parent = new OptionsBuilder()
       .include("parent")
       .exclude("excludedParent")
@@ -38,7 +41,7 @@ class ConfigurationApiBenchmark {
     assert(child.getParameter("size").get().asScala.toVector == Vector("a", "a", "b"))
     var immutableParameters = false
     try child.getParameter("size").get().add("rejected")
-    catch { case _: UnsupportedOperationException => immutableParameters = true }
+    catch case _: UnsupportedOperationException => immutableParameters = true
     assert(immutableParameters && child.getParameter("size").get().size() == 3)
     assert(child.getBenchModes().asScala.toVector == Vector(Mode.AverageTime, Mode.SingleShotTime))
     assert(child.getWarmupIterations().get().intValue() == 0)
@@ -49,7 +52,7 @@ class ConfigurationApiBenchmark {
     assert(cli.shouldSyncIterations().get().booleanValue())
     var rejected = false
     try new CommandLineOptions("-i", "1", "-i", "2")
-    catch { case _: CommandLineOptionException => rejected = true }
+    catch case _: CommandLineOptionException => rejected = true
     assert(rejected)
     val options = new OptionsBuilder()
       .include("scala.benchmark.examples.ConfigurationTarget.execute")
@@ -80,19 +83,23 @@ class ConfigurationApiBenchmark {
     ).runSingle()
     println("CONFIGURATION_API_OK")
     1
-  }
-}
+
+  end execute
+
+end ConfigurationApiBenchmark
+
 @BenchmarkMode(Array(Mode.AverageTime))
 @Warmup(iterations = 3, batchSize = 7)
 @Measurement(iterations = 7, batchSize = 3)
 @OperationsPerInvocation(2)
 @Threads(2)
 @Fork(1)
-class ConfigurationTarget {
+class ConfigurationTarget:
+
   @Benchmark @OperationsPerInvocation(3) @Warmup(iterations = 2) def execute(
       p: BenchmarkParams,
       i: IterationParams
-  ): Int = {
+  ): Int =
     assert(p.getMode() == Mode.SingleShotTime && p.getThreads() == 1 && p.getForks() == 0)
     assert(p.getWarmup().getCount() == 1 && p.getMeasurement().getCount() == 2)
     assert(p.getWarmup().getBatchSize() == 4 && p.getMeasurement().getBatchSize() == 2)
@@ -102,22 +109,20 @@ class ConfigurationTarget {
     assert(!p.shouldSynchIterations())
     assert(i.getBatchSize() == 4 || i.getBatchSize() == 2)
     1
-  }
-}
 
 @BenchmarkMode(Array(Mode.SingleShotTime))
 @Warmup(iterations = 2, batchSize = 7, time = 2, timeUnit = TimeUnit.MILLISECONDS)
 @Measurement(iterations = 2, batchSize = 3, time = 9, timeUnit = TimeUnit.MILLISECONDS)
 @Fork(0)
 abstract class ConfigurationBase
+
 @Warmup(iterations = 1, timeUnit = TimeUnit.MICROSECONDS)
-class InheritedConfigurationTarget extends ConfigurationBase {
+class InheritedConfigurationTarget extends ConfigurationBase:
+
   @Benchmark @Measurement(iterations = 1, timeUnit = TimeUnit.NANOSECONDS)
-  def execute(p: BenchmarkParams): Int = {
+  def execute(p: BenchmarkParams): Int =
     assert(p.getWarmup().getCount() == 1 && p.getWarmup().getBatchSize() == 7)
     assert(p.getWarmup().getTime() == TimeValue.milliseconds(2))
     assert(p.getMeasurement().getCount() == 1 && p.getMeasurement().getBatchSize() == 3)
     assert(p.getMeasurement().getTime() == TimeValue.milliseconds(9))
     1
-  }
-}

@@ -4,25 +4,28 @@ import org.junit.Assert.*
 import org.junit.Test
 import org.openjdk.jmh.annotations.Mode
 
-class ForkResultsTest {
+class ForkResultsTest:
   private val trial = Some(TrialMetadata(100, 110, 120, 3, 7))
   private val config = Configuration(measurementIterations = 1, threads = 2, unit = "NANOSECONDS")
+
   private val workers = Vector(
     RawResult(10, 100, new SampleBuffer, allInvocations = 12),
     RawResult(20, 100, new SampleBuffer, allInvocations = 22)
   )
+
   private val iteration = IterationResult(0.3, workers, trial)
+
   private def rejected(
       results: Vector[IterationResult],
       c: Configuration = config,
       mode: Mode = Mode.Throughput
-  ): Unit = {
+  ): Unit =
     assertTrue(
       "Invalid transported result was accepted",
       scala.util.Try(ForkResults.verify(mode, c, results)).isFailure
     )
-  }
-  @Test def incompleteOrInconsistentForksCannotContributeScores(): Unit = {
+
+  @Test def incompleteOrInconsistentForksCannotContributeScores(): Unit =
     assertEquals(Vector(iteration), ForkResults.verify(Mode.Throughput, config, Vector(iteration)))
     rejected(Vector.empty)
     rejected(Vector(iteration.copy(workers = workers.take(1))))
@@ -36,8 +39,8 @@ class ForkResultsTest {
       Vector(iteration, iteration.copy(trial = Some(trial.get.copy(stopMillis = 130)))),
       config.copy(measurementIterations = 2)
     )
-  }
-  @Test def scoreValidationIsIndependentOfOutputUnitScale(): Unit = {
+
+  @Test def scoreValidationIsIndependentOfOutputUnitScale(): Unit =
     val c = config.copy(threads = 1, operationsPerInvocation = 13, unit = "DAYS")
     val raw = RawResult(Long.MaxValue / 2, 1, new SampleBuffer)
     val score = Execution.aggregate(Mode.AverageTime, c, Vector(raw))
@@ -46,9 +49,8 @@ class ForkResultsTest {
     assertEquals(valid, ForkResults.verify(Mode.AverageTime, c, valid))
     rejected(Vector(valid.head.copy(score = 0)), c, Mode.AverageTime)
     rejected(Vector(valid.head.copy(score = score * 2)), c, Mode.AverageTime)
-  }
 
-  @Test def singleShotAndSamplePopulationsAreValidated(): Unit = {
+  @Test def singleShotAndSamplePopulationsAreValidated(): Unit =
     rejected(Vector(iteration), mode = Mode.SingleShotTime)
     rejected(Vector(iteration), mode = Mode.SampleTime)
     val samples = new SampleBuffer
@@ -61,22 +63,20 @@ class ForkResultsTest {
     val c = config.copy(threads = 1, measurementBatchSize = 7)
     val valid = Vector(IterationResult(0, Vector(shot), trial))
     assertEquals(valid, ForkResults.verify(Mode.SingleShotTime, c, valid))
-  }
-  @Test def everyTruncatedBinaryRecordAndTrailingByteIsRejected(): Unit = {
+
+  @Test def everyTruncatedBinaryRecordAndTrailingByteIsRejected(): Unit =
     val path = java.nio.file.Files.createTempFile("benchmark-truncated-fork", ".bin")
-    try {
+    try
       Main.writeResults(path, Vector(iteration))
       val bytes = java.nio.file.Files.readAllBytes(path)
-      for (length <- bytes.indices) {
+      for length <- bytes.indices do
         java.nio.file.Files.write(path, bytes.take(length))
         assertTrue("Accepted prefix of length " + length, scala.util.Try(Main.readResults(path)).isFailure)
-      }
       java.nio.file.Files.write(path, bytes ++ Array[Byte](1))
       assertTrue(scala.util.Try(Main.readResults(path)).isFailure)
-    } finally java.nio.file.Files.deleteIfExists(path)
-  }
+    finally java.nio.file.Files.deleteIfExists(path)
 
-  @Test def explicitBenchmarkFailuresValidateEveryRetainedObservation(): Unit = {
+  @Test def explicitBenchmarkFailuresValidateEveryRetainedObservation(): Unit =
     val c = config.copy(measurementIterations = 2)
     val valid = new BenchmarkForkFailure("test.Failure", "after first iteration", Vector(iteration.copy(trial = None)))
     assertSame(valid, scala.util.Try(BenchmarkForkFailure.verify(valid, Mode.Throughput, c)).failed.get)
@@ -99,11 +99,10 @@ class ForkResultsTest {
     )
     val empty = new BenchmarkForkFailure("test.Failure", "before measurement", Vector.empty)
     assertSame(empty, scala.util.Try(BenchmarkForkFailure.verify(empty, Mode.Throughput, c)).failed.get)
-  }
 
-  @Test def fullBinaryObservationsRetainCountsAboveTwoToThe53(): Unit = {
+  @Test def fullBinaryObservationsRetainCountsAboveTwoToThe53(): Unit =
     val path = java.nio.file.Files.createTempFile("benchmark-fork-observations", ".bin")
-    try {
+    try
       val samples = new SampleBuffer
       samples.addCount(2049, 7)
       val count = 9007199254740993L
@@ -122,6 +121,6 @@ class ForkResultsTest {
       assertEquals(count + 7, decoded.head.workers.head.allInvocations)
       assertEquals(samples.entries, decoded.head.workers.head.samples.entries)
       assertEquals(raw.auxiliary, decoded.head.workers.head.auxiliary)
-    } finally java.nio.file.Files.deleteIfExists(path)
-  }
-}
+    finally java.nio.file.Files.deleteIfExists(path)
+
+end ForkResultsTest

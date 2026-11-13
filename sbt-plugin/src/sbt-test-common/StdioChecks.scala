@@ -1,10 +1,14 @@
+import java.util.concurrent.TimeUnit
+
+import scala.jdk.CollectionConverters.*
+
+import pl.project13.scala.sbt.JmhPlugin.JmhKeys.*
 import sbt.{*, given}
 import sbt.Keys.*
-import pl.project13.scala.sbt.JmhPlugin.JmhKeys.*
-import scala.jdk.CollectionConverters.*
-import java.util.concurrent.TimeUnit
-object StdioChecks {
+
+object StdioChecks:
   val verifyStdio = taskKey[Unit]("Check benchmark output channel provenance against JVM JMH")
+
   def settings(backend: String): Seq[Def.Setting[?]] = Seq(
     verifyStdio := Def.uncached {
       val root = file(sys.props("benchmark.scripted.support")).getParentFile.getParentFile.getParentFile
@@ -17,19 +21,18 @@ object StdioChecks {
       files.foreach { file =>
         val actual = IO.read(file)
         IO.copyFile(file, evidence / file.getName)
-        if (backend != "jvm") {
+        if backend != "jvm" then
           val reference = evidence.getParentFile / "jvm" / file.getName
           assert(reference.isFile, "Run stdio/jvm first")
-          if (actual != IO.read(reference))
+          if actual != IO.read(reference) then
             differences += file.getName + " differs from JVM\nEXPECTED:\n" + IO.read(reference) + "\nACTUAL:\n" + actual
-        }
       }
       assert(differences.isEmpty, differences.mkString("\n"))
       val converter = fileConverter.value
       val classpath = (Jmh / fullClasspath).value.map(entry => converter.toPath(entry.data).toString)
       val products = ((Compile / target).value ** "*").get().filter(_.isFile)
       val command =
-        if (backend == "jvm")
+        if backend == "jvm" then
           Vector(
             java.nio.file.Paths.get(sys.props("java.home"), "bin", "java").toString,
             "-Djmh.ignoreLock=true",
@@ -37,14 +40,13 @@ object StdioChecks {
             classpath.mkString(java.io.File.pathSeparator),
             "scala.benchmark.internal.JvmMain"
           )
-        else if (backend == "native")
+        else if backend == "native" then
           Vector(products.find(f => f.canExecute && Set("benchmarks", "benchmarks.exe")(f.getName)).get.getAbsolutePath)
-        else {
+        else
           val host = products.find(_.getName == "node-host.mjs").get
           val module = products.find(f => f.getName == "main.js" && f.getPath.contains("-opt/")).get
           Vector("node", host.getAbsolutePath, module.getAbsolutePath)
-        }
-      for (forks <- Seq(0, 1)) {
+      for forks <- Seq(0, 1) do
         val out = evidence / s"cli-$forks-out.bin"
         val err = evidence / s"cli-$forks-err.bin"
         val process = new ProcessBuilder(
@@ -66,15 +68,15 @@ object StdioChecks {
           .redirectOutput(out)
           .redirectError(err)
           .start()
-        try {
+        try
           assert(process.waitFor(30, TimeUnit.SECONDS), s"$backend CLI output watchdog")
           assert(process.exitValue() == 0, IO.read(err))
-          for (
+          for
             (file, channel, expected) <- Seq(
               (out, "OUT", Array.tabulate[Byte](256)(_.toByte)),
               (err, "ERR", Array.tabulate[Byte](256)(_.toByte).reverse)
             )
-          ) {
+          do
             val bytes = IO.readBytes(file)
             val start = ("USER-" + channel + "-BEGIN|").getBytes("UTF-8")
             val end = ("|USER-" + channel + "-END").getBytes("UTF-8")
@@ -87,9 +89,10 @@ object StdioChecks {
                 .slice(index + start.length + expected.length, index + start.length + expected.length + end.length)
                 .sameElements(end)
             )
-          }
-        } finally { if (process.isAlive) { process.destroyForcibly(); process.waitFor(2, TimeUnit.SECONDS) } }
-      }
+        finally
+          if process.isAlive then
+            process.destroyForcibly(); process.waitFor(2, TimeUnit.SECONDS)
+      end for
 
       IO.write(
         evidence / "verification.json",
@@ -97,7 +100,7 @@ object StdioChecks {
           ujson.Obj(
             "backend" -> backend,
             "files" -> files.size,
-            "comparisons" -> (if (backend == "jvm") 0 else files.size),
+            "comparisons" -> (if backend == "jvm" then 0 else files.size),
             "standaloneBinaryRuns" -> 2,
             "callerSystemAliasRuns" -> 2
           ),
@@ -106,4 +109,5 @@ object StdioChecks {
       )
     }
   )
-}
+
+end StdioChecks

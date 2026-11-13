@@ -1,20 +1,23 @@
-import sbt.{*, given}
-import sbt.Keys.*
-import pl.project13.scala.sbt.JmhPlugin.JmhKeys.*
 import java.util.concurrent.TimeUnit
+
 import scala.jdk.CollectionConverters.*
 
-object RunnerFailureChecks {
+import pl.project13.scala.sbt.JmhPlugin.JmhKeys.*
+import sbt.{*, given}
+import sbt.Keys.*
+
+object RunnerFailureChecks:
   val verifyRunnerFailures = taskKey[Unit]("Compare embedded and bulk warmup failures with upstream")
+
   def settings(backend: String): Seq[Setting[?]] = Seq(
     verifyRunnerFailures := Def.uncached {
       val directory = baseDirectory.value
-      val files = ((target).value ** "*").get().filter(_.isFile)
+      val files = (target.value ** "*").get().filter(_.isFile)
       def artifact(name: String): File = files.find(_.getName == name).getOrElse(sys.error("Missing " + name))
       val converter = fileConverter.value
       val cp = (Jmh / fullClasspath).value.map(e => converter.toPath(e.data).toString)
       val command =
-        if (backend == "jvm")
+        if backend == "jvm" then
           Vector(
             java.nio.file.Paths.get(sys.props("java.home"), "bin", "java").toString,
             "-Djmh.ignoreLock=true",
@@ -22,7 +25,7 @@ object RunnerFailureChecks {
             cp.mkString(java.io.File.pathSeparator),
             "org.openjdk.jmh.Main"
           )
-        else if (backend == "native")
+        else if backend == "native" then
           Vector(files.find(f => f.canExecute && Set("benchmarks", "benchmarks.exe")(f.getName)).get.getAbsolutePath)
         else
           Vector(
@@ -34,7 +37,7 @@ object RunnerFailureChecks {
       val evidence = repository / "target/execution-parity/runner-failures" / backend
       IO.delete(evidence); IO.createDirectory(evidence)
       var observations = Vector.empty[ujson.Value]
-      def run(id: String, args: Vector[String]): Unit = {
+      def run(id: String, args: Vector[String]): Unit =
         val report = evidence / (id + ".json")
         val log = evidence / (id + ".log")
         val child = new ProcessBuilder(
@@ -46,19 +49,18 @@ object RunnerFailureChecks {
           .start()
         var children = Vector.empty[ProcessHandle]
         val start = System.nanoTime()
-        try {
-          while (child.isAlive && System.nanoTime() - start < TimeUnit.SECONDS.toNanos(20)) {
+        try
+          while child.isAlive && System.nanoTime() - start < TimeUnit.SECONDS.toNanos(20) do
             children = (children ++ child.toHandle.descendants().iterator().asScala).distinct
             child.waitFor(10, TimeUnit.MILLISECONDS)
-          }
           assert(!child.isAlive, id + ": watchdog expired")
           assert(children.forall(!_.isAlive), id + ": surviving child")
           val results =
-            if (report.exists() && IO.read(report).trim.nonEmpty) ujson.read(IO.read(report)).arr.toVector
+            if report.exists() && IO.read(report).trim.nonEmpty then ujson.read(IO.read(report)).arr.toVector
             else Vector.empty
           val text = IO.read(log)
           assert(
-            text.contains(if (id.startsWith("bulk")) "warmup failure:" else "embedded failure:"),
+            text.contains(if id.startsWith("bulk") then "warmup failure:" else "embedded failure:"),
             id + ": missing primary cause"
           )
           observations :+= ujson.Obj(
@@ -75,13 +77,14 @@ object RunnerFailureChecks {
             "recovery" -> text.contains("EMBEDDED_RECOVERY"),
             "measured" -> text.contains("BULK_MEASUREMENT_OK")
           )
-        } finally {
+        finally
           children.filter(_.isAlive).foreach(_.destroyForcibly())
-          if (child.isAlive) child.destroyForcibly()
+          if child.isAlive then child.destroyForcibly()
           child.waitFor(2, TimeUnit.SECONDS)
-        }
-      }
-      for (stage <- Vector("setup", "work", "teardown", "trial"); iteration <- Vector(1, 2); foe <- Vector(false, true))
+        end try
+      end run
+      for stage <- Vector("setup", "work", "teardown", "trial"); iteration <- Vector(1, 2); foe <- Vector(false, true)
+      do
         run(
           s"embedded-$stage-$iteration-$foe",
           Vector(
@@ -100,10 +103,10 @@ object RunnerFailureChecks {
             foe.toString
           )
         )
-      for (
+      for
         mode <- Vector("INDI", "BULK", "BULK_INDI"); stage <- Vector("setup", "work", "teardown");
         forks <- Vector(0, 1); foe <- Vector(false, true)
-      )
+      do
         run(
           s"bulk-$mode-$stage-$forks-$foe",
           Vector(
@@ -123,7 +126,7 @@ object RunnerFailureChecks {
           )
         )
       IO.write(evidence / "observations.json", ujson.write(ujson.Arr.from(observations), indent = 2))
-      if (backend != "jvm") {
+      if backend != "jvm" then
         val expected = ujson
           .read(IO.read(evidence.getParentFile / "jvm/observations.json"))
           .arr
@@ -132,7 +135,7 @@ object RunnerFailureChecks {
         val differences = observations.filter(row => row != expected(row("case").str))
         IO.write(evidence / "differences.json", ujson.write(ujson.Arr.from(differences), indent = 2))
         assert(differences.isEmpty, ujson.write(ujson.Arr.from(differences), indent = 2))
-      }
     }
   )
-}
+
+end RunnerFailureChecks

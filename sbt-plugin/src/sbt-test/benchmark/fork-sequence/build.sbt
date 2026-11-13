@@ -5,7 +5,7 @@ lazy val benchmarks = FixtureBuild.matrix("jvm", "native", "js") { platform =>
     case _        => ("js", Nil)
   }
   val sources = FixtureBuild.fixtureDirectories("fork-sequence/shared", "fork-sequence/" + directory) ++
-    FixtureBuild.only((Seq("ForkSequenceBenchmark.scala", "ForkJournal.scala") ++ extraSources)*)
+    FixtureBuild.only((Seq("ForkSequenceBenchmark.scala", "ForkJournal.scala") ++ extraSources) *)
   val host =
     if (platform == "js") FixtureBuild.nodeImport(FixtureBuild.fixtures / "fork-sequence/journal-host.mjs") else Nil
   sources ++ host ++ ForkSequenceChecks.settings(platform)

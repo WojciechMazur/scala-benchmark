@@ -1,9 +1,10 @@
-import sbt.{*, given}
-import pl.project13.scala.sbt.JmhPlugin
 import scala.benchmark.sbtplugin.BenchmarkPlugin.autoImport.*
-import BuildSettings.*
+
 import BuildPlatforms.*
+import BuildSettings.*
 import ScriptedPlugin.autoImport.*
+import pl.project13.scala.sbt.JmhPlugin
+import sbt.{*, given}
 import sbtbuildinfo.BuildInfoPlugin
 
 organization := "org.scala-native"
@@ -79,8 +80,10 @@ lazy val sbtPlugin = project
       "-Xmx1024m",
       "-Dplugin.version=" + version.value,
       "-Dbenchmark.scala.version=" + libraryScalaVersion,
-      "-Dbenchmark.scripted.support=" + ((LocalRootProject / baseDirectory).value / "sbt-plugin/src/sbt-test-common").getAbsolutePath,
-      "-Dbenchmark.test.sources=" + ((LocalRootProject / baseDirectory).value / "sbt-plugin/src/sbt-test-sources/scala").getAbsolutePath
+      "-Dbenchmark.scripted.support=" +
+        ((LocalRootProject / baseDirectory).value / "sbt-plugin/src/sbt-test-common").getAbsolutePath,
+      "-Dbenchmark.test.sources=" +
+        ((LocalRootProject / baseDirectory).value / "sbt-plugin/src/sbt-test-sources/scala").getAbsolutePath
     ) ++ sys.props.get("benchmark.platforms").map("-Dbenchmark.platforms=" + _),
     scriptedDependencies := {
       publishLocal.value

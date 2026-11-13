@@ -24,11 +24,10 @@
  */
 package org.openjdk.jmh.annotations
 
-enum Level extends java.lang.Enum[Level] {
+enum Level extends java.lang.Enum[Level]:
   case Trial, Iteration, Invocation
-}
 
-object Level {
+object Level:
+
   @scala.annotation.targetName("javaValues")
   def values(): Array[Level] = Array(Trial, Iteration, Invocation)
-}

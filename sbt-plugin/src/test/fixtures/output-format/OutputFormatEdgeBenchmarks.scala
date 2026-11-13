@@ -1,30 +1,39 @@
 package scala.benchmark.runtime.outputformat
 
 import scala.benchmark.*
+import scala.collection.mutable.ArrayBuffer
+import scala.jdk.CollectionConverters.*
+
 import org.openjdk.jmh.infra.{BenchmarkParams, IterationParams}
 import org.openjdk.jmh.results.{BenchmarkResult, IterationResult, RunResult}
 import org.openjdk.jmh.runner.format.OutputFormat
 import org.openjdk.jmh.runner.options.{TimeValue, VerboseMode, WarmupMode}
-import scala.collection.mutable.ArrayBuffer
-import scala.jdk.CollectionConverters.*
 
-class Capture(val fault: String = "") extends OutputFormat {
+class Capture(val fault: String = "") extends OutputFormat:
   val trace = ArrayBuffer.empty[String]
   val iterations = ArrayBuffer.empty[IterationResult]
   val benchmarks = ArrayBuffer.empty[BenchmarkResult]
   var runs: java.util.Collection[RunResult] = null
-  private def record(text: String): Unit = {
+
+  private def record(text: String): Unit =
     trace += text
-    if (text == fault) throw new IllegalStateException("callback-fault:" + text)
-  }
+    if text == fault then throw new IllegalStateException("callback-fault:" + text)
+
   def startRun(): Unit = record("startRun")
+
   def startBenchmark(p: BenchmarkParams): Unit = record(
     "startBenchmark:" + p.getBenchmark().split('.').dropRight(1).last
   )
-  def endBenchmark(r: BenchmarkResult): Unit = { benchmarks += r; record("endBenchmark") }
-  def endRun(r: java.util.Collection[RunResult]): Unit = { runs = r; record("endRun") }
+
+  def endBenchmark(r: BenchmarkResult): Unit =
+    benchmarks += r; record("endBenchmark")
+
+  def endRun(r: java.util.Collection[RunResult]): Unit =
+    runs = r; record("endRun")
+
   def iteration(p: BenchmarkParams, i: IterationParams, n: Int): Unit = record("iteration:" + i.getType() + ":" + n)
-  def iterationResult(p: BenchmarkParams, i: IterationParams, n: Int, r: IterationResult): Unit = {
+
+  def iterationResult(p: BenchmarkParams, i: IterationParams, n: Int, r: IterationResult): Unit =
     assert(r.getBenchmarkParams() == p, "callback benchmark parameters")
     assert(r.getParams() == i, "callback iteration parameters: " + r.getParams() + " / " + i)
     assert(r.getMetadata().getMeasuredOps() > 0)
@@ -32,7 +41,7 @@ class Capture(val fault: String = "") extends OutputFormat {
     assert(r.getPrimaryResult().getScore().isFinite)
     iterations += r
     record("result:" + i.getType() + ":" + n)
-  }
+
   def print(t: String): Unit = ()
   def println(t: String): Unit = ()
   def verbosePrintln(t: String): Unit = ()
@@ -40,27 +49,35 @@ class Capture(val fault: String = "") extends OutputFormat {
   def write(v: Array[Byte]): Unit = ()
   def flush(): Unit = record("flush")
   def close(): Unit = record("close")
-}
+
+end Capture
+
 @AuxCounters(AuxCounters.Type.EVENTS)
 @State(Scope.Thread)
-class OutputCounters {
+class OutputCounters:
   var events: Long = 0L
   @Setup(Level.Iteration) def reset(): Unit = events = 0L
   @TearDown def finish(): Unit = events += 100
-}
+
 @State(Scope.Thread)
-class OutputModeTarget {
+class OutputModeTarget:
   @Setup def setup(): Unit = Journal.worker()
-  @Benchmark def execute(counters: OutputCounters): Int = { counters.events += 1; 1 }
-}
-class OutputWarmupTarget { @Benchmark def execute(): Int = 1 }
-class OutputWarmupFailure { @Benchmark def execute(): Int = throw new IllegalStateException("bulk-failure") }
+
+  @Benchmark def execute(counters: OutputCounters): Int =
+    counters.events += 1; 1
+
+class OutputWarmupTarget:
+  @Benchmark def execute(): Int = 1
+
+class OutputWarmupFailure:
+  @Benchmark def execute(): Int = throw new IllegalStateException("bulk-failure")
 
 @BenchmarkMode(Array(Mode.SingleShotTime))
 @Warmup(iterations = 0)
 @Measurement(iterations = 1)
 @Fork(0)
-class OutputFormatEdgeApiBenchmark {
+class OutputFormatEdgeApiBenchmark:
+
   private def options(target: String, forks: Int): org.openjdk.jmh.runner.options.ChainedOptionsBuilder =
     new OptionsBuilder()
       .include("scala.benchmark.runtime.outputformat." + target + ".execute")
@@ -76,11 +93,11 @@ class OutputFormatEdgeApiBenchmark {
       .shouldFailOnError(false)
       .verbosity(VerboseMode.SILENT)
 
-  @Benchmark def execute(host: BenchmarkParams): Int = {
+  @Benchmark def execute(host: BenchmarkParams): Int =
     var cases = 0
-    for (
+    for
       forks <- Vector(0, 1); mode <- Vector(Mode.Throughput, Mode.AverageTime, Mode.SampleTime, Mode.SingleShotTime)
-    ) {
+    do
       println(s"OUTPUT_FORMAT_CASE:mode:$forks:$mode")
       val capture = new Capture
       val result =
@@ -93,21 +110,19 @@ class OutputFormatEdgeApiBenchmark {
         capture.iterations.last.getSecondaryResults().containsKey("events"),
         "missing events: " + capture.iterations.last.getSecondaryResults()
       )
-      if (mode == Mode.SingleShotTime) {
+      if mode == Mode.SingleShotTime then
         assert(
           capture.iterations.last.getSecondaryResults().get("events").getScore() == 103,
           "final events: " + capture.iterations.last.getSecondaryResults()
         )
         assert(capture.iterations.forall(_.getMetadata().getMeasuredOps() == 7), "single shot operations")
-      }
       assert(result.getAggregatedResult().getIterationResults().size() == 2)
       assert(capture.benchmarks.size == 1 && capture.benchmarks.head.getIterationResults().size() == 2)
       assert((capture.benchmarks.head.getMetadata() == null) == (forks > 0))
       assert(capture.trace.count(_ == "flush") == forks + 1)
       assert(capture.trace.count(_ == "close") == forks + 1)
       cases += 1
-    }
-    for (forks <- Vector(0, 1); mode <- Vector(WarmupMode.BULK, WarmupMode.BULK_INDI); warmupForks <- Vector(0, 1)) {
+    for forks <- Vector(0, 1); mode <- Vector(WarmupMode.BULK, WarmupMode.BULK_INDI); warmupForks <- Vector(0, 1) do
       println(s"OUTPUT_FORMAT_CASE:bulk:$forks:$mode:$warmupForks")
       val capture = new Capture
       val result = new org.openjdk.jmh.runner.Runner(
@@ -119,20 +134,22 @@ class OutputFormatEdgeApiBenchmark {
           .build(),
         capture
       ).run()
-      val trials = if (forks == 0) 1 else 1 + warmupForks
-      val warmups = if (mode == WarmupMode.BULK) 2 else 3
+      val trials = if forks == 0 then 1 else 1 + warmupForks
+      val warmups = if mode == WarmupMode.BULK then 2 else 3
       assert(capture.trace.count(_.startsWith("iteration:WARMUP")) == trials * warmups, capture.trace.toString)
-      assert(capture.trace.count(_.startsWith("startBenchmark:")) == (if (forks == 0) 3 else 1), capture.trace.toString)
+      assert(
+        capture.trace.count(_.startsWith("startBenchmark:")) == (if forks == 0 then 3 else 1),
+        capture.trace.toString
+      )
       assert(
         capture.iterations.count(
           _.getParams().getType() == org.openjdk.jmh.runner.IterationType.MEASUREMENT
         ) == trials * 2
       )
       assert(result.size() == 1 && result.iterator().next().getAggregatedResult().getIterationResults().size() == 2)
-      assert(capture.trace.count(_ == "close") == (if (forks == 0) 1 else trials + 1))
+      assert(capture.trace.count(_ == "close") == (if forks == 0 then 1 else trials + 1))
       cases += 1
-    }
-    for (forks <- Vector(0, 1); failOnError <- Vector(false, true)) {
+    for forks <- Vector(0, 1); failOnError <- Vector(false, true) do
       println(s"OUTPUT_FORMAT_CASE:bulk-failure:$forks:$failOnError")
       val capture = new Capture
       val outcome = scala.util.Try(
@@ -148,10 +165,9 @@ class OutputFormatEdgeApiBenchmark {
       )
       assert(outcome.isFailure == failOnError, capture.trace.toString)
       assert(capture.trace.contains("endRun") == !failOnError, capture.trace.toString)
-      if (!failOnError) assert(outcome.get.size() == 1)
+      if !failOnError then assert(outcome.get.size() == 1)
       cases += 1
-    }
-    for (
+    for
       forks <- Vector(0, 1);
       fault <- Vector(
         "startRun",
@@ -165,7 +181,7 @@ class OutputFormatEdgeApiBenchmark {
         "flush",
         "close"
       )
-    ) {
+    do
       println(s"OUTPUT_FORMAT_CASE:callback-failure:$forks:$fault")
       val capture = new Capture(fault)
       val outcome = scala.util.Try(
@@ -173,34 +189,35 @@ class OutputFormatEdgeApiBenchmark {
           .run()
       )
       // JMH can swallow iteration callback failures as benchmark/link failures. Portable callbacks are fatal infrastructure.
-      if (host.getVmName().startsWith("Scala") || (!fault.startsWith("iteration:") && !fault.startsWith("result:"))) {
+      if host.getVmName().startsWith("Scala") || (!fault.startsWith("iteration:") && !fault.startsWith("result:")) then
         assert(outcome.isFailure, s"forks=$forks fault=$fault trace=${capture.trace}")
         assert(capture.trace.last == fault, s"forks=$forks fault=$fault trace=${capture.trace}")
-      }
       assert(capture.trace.contains(fault), capture.trace.toString)
       println(s"OUTPUT_FORMAT_CALLBACK_FAILURE:$forks:$fault:${outcome.isFailure}:" + capture.trace.mkString(","))
       cases += 1
-    }
     println("OUTPUT_FORMAT_EDGES_OK:" + cases)
     cases
-  }
-}
+
+  end execute
+
+end OutputFormatEdgeApiBenchmark
 
 @Platforms(Array(Platform.JVM, Platform.Native))
 @State(Scope.Group)
 @BenchmarkMode(Array(Mode.SingleShotTime))
-class OutputGroupTarget {
+class OutputGroupTarget:
   @Benchmark @Group("exchange") def read(): Int = 1
   @Benchmark @Group("exchange") def write(): Int = 2
-}
+
 @Platforms(Array(Platform.JVM, Platform.Native))
 @BenchmarkMode(Array(Mode.SingleShotTime))
 @Warmup(iterations = 0)
 @Measurement(iterations = 1)
 @Fork(0)
-class OutputGroupApiBenchmark {
-  @Benchmark def execute(): Int = {
-    for (forks <- Vector(0, 1); overridden <- Vector(false, true)) {
+class OutputGroupApiBenchmark:
+
+  @Benchmark def execute(): Int =
+    for forks <- Vector(0, 1); overridden <- Vector(false, true) do
       val capture = new Capture
       val builder = new OptionsBuilder()
         .include("scala.benchmark.runtime.outputformat.OutputGroupTarget.exchange")
@@ -211,31 +228,32 @@ class OutputGroupApiBenchmark {
         .threads(2)
         .operationsPerInvocation(7)
         .verbosity(VerboseMode.SILENT)
-      if (overridden) builder.threadGroups(1, 3).threads(5).warmupMode(WarmupMode.BULK_INDI)
+      if overridden then builder.threadGroups(1, 3).threads(5).warmupMode(WarmupMode.BULK_INDI)
       new org.openjdk.jmh.runner.Runner(builder.build(), capture).run()
-      assert(capture.iterations.size == (if (overridden) 4 else 3))
+      assert(capture.iterations.size == (if overridden then 4 else 3))
       capture.iterations.foreach { result =>
-        assert(result.getRawPrimaryResults().size() == (if (overridden) 8 else 2))
+        assert(result.getRawPrimaryResults().size() == (if overridden then 8 else 2))
         assert(
-          result.getBenchmarkParams().getThreadGroups().toVector == (if (overridden) Vector(1, 3) else Vector(1, 1))
+          result.getBenchmarkParams().getThreadGroups().toVector == (if overridden then Vector(1, 3) else Vector(1, 1))
         )
-        assert(result.getMetadata().getMeasuredOps() == (if (overridden) 56 else 14))
+        assert(result.getMetadata().getMeasuredOps() == (if overridden then 56 else 14))
         assert(result.getSecondaryResults().keySet().asScala.toSet == Set("read", "write"))
       }
-    }
     println("OUTPUT_FORMAT_GROUPS_OK")
     1
-  }
-}
+
+end OutputGroupApiBenchmark
 
 @BenchmarkMode(Array(Mode.SingleShotTime))
 @Warmup(iterations = 0)
 @Measurement(iterations = 1)
 @Fork(0)
-class OutputFormatListingApiBenchmark {
-  @Benchmark def execute(): Int = {
+class OutputFormatListingApiBenchmark:
+
+  @Benchmark def execute(): Int =
     val lines = ArrayBuffer.empty[String]
-    val capture = new Capture { override def println(text: String): Unit = { lines += text } }
+    val capture = new Capture:
+      override def println(text: String): Unit = lines += text
     val options = new OptionsBuilder()
       .include("scala.benchmark.runtime.outputformat.OutputTarget.execute")
       .param("journal", "listed-only")
@@ -253,16 +271,18 @@ class OutputFormatListingApiBenchmark {
     new scala.benchmark.Runner(new OptionsBuilder().include("unmatched-output-format-benchmark").build(), capture)
       .list()
     assert(capture.trace.isEmpty)
-    for (single <- Vector(false, true)) {
+    for single <- Vector(false, true) do
       val missing = new Capture
       val runner = new org.openjdk.jmh.runner.Runner(
         new OptionsBuilder().include("unmatched-output-format-benchmark").build(),
         missing
       )
-      val result = scala.util.Try(if (single) runner.runSingle() else runner.run())
+      val result = scala.util.Try(if single then runner.runSingle() else runner.run())
       assert(result.failed.get.isInstanceOf[org.openjdk.jmh.runner.NoBenchmarksException])
-      assert(missing.trace.toVector == (if (single) Vector.empty else Vector("flush", "close")), missing.trace.toString)
-    }
+      assert(
+        missing.trace.toVector == (if single then Vector.empty else Vector("flush", "close")),
+        missing.trace.toString
+      )
     val success = new Capture
     new scala.benchmark.Runner(
       new OptionsBuilder()
@@ -278,15 +298,18 @@ class OutputFormatListingApiBenchmark {
     assert(success.iterations.size == 1)
     println("OUTPUT_FORMAT_LISTING_OK")
     1
-  }
-}
+
+  end execute
+
+end OutputFormatListingApiBenchmark
 
 @BenchmarkMode(Array(Mode.SingleShotTime))
 @Warmup(iterations = 0)
 @Measurement(iterations = 1)
 @Fork(0)
-class OutputFormatCrashApiBenchmark {
-  @Benchmark def execute(host: BenchmarkParams): Int = {
+class OutputFormatCrashApiBenchmark:
+
+  @Benchmark def execute(host: BenchmarkParams): Int =
     val capture = new Capture
     val journal = Journal.create("crash-")
     val options = new OptionsBuilder()
@@ -305,35 +328,35 @@ class OutputFormatCrashApiBenchmark {
     assert(result.isEmpty())
     assert(!capture.trace.contains("endBenchmark"))
     assert(!capture.trace.contains("result:MEASUREMENT:2"))
-    if (host.getVmName().startsWith("Scala")) {
+    if host.getVmName().startsWith("Scala") then
       assert(capture.trace.contains("result:MEASUREMENT:1"), capture.trace.toString)
       assert(capture.trace.contains("iteration:MEASUREMENT:2"), capture.trace.toString)
-    }
     assert(capture.trace.last == "close")
     println("OUTPUT_FORMAT_CRASH_OK:" + capture.trace.mkString(","))
     1
-  }
-}
+
+end OutputFormatCrashApiBenchmark
+
 @Platforms(Array(Platform.Native))
 @BenchmarkMode(Array(Mode.SingleShotTime))
 @Warmup(iterations = 0)
 @Measurement(iterations = 1)
 @Fork(0)
-class OutputFormatCancellationApiBenchmark {
+class OutputFormatCancellationApiBenchmark:
   @Benchmark def execute(): Int = CancellationChecks.verify()
-}
 
 @BenchmarkMode(Array(Mode.SingleShotTime))
 @Warmup(iterations = 0)
 @Measurement(iterations = 1)
 @Fork(0)
-class OutputFormatMutationApiBenchmark {
-  @Benchmark def execute(): Int = {
-    for (forks <- Vector(0, 1)) {
-      val capture = new Capture {
-        override def iterationResult(p: BenchmarkParams, i: IterationParams, n: Int, r: IterationResult): Unit = {
+class OutputFormatMutationApiBenchmark:
+
+  @Benchmark def execute(): Int =
+    for forks <- Vector(0, 1) do
+      val capture = new Capture:
+        override def iterationResult(p: BenchmarkParams, i: IterationParams, n: Int, r: IterationResult): Unit =
           super.iterationResult(p, i, n, r)
-          if (i.getType() == org.openjdk.jmh.runner.IterationType.MEASUREMENT)
+          if i.getType() == org.openjdk.jmh.runner.IterationType.MEASUREMENT then
             r.addResult(
               new org.openjdk.jmh.results.ScalarResult(
                 "callback",
@@ -342,8 +365,6 @@ class OutputFormatMutationApiBenchmark {
                 org.openjdk.jmh.results.AggregationPolicy.AVG
               )
             )
-        }
-      }
       val options = new OptionsBuilder()
         .include("scala.benchmark.runtime.outputformat.OutputModeTarget.execute")
         .mode(Mode.SingleShotTime)
@@ -361,10 +382,10 @@ class OutputFormatMutationApiBenchmark {
         returned.iterator().next().getBenchmarkResults().asScala.flatMap(_.getIterationResults().asScala).toVector
       assert(raw.size == measured.size)
       assert(raw.zip(measured).forall { case (a, b) => a eq b }, "Iteration callback objects must reach public results")
-    }
-    val capture = new Capture {
-      override def endRun(r: java.util.Collection[RunResult]): Unit = { super.endRun(r); r.clear() }
-    }
+    end for
+    val capture = new Capture:
+      override def endRun(r: java.util.Collection[RunResult]): Unit =
+        super.endRun(r); r.clear()
     val options = new OptionsBuilder()
       .include("scala.benchmark.runtime.outputformat.OutputModeTarget.execute")
       .mode(Mode.SingleShotTime)
@@ -376,31 +397,32 @@ class OutputFormatMutationApiBenchmark {
     assert(new scala.benchmark.Runner(options, capture).run().isEmpty())
     println("OUTPUT_FORMAT_MUTATION_OK:3")
     1
-  }
-}
+
+  end execute
+
+end OutputFormatMutationApiBenchmark
 
 @BenchmarkMode(Array(Mode.SingleShotTime))
 @Warmup(iterations = 0)
 @Measurement(iterations = 1)
 @Fork(0)
-class OutputFormatReportApiBenchmark {
-  @Benchmark def execute(): Int = {
+class OutputFormatReportApiBenchmark:
+
+  @Benchmark def execute(): Int =
     var cases = 0
-    for (
+    for
       name <- Vector("CSV", "SCSV", "JSON", "TEXT", "LATEX", "HTML");
       format <- scala.util.Try(org.openjdk.jmh.results.format.ResultFormatType.valueOf(name)).toOption;
       forks <- Vector(0, 1);
       mode <- Vector(Mode.Throughput, Mode.AverageTime, Mode.SampleTime, Mode.SingleShotTime)
-    ) {
+    do
       val path = Journal.create("callback-report-" + name + "-")
-      val capture = new Capture {
-        override def iterationResult(p: BenchmarkParams, i: IterationParams, n: Int, r: IterationResult): Unit = {
+      val capture = new Capture:
+        override def iterationResult(p: BenchmarkParams, i: IterationParams, n: Int, r: IterationResult): Unit =
           super.iterationResult(p, i, n, r)
           r.addResult(
             new org.openjdk.jmh.results.ScalarResult("callback", 23, "#", org.openjdk.jmh.results.AggregationPolicy.AVG)
           )
-        }
-      }
       val options = new OptionsBuilder()
         .include("scala.benchmark.runtime.outputformat.OutputModeTarget.execute")
         .mode(mode)
@@ -416,11 +438,10 @@ class OutputFormatReportApiBenchmark {
       val text = Journal.read(path).mkString("\n")
       assert(text.contains("callback") && text.contains("23"), s"$forks/$name: $text")
       cases += 1
-    }
     val path = Journal.create("empty-report-")
-    val capture = new Capture {
-      override def endRun(r: java.util.Collection[RunResult]): Unit = { super.endRun(r); r.clear() }
-    }
+    val capture = new Capture:
+      override def endRun(r: java.util.Collection[RunResult]): Unit =
+        super.endRun(r); r.clear()
     val options = new OptionsBuilder()
       .include("scala.benchmark.runtime.outputformat.OutputModeTarget.execute")
       .mode(Mode.SingleShotTime)
@@ -435,5 +456,7 @@ class OutputFormatReportApiBenchmark {
     assert(Journal.read(path).mkString.replaceAll("\\s", "") == "[]")
     println("OUTPUT_FORMAT_REPORTS_OK:" + (cases + 1))
     cases + 1
-  }
-}
+
+  end execute
+
+end OutputFormatReportApiBenchmark

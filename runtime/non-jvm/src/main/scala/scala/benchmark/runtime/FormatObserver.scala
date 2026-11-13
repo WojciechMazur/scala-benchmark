@@ -1,38 +1,44 @@
 package scala.benchmark.runtime
 
 import java.io.{OutputStream, PrintStream}
-import org.openjdk.jmh.annotations.Mode
-import org.openjdk.jmh.runner.format.OutputFormat
+
 import scala.jdk.CollectionConverters.*
 
-private[runtime] object FormatObserver {
-  def apply(sink: OutputFormat): RunObserver = if (sink == null) RunObserver.Disabled else new FormatObserver(sink)
-}
+import org.openjdk.jmh.annotations.Mode
+import org.openjdk.jmh.runner.format.OutputFormat
 
-private[runtime] final class FormatObserver(sink: OutputFormat) extends RunObserver {
+private[runtime] object FormatObserver:
+  def apply(sink: OutputFormat): RunObserver = if sink == null then RunObserver.Disabled else new FormatObserver(sink)
+
+final private[runtime] class FormatObserver(sink: OutputFormat) extends RunObserver:
   override def displaysResults: Boolean = true
+
   override def diagnosticOutput: PrintStream = new PrintStream(
-    new OutputStream {
+    new OutputStream:
       def write(value: Int): Unit = invoke(sink.write(value))
       override def write(bytes: Array[Byte], offset: Int, length: Int): Unit =
         invoke(sink.write(bytes.slice(offset, offset + length)))
-    },
+    ,
     true,
     "UTF-8"
   )
+
   private var ended = false
   private val cache = new java.util.IdentityHashMap[RunResult, org.openjdk.jmh.results.RunResult]
+
   private val trials = scala.collection.mutable.ArrayBuffer.empty[
     (
         org.openjdk.jmh.infra.BenchmarkParams,
         scala.collection.mutable.ArrayBuffer[org.openjdk.jmh.results.IterationResult]
     )
   ]
+
   var results: java.util.Collection[org.openjdk.jmh.results.RunResult] = java.util.Collections.emptyList()
-  private def converted(run: RunResult): org.openjdk.jmh.results.RunResult = {
+
+  private def converted(run: RunResult): org.openjdk.jmh.results.RunResult =
     val existing = cache.get(run)
-    if (existing != null) existing
-    else {
+    if existing != null then existing
+    else
       val result = PublicResults(run)
       val observations = trials
         .filter { case (params, values) => params == result.getParams() && values.nonEmpty }
@@ -45,44 +51,42 @@ private[runtime] final class FormatObserver(sink: OutputFormat) extends RunObser
       }
       cache.put(run, result)
       result
-    }
-  }
 
   /** Report snapshots contain public observations, never invented worker timing data. */
-  override def reportResults(completed: Vector[RunResult]): Vector[RunResult] = {
-    val selected = if (ended) results.asScala.toVector else completed.map(converted)
+  override def reportResults(completed: Vector[RunResult]): Vector[RunResult] =
+    val selected = if ended then results.asScala.toVector else completed.map(converted)
     selected.map { result =>
       val context = completed
         .find(run => cache.get(run) eq result)
         .getOrElse(throw new IllegalArgumentException("Custom output supplied results for an unknown benchmark"))
       PublicReportResults(result, context)
     }
-  }
 
   private def invoke(body: => Unit): Unit = try TrialObserver.invoke(body)
-  catch {
+  catch
     case error: InterruptedException =>
       Platform.restoreCallerInterrupt()
       throw new TrialObserverFailure(error)
-  }
-  override def output[A](options: Options)(body: => A): A = {
-    val stream = new PrintStream(new OutputStream { def write(value: Int): Unit = invoke(sink.write(value)) }) {
+
+  override def output[A](options: Options)(body: => A): A =
+    val stream = new PrintStream(new OutputStream:
+      def write(value: Int): Unit = invoke(sink.write(value))):
       override def write(value: Int): Unit = invoke(sink.write(value))
       override def write(bytes: Array[Byte], offset: Int, length: Int): Unit =
         invoke(sink.write(bytes.slice(offset, offset + length)))
       override def print(text: String): Unit = invoke(sink.print(text))
-      override def print(value: Any): Unit = invoke(sink.print(if (value == null) "null" else value.toString))
-      override def println(value: Any): Unit = invoke(sink.println(if (value == null) "null" else value.toString))
+      override def print(value: Any): Unit = invoke(sink.print(if value == null then "null" else value.toString))
+      override def println(value: Any): Unit = invoke(sink.println(if value == null then "null" else value.toString))
       override def println(text: String): Unit = invoke(sink.println(text))
       override def println(): Unit = invoke(sink.println(""))
       // Runner lifecycle owns flush/close, including the worker-forwarded calls.
       override def flush(): Unit = ()
       override def close(): Unit = ()
-    }
     Console.withOut(stream)(Console.withErr(stream)(body))
-  }
+
   override def startRun(): Unit = invoke(sink.startRun())
-  override def startBenchmark(d: Descriptor, mode: Mode, c: Configuration, p: Map[String, String]): Unit = {
+
+  override def startBenchmark(d: Descriptor, mode: Mode, c: Configuration, p: Map[String, String]): Unit =
     val descriptor = d.configured(c)
     val resolved = descriptor.resolve(c)
     invoke(
@@ -90,36 +94,37 @@ private[runtime] final class FormatObserver(sink: OutputFormat) extends RunObser
         Infrastructure.benchmark(
           descriptor,
           mode,
-          if (mode == Mode.SingleShotTime) resolved.copy(synchIterations = false) else resolved,
+          if mode == Mode.SingleShotTime then resolved.copy(synchIterations = false) else resolved,
           p
         )
       )
     )
-  }
-  override def trial(d: Descriptor, mode: Mode, c: Configuration, p: Map[String, String]): TrialObserver = {
+
+  override def trial(d: Descriptor, mode: Mode, c: Configuration, p: Map[String, String]): TrialObserver =
     val descriptor = d.configured(c)
     val resolved = descriptor.resolve(c)
-    val actual = if (mode == Mode.SingleShotTime) resolved.copy(synchIterations = false) else resolved
+    val actual = if mode == Mode.SingleShotTime then resolved.copy(synchIterations = false) else resolved
     val params = Infrastructure.benchmark(descriptor, mode, actual, p)
     val measurements = scala.collection.mutable.ArrayBuffer.empty[org.openjdk.jmh.results.IterationResult]
     trials += params -> measurements
-    new TrialObserver {
-      private def iterationParams(warmup: Boolean) = if (warmup) params.getWarmup() else params.getMeasurement()
+    new TrialObserver:
+      private def iterationParams(warmup: Boolean) = if warmup then params.getWarmup() else params.getMeasurement()
       def iteration(warmup: Boolean, index: Int): Unit = invoke(sink.iteration(params, iterationParams(warmup), index))
-      def iterationResult(warmup: Boolean, index: Int, result: IterationResult): Unit = {
+      def iterationResult(warmup: Boolean, index: Int, result: IterationResult): Unit =
         val value = PublicResults.iteration(descriptor, mode, actual, p, warmup, result)
         invoke(sink.iterationResult(params, iterationParams(warmup), index, value))
-        if (!warmup) measurements += value
-      }
-    }
-  }
+        if !warmup then measurements += value
+
   override def endBenchmark(result: Option[RunResult], forked: Boolean): Unit = invoke {
     val publicResult = result.map(converted)
     sink.endBenchmark(
-      publicResult.map(r => if (forked) r.getAggregatedResult() else r.getBenchmarkResults().iterator().next()).orNull
+      publicResult.map(r =>
+        if forked then r.getAggregatedResult() else r.getBenchmarkResults().iterator().next()
+      ).orNull
     )
   }
-  override def endRun(completed: Vector[RunResult]): Unit = {
+
+  override def endRun(completed: Vector[RunResult]): Unit =
     val ordered = new java.util.TreeSet[org.openjdk.jmh.results.RunResult](
       org.openjdk.jmh.results.RunResult.DEFAULT_SORT_COMPARATOR
     )
@@ -127,7 +132,8 @@ private[runtime] final class FormatObserver(sink: OutputFormat) extends RunObser
     results = ordered
     ended = true
     invoke(sink.endRun(results))
-  }
+
   override def flush(): Unit = invoke(sink.flush())
   override def close(): Unit = invoke(sink.close())
-}
+
+end FormatObserver

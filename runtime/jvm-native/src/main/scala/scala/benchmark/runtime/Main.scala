@@ -15,27 +15,24 @@ import java.util.concurrent.TimeUnit
 
 import org.openjdk.jmh.annotations.Mode
 
-object Main {
+object Main:
   private val WorkerFlag = "--benchmark-worker-v3"
 
   /** Entry point of a benchmark project, called by its generated main class. */
-  def run(args: Array[String], suites: Seq[(String, Suite)], buildInfo: Seq[(String, String)]): Unit = {
+  def run(args: Array[String], suites: Seq[(String, Suite)], buildInfo: Seq[(String, String)]): Unit =
     Registry.install(suites, buildInfo)
     main(args)
-  }
 
-  def main(args: Array[String]): Unit = {
-    try {
-      if (args.headOption.contains(WorkerFlag)) worker(args)
+  def main(args: Array[String]): Unit =
+    try
+      if args.headOption.contains(WorkerFlag) then worker(args)
       else run(Options.parse(args))
-    } catch {
+    catch
       case t: Throwable =>
-        if (ForkOutputFailure.failed) Platform.haltWorker()
+        if ForkOutputFailure.failed then Platform.haltWorker()
         System.err.println(s"Scala Native benchmark failed: ${t.getMessage}")
         t.printStackTrace(System.err)
         System.exit(1)
-    }
-  }
 
   def run(options: Options): Vector[RunResult] = BenchmarkRunner.run(options)
 
@@ -48,7 +45,7 @@ object Main {
       warmups: Vector[WarmupRequest] = Vector.empty,
       failOnError: Boolean = true,
       observer: RunObserver = RunObserver.Disabled
-  ): Vector[IterationResult] = {
+  ): Vector[IterationResult] =
     val directory = Files.createTempDirectory("scala-benchmark-")
     val request = directory.resolve("request.properties")
     val result = directory.resolve("result.bin")
@@ -90,30 +87,27 @@ object Main {
     var userRelays = Vector.empty[ForkOutput]
     var userDestinations = Vector.empty[java.io.PrintStream]
     var frameworkRelay: ForkOutput = null
-    def awaitOutput(budget: Long): Unit = {
+    def awaitOutput(budget: Long): Unit =
       var primary: Throwable = null
       (Option(outputRelay).toVector ++ userRelays ++ Option(frameworkRelay).toVector).foreach { relay =>
         try relay.await(budget)
-        catch {
+        catch
           case failure: Throwable =>
-            if (primary == null) primary = failure else primary.addSuppressed(failure)
-        }
+            if primary == null then primary = failure else primary.addSuppressed(failure)
       }
       userDestinations.foreach { stream =>
         try stream.close()
-        catch {
+        catch
           case failure: Throwable =>
-            if (primary == null) primary = failure else primary.addSuppressed(failure)
-        }
+            if primary == null then primary = failure else primary.addSuppressed(failure)
       }
-      if (primary != null) throw primary
-    }
+      if primary != null then throw primary
     var token = 0L
     var attached = false
     var released = false
     var replayed = false
     var cancelled = false
-    def replay(): Unit = if (!replayed && (observer ne RunObserver.Disabled)) {
+    def replay(): Unit = if !replayed && (observer ne RunObserver.Disabled) then
       replayed = true
       val listing = Files.list(directory)
       import scala.jdk.CollectionConverters.*
@@ -143,17 +137,15 @@ object Main {
         observer,
         requireClosed = !process.isAlive && process.exitValue() == 0
       )
-    }
-    def releaseTree(): Unit = if (attached && !released) {
+    def releaseTree(): Unit = if attached && !released then
       // The worker publishes this before loading benchmark code. Never signal
       // a process group that was not established by this worker.
       val native = Platform.identity == scala.benchmark.Platform.Native
       val established = Files.exists(workerReady) &&
         new String(Files.readAllBytes(workerReady), StandardCharsets.UTF_8).trim.toLongOption.contains(process.pid())
-      if (!native || established || token != 0L) Platform.releaseFork(process, token)
+      if !native || established || token != 0L then Platform.releaseFork(process, token)
       released = true
-    }
-    try {
+    try
       val command = new java.util.ArrayList[String]
       Vector(
         Platform.executable,
@@ -177,18 +169,18 @@ object Main {
         }
         val deadline = new ForkDeadline(System.nanoTime(), math.max(ForkProgress.startupNanos, config.timeoutNanos))
         try
-          while (!process.waitFor(50, TimeUnit.MILLISECONDS)) {
-            if (Files.exists(progress)) {
+          while !process.waitFor(50, TimeUnit.MILLISECONDS) do
+            if Files.exists(progress) then
               val text = new String(Files.readAllBytes(progress), StandardCharsets.UTF_8)
               deadline.receive(text, System.nanoTime())
-            }
-            if (deadline.expired(System.nanoTime())) {
+            if deadline.expired(System.nanoTime()) then
               throw new java.util.concurrent.TimeoutException(
                 s"Benchmark fork timed out: ${descriptor.name}"
               )
-            }
-          }
-        catch { case error: InterruptedException => cancelled = true; throw error }
+        catch
+          case error: InterruptedException =>
+            cancelled = true
+            throw error
         releaseTree()
         frameworkRelay = new ForkOutput(new FileInputStream(framework.toFile), Console.out)
         replay()
@@ -198,45 +190,47 @@ object Main {
         )
         require(Files.isRegularFile(result), "Missing or non-regular benchmark result file")
         val observations = readResults(result)
-        val failure = if (Files.exists(failurePath)) {
+        val failure = if Files.exists(failurePath) then
           require(Files.isRegularFile(failurePath), "Invalid benchmark failure record")
           val properties = new Properties
           val input = new FileInputStream(failurePath.toFile)
           try properties.load(input)
           finally input.close()
           require(
-            properties.getProperty("version") == "1" && properties.getProperty("type") != null && properties
-              .getProperty("message") != null,
+            properties.getProperty("version") == "1" && properties.getProperty("type") != null &&
+              properties
+                .getProperty("message") != null,
             "Invalid benchmark failure record"
           )
           Some(
             new BenchmarkForkFailure(properties.getProperty("type"), properties.getProperty("message"), observations)
           )
-        } else None
-        val verified = if (failure.nonEmpty) observations else ForkResults.verify(mode, config, observations)
+        else None
+        val verified = if failure.nonEmpty then observations else ForkResults.verify(mode, config, observations)
         failure.foreach(BenchmarkForkFailure.verify(_, mode, config))
         awaitOutput(config.timeoutNanos)
         verified
       } {
         releaseTree()
-        if (frameworkRelay == null && Files.isRegularFile(framework))
+        if frameworkRelay == null && Files.isRegularFile(framework) then
           frameworkRelay = new ForkOutput(new FileInputStream(framework.toFile), Console.out)
         var replayFailure: Throwable = null
-        try { if (!cancelled && !Platform.isCallerInterrupted) replay() }
-        catch { case error: Throwable => replayFailure = error; throw error }
+        try if !cancelled && !Platform.isCallerInterrupted then replay()
+        catch
+          case error: Throwable =>
+            replayFailure = error
+            throw error
         finally
           try awaitOutput(1000000000L)
-          catch {
+          catch
             case error: Throwable =>
-              if (replayFailure != null && !error.isInstanceOf[UnfinishedWorkersException])
+              if replayFailure != null && !error.isInstanceOf[UnfinishedWorkersException] then
                 replayFailure.addSuppressed(error)
-              else {
-                if (replayFailure != null) error.addSuppressed(replayFailure)
+              else
+                if replayFailure != null then error.addSuppressed(replayFailure)
                 throw error
-              }
-          }
       }
-    } finally {
+    finally
       Vector(request, result, progress, failurePath, workerReady, parentReady, userOut, userErr, framework).foreach(
         Files.deleteIfExists
       )
@@ -250,17 +244,18 @@ object Main {
           .foreach(Files.deleteIfExists)
       finally entries.close()
       Files.deleteIfExists(directory)
-    }
-  }
+    end try
 
-  private def worker(args: Array[String]): Unit = {
+  end forked
+
+  private def worker(args: Array[String]): Unit =
     require(args.length == 4, "Invalid worker request")
     Platform.prepareWorker()
     val p = new Properties
     ForkLifeline.start(
       System.in,
-      () => {
-        if (p.getProperty("supervised", "false").toBoolean) {
+      () =>
+        if p.getProperty("supervised", "false").toBoolean then
           val directory = Paths.get(args(1)).getParent
           Vector(
             "request.properties",
@@ -286,26 +281,22 @@ object Main {
             finally files.close()
           }
           scala.util.Try(Files.deleteIfExists(directory))
-        }
         Platform.haltWorker()
-      }
     )
     val input = new FileInputStream(args(1))
     try p.load(input)
     finally input.close()
     val requestDirectory = Paths.get(args(1)).getParent
     Files.write(requestDirectory.resolve("worker.ready"), Platform.processId.toString.getBytes(StandardCharsets.UTF_8))
-    if (p.getProperty("supervised", "false").toBoolean) {
+    if p.getProperty("supervised", "false").toBoolean then
       val started = System.nanoTime()
-      while (!Files.exists(requestDirectory.resolve("parent.ready"))) {
+      while !Files.exists(requestDirectory.resolve("parent.ready")) do
         require(
           System.nanoTime() - started < ForkProgress.startupNanos,
           "Coordinator did not establish process containment"
         )
         Thread.sleep(1)
-      }
-    }
-    if (p.getProperty("stdio", "false").toBoolean) {
+    if p.getProperty("stdio", "false").toBoolean then
       val out = new java.io.PrintStream(
         new FileOutputStream(requestDirectory.resolve("user-stdout.bin").toFile, true),
         true,
@@ -326,16 +317,17 @@ object Main {
           executeWorker(args, p, requestDirectory)
         )
       finally framework.close()
-    } else executeWorker(args, p, requestDirectory)
-  }
+    else executeWorker(args, p, requestDirectory)
 
-  private def executeWorker(args: Array[String], p: Properties, requestDirectory: Path): Unit = {
+  end worker
+
+  private def executeWorker(args: Array[String], p: Properties, requestDirectory: Path): Unit =
     val suite = BenchmarkOutput.user(Platform.loadSuite(p.getProperty("suite")))
     val index = p.getProperty("benchmark").toInt
     val mode = Mode.valueOf(p.getProperty("mode"))
     val descriptor =
       Descriptor.parse(index, suite.metadata()(index), Some(mode))
-    import scala.jdk.CollectionConverters._
+    import scala.jdk.CollectionConverters.*
     val pairs =
       p.stringPropertyNames().asScala.toVector.map(k => k -> p.getProperty(k))
     val options = Options(overrides = pairs.filter(_._1.startsWith("-")).toMap)
@@ -344,13 +336,12 @@ object Main {
         key.stripPrefix("parameter.") -> value
     }.toMap
     var sequence = 0L
-    val progress: (Int, Long) => Unit = (_, budget) => {
+    val progress: (Int, Long) => Unit = (_, budget) =>
       Files.write(
         Paths.get(args(3)),
         ForkProgress.message(sequence, math.max(1L, budget)).getBytes(StandardCharsets.UTF_8)
       )
       sequence += 1
-    }
     val warmups = Vector.tabulate(p.getProperty("bulk.count", "0").toInt) { i =>
       val prefix = s"bulk.$i."
       val entries = pairs.collect {
@@ -370,15 +361,15 @@ object Main {
       )
     }
     val observer: RunObserver =
-      if (!p.getProperty("events", "false").toBoolean) RunObserver.Disabled
+      if !p.getProperty("events", "false").toBoolean then RunObserver.Disabled
       else
-        new ForkEvents.Recorder((sequence, text) => {
+        new ForkEvents.Recorder((sequence, text) =>
           val pending = requestDirectory.resolve("event.pending")
           Files.write(pending, text.getBytes(StandardCharsets.UTF_8))
           Files.move(pending, requestDirectory.resolve(f"event-$sequence%010d"))
           ()
-        })
-    try {
+        )
+    try
       WarmupRequest.execute(warmups, progress, p.getProperty("failOnError", "true").toBoolean, observer)
       val config = options.configuration(descriptor.configuration)
       progress(-1, ForkProgress.budget(math.max(config.warmupNanos, config.measurementNanos), config.timeoutNanos))
@@ -393,7 +384,7 @@ object Main {
           retainCompletedOnFailure = true,
           observer = observer.trial(descriptor, mode, config, parameters)
         )
-      catch {
+      catch
         case error: TrialObserverFailure => throw error
         case error: Throwable            =>
           error.printStackTrace(Console.err)
@@ -406,19 +397,21 @@ object Main {
           try failure.store(output, "Benchmark failure")
           finally output.close()
           return
-      }
       writeResults(Paths.get(args(2)), results)
-    } finally { observer.flush(); observer.close() }
-  }
+    finally
+      observer.flush(); observer.close()
+    end try
+
+  end executeWorker
 
   private[runtime] def writeResults(
       path: Path,
       results: Vector[IterationResult]
-  ): Unit = {
+  ): Unit =
     val out = new DataOutputStream(
       new BufferedOutputStream(new FileOutputStream(path.toFile))
     )
-    try {
+    try
       out.writeInt(0x4e4a4d34); out.writeInt(results.size)
       results.foreach { iteration =>
         out.writeDouble(iteration.score)
@@ -443,22 +436,23 @@ object Main {
           }
         }
       }
-    } finally out.close()
-  }
-  private[runtime] def readResults(path: Path): Vector[IterationResult] = {
+    finally out.close()
+
+  end writeResults
+
+  private[runtime] def readResults(path: Path): Vector[IterationResult] =
     val in = new DataInputStream(
       new BufferedInputStream(new FileInputStream(path.toFile))
     )
-    def count(limit: Int): Int = {
+    def count(limit: Int): Int =
       val n = in.readInt();
       require(n >= 0 && n <= limit, "Invalid worker result length"); n
-    }
-    try {
+    try
       require(in.readInt() == 0x4e4a4d34, "Incompatible worker protocol")
       val result = Vector.fill(count(1000000)) {
         val score = in.readDouble()
         val trial =
-          if (in.readBoolean())
+          if in.readBoolean() then
             Some(TrialMetadata(in.readLong(), in.readLong(), in.readLong(), in.readLong(), in.readLong()))
           else None
         val workers = Vector.fill(count(65536)) {
@@ -466,10 +460,9 @@ object Main {
           val samples = new SampleBuffer
           val size = count(54 * 1024)
           var i = 0
-          while (i < size) {
+          while i < size do
             val value = in.readLong(); val n = in.readLong();
             samples.addCount(value, n); i += 1
-          }
           val allInvocations = in.readLong()
           val auxiliary = Vector.fill(count(100000)) {
             AuxiliaryValue(in.readUTF(), in.readUTF(), in.readDouble())
@@ -480,6 +473,8 @@ object Main {
       }
       require(in.read() == -1, "Trailing worker protocol data")
       result
-    } finally in.close()
-  }
-}
+    finally in.close()
+
+  end readResults
+
+end Main

@@ -6,11 +6,10 @@ import scala.benchmark.*
 @Warmup(iterations = 0)
 @Measurement(iterations = 1)
 @Fork(0)
-class TrialObserverBenchmark {
-  @Benchmark def execute(): Int = {
+class TrialObserverBenchmark:
+
+  @Benchmark def execute(): Int =
     val cases = scala.benchmark.runtime.TrialObserverChecks.verify()
     assert(cases == 32)
     println("TRIAL_OBSERVER_OK:" + cases)
     cases
-  }
-}

@@ -1,11 +1,14 @@
+import scala.scalanative.sbtplugin.ScalaNativePlugin
+
+import BuildSettings.*
+import org.scalajs.sbtplugin.ScalaJSPlugin
 import sbt.{*, given}
 import sbt.Keys.*
-import BuildSettings.*
-import scala.scalanative.sbtplugin.ScalaNativePlugin
-import org.scalajs.sbtplugin.ScalaJSPlugin
 
-object BuildPlatforms {
+object BuildPlatforms:
+
   extension (matrix: ProjectMatrix)
+
     def libraryPlatforms(
         jvmSettings: Seq[Setting[?]] = Nil,
         nativeSettings: Seq[Setting[?]] = Nil,
@@ -20,4 +23,3 @@ object BuildPlatforms {
         (p: Project) => p.enablePlugins(ScalaNativePlugin).settings(nativeSettings)
       )
       .customRow(true, Seq(VirtualAxis.js), (p: Project) => p.enablePlugins(ScalaJSPlugin).settings(jsSettings))
-}

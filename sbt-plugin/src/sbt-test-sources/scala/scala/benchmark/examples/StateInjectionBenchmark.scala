@@ -11,24 +11,23 @@ import scala.benchmark.*
 @Warmup(iterations = 0)
 @Measurement(iterations = 1)
 @Fork(0)
-class StateInjectionBenchmark {
+class StateInjectionBenchmark:
   private var thread: InjectionThread = null
   private var benchmark: InjectionBenchmark = null
   private var group: InjectionGroup = null
-  @Setup def initialize(t: InjectionThread, b: InjectionBenchmark, g: InjectionGroup): Unit = {
+
+  @Setup def initialize(t: InjectionThread, b: InjectionBenchmark, g: InjectionGroup): Unit =
     thread = t; benchmark = b; group = g
-  }
+
   @Benchmark @Group("identity") def execute(
       first: InjectionThread,
       second: InjectionThread,
       b: InjectionBenchmark,
       g: InjectionGroup
-  ): Int = {
+  ): Int =
     assert((first ne second) && (first ne thread) && (second ne thread))
     assert((b eq benchmark) && (g eq group))
     1
-  }
-  @TearDown def verify(t: InjectionThread, b: InjectionBenchmark, g: InjectionGroup): Unit = {
+
+  @TearDown def verify(t: InjectionThread, b: InjectionBenchmark, g: InjectionGroup): Unit =
     assert((t ne thread) && (b eq benchmark) && (g eq group))
-  }
-}

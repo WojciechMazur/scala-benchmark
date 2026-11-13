@@ -1,19 +1,22 @@
 package scala.benchmark.runtime
 
 import java.util.concurrent.TimeUnit
+
+import scala.jdk.CollectionConverters.*
+
 import org.openjdk.jmh.annotations.Mode
 import org.openjdk.jmh.infra.{BenchmarkParams, IterationParams}
 import org.openjdk.jmh.runner.{IterationType, WorkloadParams}
 import org.openjdk.jmh.runner.options.TimeValue
-import scala.jdk.CollectionConverters.*
 
-private[runtime] object Infrastructure {
+private[runtime] object Infrastructure:
+
   def benchmark(
       descriptor: Descriptor,
       mode: Mode,
       c: Configuration,
       parameters: Map[String, String]
-  ): BenchmarkParams = {
+  ): BenchmarkParams =
     val workload = new WorkloadParams
     parameters.toVector.sorted.foreach { case (key, value) =>
       val choices = descriptor.states.flatMap(_.parameters).find(_.name == key).map(_.values).getOrElse(Vector.empty)
@@ -24,8 +27,8 @@ private[runtime] object Infrastructure {
       descriptor.generatedTarget,
       c.synchIterations,
       c.threads,
-      (if (descriptor.members.isEmpty) Array(1) else descriptor.members.map(_.threads).toArray),
-      (if (descriptor.members.size > 1) descriptor.members.map(_.name) else Vector.empty[String]).asJava,
+      if descriptor.members.isEmpty then Array(1) else descriptor.members.map(_.threads).toArray,
+      (if descriptor.members.size > 1 then descriptor.members.map(_.name) else Vector.empty[String]).asJava,
       c.forks,
       c.warmupForks,
       iteration(c, true),
@@ -42,12 +45,15 @@ private[runtime] object Infrastructure {
       "1.37",
       Configuration.timeout(c)
     )
-  }
+
+  end benchmark
+
   def iteration(c: Configuration, warmup: Boolean): IterationParams =
     new IterationParams(
-      if (warmup) IterationType.WARMUP else IterationType.MEASUREMENT,
-      if (warmup) c.warmupIterations else c.measurementIterations,
+      if warmup then IterationType.WARMUP else IterationType.MEASUREMENT,
+      if warmup then c.warmupIterations else c.measurementIterations,
       Configuration.time(c, warmup),
-      if (warmup) c.warmupBatchSize else c.measurementBatchSize
+      if warmup then c.warmupBatchSize else c.measurementBatchSize
     )
-}
+
+end Infrastructure

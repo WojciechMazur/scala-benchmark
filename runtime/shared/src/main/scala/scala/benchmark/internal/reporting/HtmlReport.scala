@@ -6,13 +6,14 @@ import scalatags.Text.tags2.{
   details,
   main,
   section,
-  summary as summaryTag,
   style as styleTag,
+  summary as summaryTag,
   title as titleTag
 }
 
 /** Shared as source with the sbt adapter; it does not depend on runtime or sbt APIs. */
-object HtmlReport {
+object HtmlReport:
+
   final case class Entry(
       benchmark: String,
       mode: String,
@@ -29,10 +30,10 @@ object HtmlReport {
 
   private def number(value: Double): String = ReportNumbers.format(value)
 
-  def render(entries: Vector[Entry]): String = {
+  def render(entries: Vector[Entry]): String =
     val parameters = entries.flatMap(_.parameters.map(_._1)).distinct.sorted
     def cell(value: String, numeric: Boolean = false): Frag = td(
-      if (numeric) cls := "number" else cls := "",
+      if numeric then cls := "number" else cls := "",
       value
     )
     def numericCell(value: Double): Frag = td(
@@ -49,10 +50,9 @@ object HtmlReport {
           tbody(rows)
         )
       )
-    def parameterCells(entry: Entry): Vector[Frag] = {
+    def parameterCells(entry: Entry): Vector[Frag] =
       val values = entry.parameters.toMap
       parameters.map(p => cell(values.getOrElse(p, "—")))
-    }
     val summaryTable = resultTable(
       "summary",
       "Benchmark results",
@@ -60,7 +60,7 @@ object HtmlReport {
         parameters.map("Param: " + _),
       entries.map { entry =>
         val interval =
-          if (entry.confidence.size == 2 && entry.confidence.forall(_.isFinite))
+          if entry.confidence.size == 2 && entry.confidence.forall(_.isFinite) then
             entry.confidence.map(number).mkString("[", ", ", "]")
           else "—"
         tr(
@@ -78,7 +78,7 @@ object HtmlReport {
     val sampled = entries.filter(_.percentiles.nonEmpty)
     val points = Vector("50.0", "90.0", "99.0", "99.9")
     val percentileTables =
-      if (sampled.isEmpty) Vector.empty[Frag]
+      if sampled.isEmpty then Vector.empty[Frag]
       else
         Vector(
           resultTable(
@@ -105,7 +105,7 @@ object HtmlReport {
       )
     }
     val count = entries.size
-    val configurations = if (count == 1) "benchmark configuration" else "benchmark configurations"
+    val configurations = if count == 1 then "benchmark configuration" else "benchmark configurations"
     "<!DOCTYPE html>\n" + html(lang := "en")(
       head(
         meta(charset := "UTF-8"),
@@ -126,9 +126,11 @@ object HtmlReport {
         )
       )
     ).render + "\n"
-  }
 
-  private val stylesheet = """
+  end render
+
+  private val stylesheet =
+    """
 :root{color-scheme:light dark;--bg:#f4f6fa;--panel:#fff;--ink:#182338;--muted:#536174;--line:#dce2ec;--accent:#2459c4}
 *{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.6 system-ui,sans-serif}
 main{max-width:1500px;margin:auto;padding:2rem}h1{margin:0;font-size:2rem;letter-spacing:-.04em}
@@ -142,22 +144,20 @@ summary{cursor:pointer;color:var(--accent)}pre{overflow:auto;font:12px/1.6 ui-mo
 @media(prefers-color-scheme:dark){:root{--bg:#101723;--panel:#182131;--ink:#edf2fa;--muted:#afbdd0;--line:#344156;--accent:#96b8ff}}
 @media(max-width:640px){main{padding:1rem}dl{display:block}dd{margin-bottom:.7rem}}
 """
-}
 
-object ReportNumbers {
-  def format(value: Double): String = {
-    if (value.isNaN) "—"
-    else if (value == Double.PositiveInfinity) "∞"
-    else if (value == Double.NegativeInfinity) "−∞"
-    else if (value == 0.0) "0"
-    else {
+end HtmlReport
+
+object ReportNumbers:
+
+  def format(value: Double): String =
+    if value.isNaN then "—"
+    else if value == Double.PositiveInfinity then "∞"
+    else if value == Double.NegativeInfinity then "−∞"
+    else if value == 0.0 then "0"
+    else
       val text = String.format("%.6g", Double.box(value)).replace(',', '.')
       val split = text.indexOf('e')
-      val mantissa = if (split < 0) text else text.take(split)
+      val mantissa = if split < 0 then text else text.take(split)
       val compact =
-        if (mantissa.contains('.')) mantissa.reverse.dropWhile(_ == '0').stripPrefix(".").reverse else mantissa
-      if (split < 0) compact else compact + "e" + text.drop(split + 1).toInt.toString
-    }
-  }
-
-}
+        if mantissa.contains('.') then mantissa.reverse.dropWhile(_ == '0').stripPrefix(".").reverse else mantissa
+      if split < 0 then compact else compact + "e" + text.drop(split + 1).toInt.toString

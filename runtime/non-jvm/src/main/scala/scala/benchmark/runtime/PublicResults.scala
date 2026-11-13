@@ -1,5 +1,7 @@
 package scala.benchmark.runtime
 
+import scala.jdk.CollectionConverters.*
+
 import org.openjdk.jmh.annotations.Mode
 import org.openjdk.jmh.results.{
   AggregationPolicy,
@@ -10,44 +12,44 @@ import org.openjdk.jmh.results.{
   ResultSnapshots
 }
 import org.openjdk.jmh.util.MultisetStatistics
-import scala.jdk.CollectionConverters.*
 
-private[runtime] object PublicResults {
-  private def metric(run: RunResult, role: ResultRole, label: String, worker: Boolean = false): Result[?] = {
+private[runtime] object PublicResults:
+
+  private def metric(run: RunResult, role: ResultRole, label: String, worker: Boolean = false): Result[?] =
     val statistics: org.openjdk.jmh.util.Statistics =
-      if (run.mode == Mode.SampleTime && run.metricKind.isEmpty) {
+      if run.mode == Mode.SampleTime && run.metricKind.isEmpty then
         val values = new MultisetStatistics
         run.statistics.values.foreach { case (value, count) => values.addValue(value, count) }
         values
-      } else if (worker && run.statistics.values.size == 1 && run.statistics.values.head._2 == 1L)
+      else if worker && run.statistics.values.size == 1 && run.statistics.values.head._2 == 1L then
         new org.openjdk.jmh.util.SingletonStatistics(run.statistics.values.head._1)
-      else {
+      else
         val values = new org.openjdk.jmh.util.ListStatistics
         run.statistics.values.foreach { case (value, count) =>
           var index = 0L
-          while (index < count) { values.addValue(value); index += 1 }
+          while index < count do
+            values.addValue(value); index += 1
         }
         values
-      }
     org.openjdk.jmh.results.StandardResults.metric(
       run.mode,
       role,
       label,
       statistics,
       run.unit,
-      if (run.metricKind == "EVENTS" || (worker && run.mode == Mode.Throughput)) AggregationPolicy.SUM
+      if run.metricKind == "EVENTS" || (worker && run.mode == Mode.Throughput) then AggregationPolicy.SUM
       else AggregationPolicy.AVG,
       scalar = run.metricKind == "EVENTS",
       derivative = run.metricKind == "DERIVATIVE"
     )
-  }
-  private def secondary(run: RunResult): java.util.Map[String, Result[?]] = {
+
+  private def secondary(run: RunResult): java.util.Map[String, Result[?]] =
     val result = new java.util.TreeMap[String, Result[?]]
     run.secondaryResults.foreach { case (label, observation) =>
       result.put(label, metric(observation, ResultRole.SECONDARY, label))
     }
     java.util.Collections.unmodifiableMap(result)
-  }
+
   def iteration(
       d: Descriptor,
       mode: Mode,
@@ -55,10 +57,10 @@ private[runtime] object PublicResults {
       parameters: Map[String, String],
       warmup: Boolean,
       result: IterationResult
-  ): org.openjdk.jmh.results.IterationResult = {
+  ): org.openjdk.jmh.results.IterationResult =
     val params = Infrastructure.benchmark(d, mode, c, parameters)
     val scoring =
-      if (warmup)
+      if warmup then
         c.copy(
           measurementBatchSize = c.warmupBatchSize,
           measurementNanos = c.warmupNanos,
@@ -74,14 +76,16 @@ private[runtime] object PublicResults {
       .next()
     val value = new org.openjdk.jmh.results.IterationResult(
       params,
-      if (warmup) params.getWarmup() else params.getMeasurement(),
+      if warmup then params.getWarmup() else params.getMeasurement(),
       converted.getMetadata()
     )
     value.addResults(converted.getRawPrimaryResults())
     value.addResults(converted.getRawSecondaryResults().values())
     value
-  }
-  def apply(run: RunResult): org.openjdk.jmh.results.RunResult = {
+
+  end iteration
+
+  def apply(run: RunResult): org.openjdk.jmh.results.RunResult =
     val params = Infrastructure.benchmark(run.descriptor, run.mode, run.configuration, run.parameters)
     val forks = run.forks.map { fork =>
       val iterations = fork.map { iteration =>
@@ -101,7 +105,7 @@ private[runtime] object PublicResults {
               Vector(IterationResult(Execution.aggregate(run.mode, run.configuration, Vector(worker)), Vector(worker)))
             )
           )
-          val member = if (run.descriptor.members.size > 1) {
+          val member = if run.descriptor.members.size > 1 then
             val label =
               run.descriptor.members(run.descriptor.worker(index, run.configuration.threads).getSubgroupIndex()).name
             Vector(
@@ -112,7 +116,7 @@ private[runtime] object PublicResults {
                 worker = true
               )
             )
-          } else Vector.empty
+          else Vector.empty
           // Counter observations are worker-local; group/member labels are retained separately.
           val counters = perWorker
             .copy(descriptor =
@@ -174,5 +178,7 @@ private[runtime] object PublicResults {
       metric(run, ResultRole.PRIMARY, run.descriptor.name.split('.').last),
       secondary(run)
     )
-  }
-}
+
+  end apply
+
+end PublicResults

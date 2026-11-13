@@ -1,25 +1,27 @@
 package scala.benchmark.examples
 
 import scala.benchmark.*
+
 import org.openjdk.jmh.util.{ListStatistics, MultisetStatistics, Statistics}
 
 @BenchmarkMode(Array(Mode.SingleShotTime))
 @Warmup(iterations = 0)
 @Measurement(iterations = 1)
 @Fork(0)
-class StatisticsApiBenchmark {
-  @Benchmark def execute(input: ApiDefinitions.Input): Int = {
+class StatisticsApiBenchmark:
+
+  @Benchmark def execute(input: ApiDefinitions.Input): Int =
     assert(input.ready)
-    def rejected(body: => Any): Unit = {
+    def rejected(body: => Any): Unit =
       var failed = false
       try body
-      catch { case _: IllegalArgumentException => failed = true }
+      catch case _: IllegalArgumentException => failed = true
       assert(failed)
-    }
-    for (multiset <- Vector(false, true)) {
+    for multiset <- Vector(false, true) do
       def samples(values: Double*): Statistics =
-        if (!multiset) new ListStatistics(values.toArray)
-        else { val stats = new MultisetStatistics; values.foreach(value => stats.addValue(value, 1L)); stats }
+        if !multiset then new ListStatistics(values.toArray)
+        else
+          val stats = new MultisetStatistics; values.foreach(value => stats.addValue(value, 1L)); stats
       val empty = samples()
       assert(empty.getMeanErrorAt(-1).isNaN)
       assert(samples(1, 2).getMeanErrorAt(2).isNaN)
@@ -44,24 +46,28 @@ class StatisticsApiBenchmark {
       assert(samples(1, 2, 3).getPercentile(0) == 1)
       assert(samples(1, 2, 3).getPercentile(50) == 2)
       assert(samples(1, 2, 3).getPercentile(100) == 3)
-    }
     println("STATISTICS_API_OK")
     1
-  }
-}
 
-object ApiDefinitions {
-  @State(Scope.Thread) class Input {
+  end execute
+
+end StatisticsApiBenchmark
+
+object ApiDefinitions:
+
+  @State(Scope.Thread) class Input:
     var ready = false
     @Setup def setup(): Unit = ready = true
-  }
-}
+
 @State(Scope.Thread) class OtherApiInput
+
 @BenchmarkMode(Array(Mode.SingleShotTime))
 @Warmup(iterations = 0)
 @Measurement(iterations = 1)
 @Fork(0)
-class OverloadedApiBenchmark {
-  @Benchmark @Group("left") def execute(input: ApiDefinitions.Input): Int = { assert(input.ready); 1 }
+class OverloadedApiBenchmark:
+
+  @Benchmark @Group("left") def execute(input: ApiDefinitions.Input): Int =
+    assert(input.ready); 1
+
   @Benchmark @Group("right") def execute(input: OtherApiInput): Int = 2
-}

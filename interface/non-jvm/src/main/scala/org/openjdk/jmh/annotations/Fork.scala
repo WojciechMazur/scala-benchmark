@@ -33,6 +33,5 @@ final class Fork(
     val jvmArgsAppend: Array[String] = Array(Fork.BLANK_ARGS)
 ) extends scala.annotation.StaticAnnotation
 
-object Fork {
+object Fork:
   final val BLANK_ARGS = "blank_blank_blank_2014"; final val BLANK_FORKS = -1
-}

@@ -1,34 +1,32 @@
 package scala.benchmark.runtime
 
-import org.junit.Assert._
-import org.junit.Test
-
 import org.apache.commons.math3.distribution.TDistribution
+import org.junit.Assert.*
+import org.junit.Test
 import org.openjdk.jmh.annotations.Mode
 
-class HarnessTest {
-  @Test def symmetricWorkersHaveIndividualGroups(): Unit = {
+class HarnessTest:
+
+  @Test def symmetricWorkersHaveIndividualGroups(): Unit =
     val params = Execution.workerParams(3, 8)
     assertEquals(3, params.getGroupIndex())
     assertEquals(8, params.getGroupCount())
     assertEquals(0, params.getGroupThreadIndex())
     assertEquals(1, params.getGroupThreadCount())
     assertEquals(1, params.getSubgroupThreadCount())
-  }
-  @Test def studentTMatchesJmhDistribution(): Unit = {
-    for (df <- Vector(1L, 2L, 3L, 5L, 10L, 30L, 100L, 1000L, 100000L, 10000000L)) {
+
+  @Test def studentTMatchesJmhDistribution(): Unit =
+    for df <- Vector(1L, 2L, 3L, 5L, 10L, 30L, 100L, 1000L, 100000L, 10000000L) do
       val expected =
         new TDistribution(df.toDouble).inverseCumulativeProbability(0.9995)
       assertEquals(s"df=$df", expected, StudentT.quantile(0.9995, df), 1e-7)
-    }
     val stats = Statistics(Vector(1.0 -> 1L, 2.0 -> 1L, 3.0 -> 1L))
     assertEquals(2.0, stats.mean, 0.0)
     assertEquals(1.0, stats.variance, 0.0)
     assertTrue(Statistics(Vector(1.0 -> 1L)).error.isNaN)
     assertTrue(Statistics(Vector(1.0 -> 1L, 2.0 -> 1L)).error.isNaN)
-  }
 
-  @Test def quantizedHistogramAndHalving(): Unit = {
+  @Test def quantizedHistogramAndHalving(): Unit =
     val buffer = new SampleBuffer
     buffer.addCount(1023, 3)
     buffer.addCount(2049, 4)
@@ -41,9 +39,8 @@ class HarnessTest {
     val merged = new SampleBuffer
     merged.merge(buffer); merged.merge(buffer)
     assertEquals(buffer.entries.map(_._2).sum * 2, merged.entries.map(_._2).sum)
-  }
 
-  @Test def modeSpecificNormalization(): Unit = {
+  @Test def modeSpecificNormalization(): Unit =
     val c = Configuration(
       measurementBatchSize = 4,
       operationsPerInvocation = 2,
@@ -67,17 +64,16 @@ class HarnessTest {
       Execution.aggregate(Mode.SingleShotTime, c, Vector(first, second)),
       1e-12
     )
-  }
 
-  @Test def generatedLoopTemplatesCountAndExcludeFixtures(): Unit = {
-    for (
+  @Test def generatedLoopTemplatesCountAndExcludeFixtures(): Unit =
+    for
       mode <- Vector(
         Mode.Throughput,
         Mode.AverageTime,
         Mode.SingleShotTime,
         Mode.SampleTime
       )
-    ) {
+    do
       val control = new IterationControl(mode, 7, 3, 1000000L)
       var calls = 0
       var setups = 0
@@ -89,24 +85,22 @@ class HarnessTest {
         true, {
           assertTrue(active)
           calls += 1
-          if (calls >= 7) control.done = true
+          if calls >= 7 then control.done = true
         },
         { assertFalse(active); active = true; setups += 1 }, {
           assertTrue(active); active = false; teardowns += 1
         }
       )
       assertEquals(7, calls)
-      assertEquals(if (mode == Mode.SampleTime) 1 else 7, setups)
+      assertEquals(if mode == Mode.SampleTime then 1 else 7, setups)
       assertEquals(setups, teardowns)
       assertFalse(active)
       assertEquals(7L, result.invocations)
       assertTrue(result.elapsedNanos > 0)
-      if (mode == Mode.SampleTime)
+      if mode == Mode.SampleTime then
         assertEquals(1L, result.samples.entries.map(_._2).sum)
-    }
-  }
 
-  @Test def metadataEscapesAndParameterProduct(): Unit = {
+  @Test def metadataEscapesAndParameterProduct(): Unit =
     val descriptor = Descriptor.parse(
       0,
       "name=example.test\nmodes=SingleShotTime\nstates=0\nstate.0.scope=Thread\nstate.0.params=x,y\n" +
@@ -123,9 +117,8 @@ class HarnessTest {
       2,
       Descriptor.combinations(descriptor, Map("y" -> Vector("3"))).size
     )
-  }
 
-  @Test def commandLineValidation(): Unit = {
+  @Test def commandLineValidation(): Unit =
     val options = Options.parse(
       Array(
         "example.*",
@@ -146,22 +139,22 @@ class HarnessTest {
     assertEquals("NANOSECONDS", c.unit)
     assertTrue(c.threads > 0)
     assertEquals(Vector("1", "2"), options.parameters("size"))
-    for (
+    for
       arguments <- Vector(
         Array("-i", "0"),
         Array("-r", "0.5ms"),
         Array("-t", "-2"),
         Array("-t", "-3")
       )
-    ) {
-      try {
+    do
+      try
         Options.parse(arguments).configuration(Configuration());
         fail("Invalid option accepted")
-      } catch { case _: IllegalArgumentException => () }
-    }
-  }
+      catch case _: IllegalArgumentException => ()
 
-  @Test def portableParsingAgreesWithUpstream(): Unit = {
+  end commandLineValidation
+
+  @Test def portableParsingAgreesWithUpstream(): Unit =
     import scala.jdk.CollectionConverters.*
     val arguments = Array(
       "bench.*",
@@ -199,15 +192,15 @@ class HarnessTest {
     assertEquals(upstream.getTimeout().get(), Configuration.timeout(config))
     assertEquals(upstream.shouldSyncIterations().get().booleanValue(), config.synchIterations)
     assertEquals(upstream.shouldDoGC().get().booleanValue(), config.doGC)
-    for (
+    for
       invalid <- Vector(Array("-i", "1", "-i", "2"), Array("-tu", "d"), Array("-tu", "SECONDS"), Array("-r", "0.5ms"))
-    ) {
+    do
       assertTrue(scala.util.Try(new org.openjdk.jmh.runner.options.CommandLineOptions(invalid*)).isFailure)
       assertTrue(scala.util.Try(Options.parse(invalid)).isFailure)
-    }
-  }
 
-  @Test def originalTimeUnitsSurviveForkConfiguration(): Unit = {
+  end portableParsingAgreesWithUpstream
+
+  @Test def originalTimeUnitsSurviveForkConfiguration(): Unit =
     val configured = Options.parse(Array("-w", "2ms", "-r", "7us", "-to", "5s")).configuration(Configuration())
     val transported = Options(overrides = Configuration.overrides(configured)).configuration(Configuration())
     assertEquals(org.openjdk.jmh.runner.options.TimeValue.milliseconds(2), Configuration.time(transported, true))
@@ -222,9 +215,8 @@ class HarnessTest {
       org.openjdk.jmh.runner.options.TimeValue.milliseconds(3),
       Configuration.timeout(annotated.configuration)
     )
-  }
 
-  @Test def reportFormatsPreserveAndEscapeParameters(): Unit = {
+  @Test def reportFormatsPreserveAndEscapeParameters(): Unit =
     val descriptor =
       Descriptor.parse(0, "name=bench.Example_test.run\nmodes=AverageTime\nstates=0\nstate.0.scope=Thread\n")
     val value = "a;b,\"c\"\n\\{}%&#$_~^"
@@ -254,13 +246,15 @@ class HarnessTest {
     val text = Reports.render(results, "text")
     assertTrue(text.contains("Example_test.run") && text.contains("Param: input_name"))
     assertTrue(text.endsWith("\n"))
-    for (format <- Vector("text", "scsv", "latex"))
+    for format <- Vector("text", "scsv", "latex") do
       assertEquals(format, Options.parse(Array("-rf", format.toUpperCase)).format)
-    try { Options.parse(Array("-rf", "xml")); fail("Unknown report format accepted") }
-    catch { case _: IllegalArgumentException => () }
-  }
+    try
+      Options.parse(Array("-rf", "xml")); fail("Unknown report format accepted")
+    catch case _: IllegalArgumentException => ()
 
-  @Test def htmlReportEscapesUntrustedContent(): Unit = {
+  end reportFormatsPreserveAndEscapeParameters
+
+  @Test def htmlReportEscapesUntrustedContent(): Unit =
     import scala.benchmark.internal.reporting.HtmlReport
     val unsafe = """</pre><script>alert("x")</script><img src=x onerror='bad'>&東京"""
     val entry = HtmlReport.Entry(
@@ -286,11 +280,10 @@ class HarnessTest {
     assertTrue(document.getDocumentElement.getTextContent.contains(unsafe))
     assertTrue(html.contains("4.0") && html.contains("[2.0, 6.0]"))
     assertEquals("html", Options.parse(Array("-rf", "HTML")).format)
-  }
 
-  @Test def resultProtocolRoundTrip(): Unit = {
+  @Test def resultProtocolRoundTrip(): Unit =
     val path = java.nio.file.Files.createTempFile("benchmark-test", ".bin")
-    try {
+    try
       val samples = new SampleBuffer
       samples.addCount(100, 9)
       val results = Vector(
@@ -302,34 +295,37 @@ class HarnessTest {
       assertEquals(7L, decoded.head.workers.head.invocations)
       assertEquals(samples.entries, decoded.head.workers.head.samples.entries)
       java.nio.file.Files.write(path, Array[Byte](1, 2, 3))
-      try { Main.readResults(path); fail("Truncated result accepted") }
-      catch { case _: java.io.EOFException => () }
-    } finally java.nio.file.Files.deleteIfExists(path)
-  }
+      try
+        Main.readResults(path); fail("Truncated result accepted")
+      catch case _: java.io.EOFException => ()
+    finally java.nio.file.Files.deleteIfExists(path)
 
-  private class FailingSuite extends Suite {
+  private class FailingSuite extends Suite:
     def metadata(): Array[String] = Array.empty
     def instantiate(id: Int): AnyRef = new Object
+
     def assign(
         id: Int,
         target: AnyRef,
         parameter: String,
         value: String
     ): Unit = ()
+
     def setup(id: Int, level: Int, target: AnyRef, env: Environment): Unit = ()
+
     def teardown(id: Int, level: Int, target: AnyRef, env: Environment): Unit =
       ()
+
     def measure(
         id: Int,
         env: Environment,
         control: IterationControl
-    ): RawResult = {
-      if (env.threadParams.getThreadIndex() == 0)
+    ): RawResult =
+      if env.threadParams.getThreadIndex() == 0 then
         throw new IllegalStateException("benchmark failure")
       Loops.run(control, env.sampling, false, (), (), ())
-    }
-  }
-  @Test def workerFailureReleasesPeers(): Unit = {
+
+  @Test def workerFailureReleasesPeers(): Unit =
     val descriptor = Descriptor(
       0,
       "failure",
@@ -345,7 +341,7 @@ class HarnessTest {
       threads = 2,
       timeoutNanos = 1000000000L
     )
-    try {
+    try
       Execution.trial(
         new FailingSuite,
         descriptor,
@@ -354,21 +350,18 @@ class HarnessTest {
         Map.empty
       );
       fail("Worker failure was lost")
-    } catch {
+    catch
       case e: IllegalStateException =>
         assertEquals("benchmark failure", e.getMessage)
-    }
-  }
 
-  @Test def singleShotBelowClockResolutionIsAValidZero(): Unit = {
-    val suite = new FailingSuite {
+  @Test def singleShotBelowClockResolutionIsAValidZero(): Unit =
+    val suite = new FailingSuite:
       override def measure(
           id: Int,
           env: Environment,
           control: IterationControl
       ): RawResult =
         RawResult(1L, 0L, new SampleBuffer)
-    }
     val c = Configuration(
       warmupIterations = 0,
       measurementIterations = 3,
@@ -385,17 +378,15 @@ class HarnessTest {
     val results =
       Execution.trial(suite, descriptor, Mode.SingleShotTime, c, Map.empty)
     assertEquals(Vector(0.0, 0.0, 0.0), results.map(_.score))
-  }
 
-  @Test def timedLoopsAlwaysPerformAnInvocation(): Unit = {
-    for (mode <- Vector(Mode.Throughput, Mode.AverageTime, Mode.SampleTime)) {
+  @Test def timedLoopsAlwaysPerformAnInvocation(): Unit =
+    for mode <- Vector(Mode.Throughput, Mode.AverageTime, Mode.SampleTime) do
       val control = new IterationControl(mode, 1, 1, 1L)
       control.done = true
       var calls = 0
       val result =
-        Loops.run(control, new SamplingState, false, { calls += 1 }, (), ())
+        Loops.run(control, new SamplingState, false, calls += 1, (), ())
       assertEquals(1, calls)
       assertEquals(1L, result.invocations)
-    }
-  }
-}
+
+end HarnessTest

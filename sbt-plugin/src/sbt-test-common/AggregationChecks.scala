@@ -1,10 +1,12 @@
+import scala.sys.process.*
+
+import pl.project13.scala.sbt.JmhPlugin.JmhKeys.Jmh
 import sbt.{*, given}
 import sbt.Keys.*
-import scala.sys.process.*
-import pl.project13.scala.sbt.JmhPlugin.JmhKeys.Jmh
 
-object AggregationChecks {
+object AggregationChecks:
   val verifyAggregation = taskKey[Unit]("Compare public result edge cases against actual upstream JMH")
+
   def settings(backend: String): Seq[Setting[?]] = Seq(
     verifyAggregation := Def.uncached {
       val repository = file(sys.props("benchmark.scripted.support")).getParentFile.getParentFile.getParentFile
@@ -16,7 +18,7 @@ object AggregationChecks {
         .map(e => converter.toPath(e.data).toFile)
         .mkString(java.io.File.pathSeparator)
       val log =
-        if (backend == "jvm")
+        if backend == "jvm" then
           Process(
             Seq(
               (file(sys.props("java.home")) / "bin/java").getAbsolutePath,
@@ -49,7 +51,7 @@ object AggregationChecks {
       val counters = ujson.read(IO.read(directory / "numeric-counters.json")).arr.head("secondaryMetrics").obj
       assert(counters.size == 13 && !counters.contains("zeroOperations"), "Unexpected single-shot counter surface")
       counters.foreach { case (name, value) =>
-        val expected = if (name == "methodValue") Vector(208.0, 214.0) else Vector(106.0, 111.0)
+        val expected = if name == "methodValue" then Vector(208.0, 214.0) else Vector(106.0, 111.0)
         assert(value("rawData").arr.head.arr.map(_.num).toVector == expected, s"$name: wrong reset/teardown timing")
         assert(value("score").num == expected.sum)
       }
@@ -57,7 +59,7 @@ object AggregationChecks {
       val api = ujson.read(IO.read(directory / "counter-api.json")).arr
       assert(api.size == 1 && api.head("primaryMetric")("score").num.isFinite, "Public counter API probe failed")
       IO.copyFile(directory / "counter-api.json", evidence / "counter-api.json")
-      for (format <- Vector("text", "csv", "scsv", "html", "latex")) {
+      for format <- Vector("text", "csv", "scsv", "html", "latex") do
         val report = IO.read(directory / s"counters.$format")
         assert(
           report.contains("byteValue") && report.contains("methodValue") && report.contains("217") && report.contains(
@@ -67,7 +69,6 @@ object AggregationChecks {
         )
         assert(!report.contains("zeroOperations"), "Omitted counter leaked into " + format)
         IO.copyFile(directory / s"counters.$format", evidence / s"counters.$format")
-      }
       val zero = ujson.read(IO.read(directory / "zero-operations.json")).arr.head
       assert(
         zero("secondaryMetrics")("zeroOperations")("score").str == "+INF",
@@ -81,8 +82,10 @@ object AggregationChecks {
       val dependencies = (Compile / dependencyClasspath).value
         .map(e => converter.toPath(e.data).toFile)
         .filter(path =>
-          path.isFile && (path.getName.startsWith("benchmark-") || path.getName.startsWith("jmh-") || path.getName
-            .startsWith("commons-math3"))
+          path.isFile &&
+            (path.getName.startsWith("benchmark-") || path.getName.startsWith("jmh-") ||
+              path.getName
+                .startsWith("commons-math3"))
         )
       val plugins = (Compile / scalacOptions).value
         .filter(_.startsWith("-Xplugin:"))
@@ -95,7 +98,7 @@ object AggregationChecks {
         ujson.write(
           ujson.Obj(
             "backend" -> backend,
-            "scala" -> (scalaVersion).value,
+            "scala" -> scalaVersion.value,
             "jmh" -> "1.37",
             "jdk" -> sys.props("java.runtime.version"),
             "os" -> sys.props("os.name"),
@@ -107,11 +110,12 @@ object AggregationChecks {
               )).map(path =>
                 ujson.Obj(
                   "file" -> path.getName,
-                  "sha256" -> java.security.MessageDigest
-                    .getInstance("SHA-256")
-                    .digest(IO.readBytes(path))
-                    .map(b => f"${b & 0xff}%02x")
-                    .mkString
+                  "sha256" ->
+                    java.security.MessageDigest
+                      .getInstance("SHA-256")
+                      .digest(IO.readBytes(path))
+                      .map(b => f"${b & 0xff}%02x")
+                      .mkString
                 )
               )
             )
@@ -119,7 +123,7 @@ object AggregationChecks {
           indent = 2
         )
       )
-      if (backend != "jvm") {
+      if backend != "jvm" then
         val expected = ujson.read(IO.read(evidence.getParentFile / "jvm/observations.json"))
         assert(actual.obj.keySet == expected.obj.keySet, "Result observation inventory differs from JMH")
         val differences = actual.obj.toVector.flatMap { case (key, values) =>
@@ -128,23 +132,32 @@ object AggregationChecks {
             case ((a, b), index) if {
                   val x = a.str.toDouble; val y = b.str.toDouble
                   val intervalBound =
-                    if (!key.startsWith("statistics/") && Set(2, 8, 9)(index))
+                    if !key.startsWith("statistics/") && Set(2, 8, 9)(index) then
                       1e-9 * math.sqrt(expected(key)(7).str.toDouble / expected(key)(1).str.toDouble)
                     else 0.0
-                  if (key.startsWith("exact/")) a.str != b.str
+                  if key.startsWith("exact/") then a.str != b.str
                   else
-                    !((x.isFinite && y.isFinite && math
-                      .abs(x - y) <= intervalBound && intervalBound > 0) || (x == y && (x != 0 || java.lang.Double
-                      .doubleToRawLongBits(x) == java.lang.Double
-                      .doubleToRawLongBits(y))) || (x.isNaN && y.isNaN) || (x.isFinite && y.isFinite && x != 0 && math
-                      .abs((x - y) / x) <= 1e-12))
+                    !((x.isFinite && y.isFinite &&
+                      math
+                        .abs(x - y) <= intervalBound && intervalBound > 0) ||
+                      (x == y &&
+                        (x != 0 ||
+                          java.lang.Double
+                            .doubleToRawLongBits(x) ==
+                          java.lang.Double
+                            .doubleToRawLongBits(y))) ||
+                      (x.isNaN && y.isNaN) ||
+                      (x.isFinite && y.isFinite && x != 0 &&
+                        math
+                          .abs((x - y) / x) <= 1e-12))
                 } =>
               s"$key[$index]: expected=${a.str} actual=${b.str}"
           }
         }
         IO.write(evidence / "differences.txt", differences.mkString("\n"))
         assert(differences.isEmpty, differences.take(30).mkString("\n"))
-      }
+      end if
     }
   )
-}
+
+end AggregationChecks

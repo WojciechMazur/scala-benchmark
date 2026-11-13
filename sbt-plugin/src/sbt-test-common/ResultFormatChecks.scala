@@ -1,8 +1,9 @@
 import sbt.{*, given}
 import sbt.Keys.*
 
-object ResultFormatChecks {
+object ResultFormatChecks:
   val verifyFactoryFiles = taskKey[Unit]("Check standalone public result-format factories")
+
   def settings(backend: String): Seq[Def.Setting[?]] = Seq(
     verifyFactoryFiles := Def.uncached {
       val repository = file(sys.props("benchmark.scripted.support")).getParentFile.getParentFile.getParentFile
@@ -12,7 +13,7 @@ object ResultFormatChecks {
       val disabled = ujson.read(IO.read(directory / "factory-raw-disabled.json"))(0)
       assert(disabled("primaryMetric")("rawData").arr.isEmpty)
       assert(disabled("secondaryMetrics")("count")("rawData").arr.map(_.arr.map(_.num).toSeq).toSeq == Seq(Seq(1)))
-      for (mode <- Seq("thrpt", "avgt", "sample", "ss")) {
+      for mode <- Seq("thrpt", "avgt", "sample", "ss") do
         val data = ujson.read(IO.read(directory / s"factory-$mode.json"))
         assert(data.arr.size == 1)
         val run = data(0)
@@ -32,25 +33,25 @@ object ResultFormatChecks {
         assert(metric("score").num == 25)
         assert(metric("scorePercentiles").obj.contains("99.999"))
         assert(metric("scorePercentiles").obj.contains("99.9999"))
-        if (mode == "sample") {
+        if mode == "sample" then
           assert(metric("rawDataHistogram").arr.map(_.arr.size).toSeq == Seq(2, 2))
           val samples = metric("rawDataHistogram").arr.flatMap(_.arr).flatMap(_.arr)
           assert(samples.map(_(0).num).toSeq == Seq(10, 20, 30, 40))
           assert(samples.forall(_(1).num == 1))
-        } else assert(metric("rawData").arr.map(_.arr.map(_.num).toSeq).toSeq == Seq(Seq(10, 20), Seq(30, 40)))
+        else assert(metric("rawData").arr.map(_.arr.map(_.num).toSeq).toSeq == Seq(Seq(10, 20), Seq(30, 40)))
         val count = run("secondaryMetrics")("count")
         assert(count("score").num == 2.5 && count("scoreUnit").str == "#")
         assert(count("rawData").arr.map(_.arr.map(_.num).toSeq).toSeq == Seq(Seq(1, 2), Seq(3, 4)))
         assert(!IO.read(directory / s"factory-$mode.json").contains("clockMinimumDeltaNanos"))
         assert(ujson.read(IO.read(directory / s"factory-$mode.json.empty")).arr.isEmpty)
-        for (format <- Seq("text", "csv", "scsv", "latex")) {
+        for format <- Seq("text", "csv", "scsv", "latex") do
           val text = IO.read(directory / s"factory-$mode.$format")
           assert(text.contains("execute") && text.contains("count"))
-        }
-      }
+      end for
       val evidence = repository / "target/execution-parity/formatters" / backend
       IO.createDirectory(evidence)
       (directory * "factory-*").get().filter(_.isFile).foreach(file => IO.copyFile(file, evidence / file.getName))
     }
   )
-}
+
+end ResultFormatChecks

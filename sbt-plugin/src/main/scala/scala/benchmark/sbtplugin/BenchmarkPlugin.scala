@@ -1,25 +1,24 @@
 package scala.benchmark.sbtplugin
 
+import pl.project13.scala.sbt.JmhPlugin
+import pl.project13.scala.sbt.JmhPlugin.JmhKeys.*
 import sbt.{*, given}
 import sbt.Keys.*
 import sbt.complete.DefaultParsers.spaceDelimited
-
-import pl.project13.scala.sbt.JmhPlugin
-import pl.project13.scala.sbt.JmhPlugin.JmhKeys.*
 
 /** Shared keys, and the JVM backend: upstream JMH generates and runs the benchmarks.
   *
   * The only additions on the JVM are platform eligibility (`@Platforms`) and the HTML and LaTeX report formats.
   * [[NativeBenchmarkPlugin]] and [[ScalaJSBenchmarkPlugin]] replace generation and execution for their platforms.
   */
-object BenchmarkPlugin extends AutoPlugin {
+object BenchmarkPlugin extends AutoPlugin:
   override def requires: Plugins = JmhPlugin
   override def trigger: PluginTrigger = allRequirements
 
-  object autoImport {
+  object autoImport:
     val benchmarkUsePublishedArtifacts = settingKey[Boolean]("Resolve the published benchmark interface and runtime")
     val benchmarkClasses = taskKey[Seq[String]]("Classes declaring JMH benchmarks, found in the compilation analysis")
-  }
+
   import autoImport.*
 
   /** Compiles the generated platform inventory between the user's sources and JMH's generated ones. */
@@ -35,7 +34,7 @@ object BenchmarkPlugin extends AutoPlugin {
   private[sbtplugin] def withoutJmh(platform: Def.Initialize[String]): Seq[Setting[?]] = Seq(
     libraryDependencies ~= (_.filterNot(_.organization == jmhOrganization)),
     libraryDependencies ++= {
-      if (benchmarkUsePublishedArtifacts.value)
+      if benchmarkUsePublishedArtifacts.value then
         Seq((organization %% "benchmark-runtime" % BuildInfo.version).platform(platform.value))
       else Nil
     }
@@ -63,7 +62,7 @@ object BenchmarkPlugin extends AutoPlugin {
       GeneratedSources.benchmarkClasses((Compile / compile).value, streams.value.log)
     },
     libraryDependencies ++= {
-      if (platform.value == Platform.jvm && benchmarkUsePublishedArtifacts.value)
+      if platform.value == Platform.jvm && benchmarkUsePublishedArtifacts.value then
         Seq(organization %% "benchmark-interface" % BuildInfo.version)
       else Nil
     },
@@ -98,18 +97,17 @@ object BenchmarkPlugin extends AutoPlugin {
       val classpath = (Jmh / fullClasspath).value.map(entry => converter.toPath(entry.data))
       val main = (Jmh / run / mainClass).value.getOrElse(sys.error("No JMH main class"))
       val jmh = (Jmh / run / runner).value
-      val workingDirectory =
-        (Jmh / run / forkOptions).value.workingDirectory.getOrElse(file(sys.props("user.dir")))
+      val workingDirectory = (Jmh / run / forkOptions).value.workingDirectory.getOrElse(file(sys.props("user.dir")))
       val log = streams.value.log
-      JvmReport.Request(arguments, workingDirectory) match {
-        case None => jmh.run(main, classpath, arguments, log).get
+      JvmReport.Request(arguments, workingDirectory) match
+        case None         => jmh.run(main, classpath, arguments, log).get
         case Some(report) =>
           IO.withTemporaryFile("scala-benchmark-jmh-", ".json") { json =>
             jmh.run(main, classpath, report.jmhArguments(json), log).get
             IO.write(report.output, JvmReport.render(json, report.format))
             log.info("Benchmark report: " + report.output.getAbsolutePath)
           }
-      }
     }
   )
-}
+
+end BenchmarkPlugin

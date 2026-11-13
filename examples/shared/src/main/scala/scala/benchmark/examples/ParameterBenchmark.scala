@@ -1,6 +1,7 @@
 package scala.benchmark.examples
 
 import java.util.concurrent.TimeUnit
+
 import org.openjdk.jmh.annotations.*
 
 /** Compare decimal parsing with a counted loop and an iterator pipeline. */
@@ -11,22 +12,19 @@ import org.openjdk.jmh.annotations.*
 @Fork(2)
 @Threads(1)
 @OutputTimeUnit(TimeUnit.MICROSECONDS)
-class ParameterBenchmark {
+class ParameterBenchmark:
   @Param(Array("64", "1024")) var size: Int = 0
   private var records: Array[String] = _
 
   @Setup(Level.Trial) def prepare(): Unit =
     records = Array.tabulate(size)(i => ((i * 7919) % 1000000 - 500000).toString)
 
-  @Benchmark def parseLoop(): Long = {
+  @Benchmark def parseLoop(): Long =
     var total = 0L
     var i = 0
-    while (i < records.length) {
+    while i < records.length do
       total += java.lang.Integer.parseInt(records(i))
       i += 1
-    }
     total
-  }
 
   @Benchmark def parseIterator(): Long = records.iterator.map(record => java.lang.Integer.parseInt(record).toLong).sum
-}

@@ -1,18 +1,21 @@
 package org.openjdk.jmh.results
 
 import java.util.concurrent.TimeUnit
-import org.openjdk.jmh.annotations.Mode
-import org.openjdk.jmh.runner.options.TimeValue
-import org.openjdk.jmh.util.{ListStatistics, MultisetStatistics, SampleBuffer, Statistics, SingletonStatistics}
+
 import scala.jdk.CollectionConverters.*
 
-private[results] abstract class StandardResult[T <: Result[T]](
+import org.openjdk.jmh.annotations.Mode
+import org.openjdk.jmh.runner.options.TimeValue
+import org.openjdk.jmh.util.{ListStatistics, MultisetStatistics, SampleBuffer, SingletonStatistics, Statistics}
+
+abstract private[results] class StandardResult[T <: Result[T]](
     role0: ResultRole,
     label0: String,
     statistics0: Statistics,
     unit0: String,
     policy0: AggregationPolicy
-) extends Result[T](role0, label0, statistics0, unit0, policy0) {
+) extends Result[T](role0, label0, statistics0, unit0, policy0):
+
   protected def create(
       role: ResultRole,
       label: String,
@@ -20,23 +23,25 @@ private[results] abstract class StandardResult[T <: Result[T]](
       unit: String,
       policy: AggregationPolicy
   ): T
+
   protected def threadPolicy: AggregationPolicy = policy
   protected def iterationPolicy: AggregationPolicy = policy
   protected def joinSamples: Boolean = false
   protected def thisResultIsScalar: Boolean = false
-  private def aggregator(aggregation: AggregationPolicy): Aggregator[T] = new Aggregator[T] {
-    def aggregate(results: java.util.Collection[T]): T = {
+
+  private def aggregator(aggregation: AggregationPolicy): Aggregator[T] = new Aggregator[T]:
+    def aggregate(results: java.util.Collection[T]): T =
       require(!results.isEmpty(), "No result observations")
-      val values: org.openjdk.jmh.util.Statistics = if (joinSamples) new MultisetStatistics else new ListStatistics
+      val values: org.openjdk.jmh.util.Statistics = if joinSamples then new MultisetStatistics else new ListStatistics
       val first = results.iterator().next()
       results.asScala.foreach { result =>
-        if (result.getScoreUnit() != first.getScoreUnit())
+        if result.getScoreUnit() != first.getScoreUnit() then
           throw new IllegalStateException("Combining results with different units")
-        if (result.getLabel() != first.getLabel() || result.getRole() != first.getRole())
+        if result.getLabel() != first.getLabel() || result.getRole() != first.getRole() then
           throw new IllegalStateException("Combining incompatible result labels or roles")
-        if (thisResultIsScalar && result.aggregationPolicy != first.aggregationPolicy)
+        if thisResultIsScalar && result.aggregationPolicy != first.aggregationPolicy then
           throw new IllegalStateException("Combining results with different policies")
-        if (joinSamples)
+        if joinSamples then
           result
             .getStatistics()
             .getRawData()
@@ -51,13 +56,13 @@ private[results] abstract class StandardResult[T <: Result[T]](
         first.getLabel(),
         values,
         first.getScoreUnit(),
-        if (thisResultIsScalar) first.aggregationPolicy else aggregation
+        if thisResultIsScalar then first.aggregationPolicy else aggregation
       )
-    }
-  }
+
   protected def getThreadAggregator(): Aggregator[T] = aggregator(threadPolicy)
   protected def getIterationAggregator(): Aggregator[T] = aggregator(iterationPolicy)
-}
+
+end StandardResult
 
 class ThroughputResult private[results] (
     role0: ResultRole,
@@ -65,7 +70,8 @@ class ThroughputResult private[results] (
     statistics0: Statistics,
     unit0: String,
     policy0: AggregationPolicy
-) extends StandardResult[ThroughputResult](role0, label0, statistics0, unit0, policy0) {
+) extends StandardResult[ThroughputResult](role0, label0, statistics0, unit0, policy0):
+
   def this(role: ResultRole, label: String, operations: Double, durationNs: Long, unit: TimeUnit) =
     this(
       role,
@@ -74,8 +80,10 @@ class ThroughputResult private[results] (
       "ops/" + TimeValue.tuToString(unit),
       AggregationPolicy.SUM
     )
+
   override protected def threadPolicy: AggregationPolicy = AggregationPolicy.SUM
   override protected def iterationPolicy: AggregationPolicy = AggregationPolicy.AVG
+
   protected def create(
       role: ResultRole,
       label: String,
@@ -84,9 +92,10 @@ class ThroughputResult private[results] (
       policy: AggregationPolicy
   ): ThroughputResult =
     new ThroughputResult(role, label, statistics, unit, policy)
-}
+
 class AverageTimeResult private[results] (role0: ResultRole, label0: String, statistics0: Statistics, unit0: String)
-    extends StandardResult[AverageTimeResult](role0, label0, statistics0, unit0, AggregationPolicy.AVG) {
+    extends StandardResult[AverageTimeResult](role0, label0, statistics0, unit0, AggregationPolicy.AVG):
+
   def this(role: ResultRole, label: String, operations: Double, durationNs: Long, unit: TimeUnit) =
     this(
       role,
@@ -94,6 +103,7 @@ class AverageTimeResult private[results] (role0: ResultRole, label0: String, sta
       new SingletonStatistics(durationNs / (operations * TimeUnit.NANOSECONDS.convert(1, unit))),
       TimeValue.tuToString(unit) + "/op"
     )
+
   protected def create(
       role: ResultRole,
       label: String,
@@ -102,10 +112,11 @@ class AverageTimeResult private[results] (role0: ResultRole, label0: String, sta
       policy: AggregationPolicy
   ): AverageTimeResult =
     new AverageTimeResult(role, label, statistics, unit)
-}
+
 class SingleShotResult(role0: ResultRole, label0: String, statistics0: Statistics, unit0: String)
-    extends StandardResult[SingleShotResult](role0, label0, statistics0, unit0, AggregationPolicy.AVG) {
+    extends StandardResult[SingleShotResult](role0, label0, statistics0, unit0, AggregationPolicy.AVG):
   override def extendedInfo(): String = distributionExtendedInfo()
+
   def this(role: ResultRole, label: String, durationNs: Long, operations: Long, unit: TimeUnit) =
     this(
       role,
@@ -113,7 +124,9 @@ class SingleShotResult(role0: ResultRole, label0: String, statistics0: Statistic
       new SingletonStatistics(durationNs / (operations.toDouble * TimeUnit.NANOSECONDS.convert(1, unit))),
       TimeValue.tuToString(unit) + "/op"
     )
+
   def this(role: ResultRole, label: String, durationNs: Long, unit: TimeUnit) = this(role, label, durationNs, 1L, unit)
+
   protected def create(
       role: ResultRole,
       label: String,
@@ -122,11 +135,13 @@ class SingleShotResult(role0: ResultRole, label0: String, statistics0: Statistic
       policy: AggregationPolicy
   ): SingleShotResult =
     new SingleShotResult(role, label, statistics, unit)
-}
+
 class ScalarResult private[results] (label0: String, statistics0: Statistics, unit0: String, policy0: AggregationPolicy)
-    extends StandardResult[ScalarResult](ResultRole.SECONDARY, label0, statistics0, unit0, policy0) {
+    extends StandardResult[ScalarResult](ResultRole.SECONDARY, label0, statistics0, unit0, policy0):
+
   def this(label: String, value: Double, unit: String, policy: AggregationPolicy) =
     this(label, new SingletonStatistics(value), unit, policy)
+
   protected def create(
       role: ResultRole,
       label: String,
@@ -135,17 +150,20 @@ class ScalarResult private[results] (label0: String, statistics0: Statistics, un
       policy: AggregationPolicy
   ): ScalarResult =
     new ScalarResult(label, statistics, unit, policy)
+
   override protected def thisResultIsScalar: Boolean = true
   override protected def getZeroResult(): ScalarResult = new ScalarResult(label, 0.0, unit, policy)
-}
+
 class ScalarDerivativeResult private[results] (
     label0: String,
     statistics0: Statistics,
     unit0: String,
     policy0: AggregationPolicy
-) extends StandardResult[ScalarDerivativeResult](ResultRole.SECONDARY_DERIVATIVE, label0, statistics0, unit0, policy0) {
+) extends StandardResult[ScalarDerivativeResult](ResultRole.SECONDARY_DERIVATIVE, label0, statistics0, unit0, policy0):
+
   def this(label: String, value: Double, unit: String, policy: AggregationPolicy) =
     this(label, new SingletonStatistics(value), unit, policy)
+
   protected def create(
       role: ResultRole,
       label: String,
@@ -154,12 +172,14 @@ class ScalarDerivativeResult private[results] (
       policy: AggregationPolicy
   ): ScalarDerivativeResult =
     new ScalarDerivativeResult(label, statistics, unit, policy)
+
   override protected def thisResultIsScalar: Boolean = true
   override protected def getZeroResult(): ScalarDerivativeResult = new ScalarDerivativeResult(label, 0.0, unit, policy)
   override def extendedInfo(): String = ""
-}
+
 class SampleTimeResult private[results] (role0: ResultRole, label0: String, statistics0: Statistics, unit0: String)
-    extends StandardResult[SampleTimeResult](role0, label0, statistics0, unit0, AggregationPolicy.AVG) {
+    extends StandardResult[SampleTimeResult](role0, label0, statistics0, unit0, AggregationPolicy.AVG):
+
   def this(role: ResultRole, label: String, buffer: SampleBuffer, unit: TimeUnit) =
     this(
       role,
@@ -167,7 +187,9 @@ class SampleTimeResult private[results] (role0: ResultRole, label0: String, stat
       buffer.getStatistics(1.0 / TimeUnit.NANOSECONDS.convert(1, unit)),
       TimeValue.tuToString(unit) + "/op"
     )
+
   override protected def joinSamples: Boolean = true
+
   protected def create(
       role: ResultRole,
       label: String,
@@ -176,9 +198,11 @@ class SampleTimeResult private[results] (role0: ResultRole, label0: String, stat
       policy: AggregationPolicy
   ): SampleTimeResult =
     new SampleTimeResult(role, label, statistics, unit)
+
   override def extendedInfo(): String = distributionExtendedInfo()
-  override protected def getDerivativeResults(): java.util.Collection[? <: Result[?]] = {
-    val prefix = if (role.isPrimary()) "" else label + ":"
+
+  override protected def getDerivativeResults(): java.util.Collection[? <: Result[?]] =
+    val prefix = if role.isPrimary() then "" else label + ":"
     Vector(
       "p0.00" -> 0.0,
       "p0.50" -> 50.0,
@@ -191,11 +215,12 @@ class SampleTimeResult private[results] (role0: ResultRole, label0: String, stat
     ).map { case (name, point) =>
       new ScalarDerivativeResult(prefix + name, statistics.getPercentile(point), unit, AggregationPolicy.AVG)
     }.asJava
-  }
-}
+
+end SampleTimeResult
 
 /** Runtime construction preserves the standard result classes without retaining generated harness objects. */
-object StandardResults {
+object StandardResults:
+
   def metric(
       mode: Mode,
       role: ResultRole,
@@ -205,16 +230,13 @@ object StandardResults {
       policy: AggregationPolicy,
       scalar: Boolean = false,
       derivative: Boolean = false
-  ): Result[?] = {
-    if (derivative) new ScalarDerivativeResult(label, statistics, unit, policy)
-    else if (scalar) new ScalarResult(label, statistics, unit, policy)
+  ): Result[?] =
+    if derivative then new ScalarDerivativeResult(label, statistics, unit, policy)
+    else if scalar then new ScalarResult(label, statistics, unit, policy)
     else
-      mode match {
+      mode match
         case Mode.Throughput     => new ThroughputResult(role, label, statistics, unit, policy)
         case Mode.AverageTime    => new AverageTimeResult(role, label, statistics, unit)
         case Mode.SingleShotTime => new SingleShotResult(role, label, statistics, unit)
         case Mode.SampleTime     => new SampleTimeResult(role, label, statistics, unit)
         case Mode.All            => throw new IllegalArgumentException("All is not a measured mode")
-      }
-  }
-}

@@ -1,9 +1,9 @@
 package scala.benchmark.runtime
 
+import scala.benchmark.internal.reporting.{HtmlReport, ResultTable}
 import scala.jdk.CollectionConverters.*
 
 import org.openjdk.jmh.annotations.Mode
-import scala.benchmark.internal.reporting.{HtmlReport, ResultTable}
 
 final case class RunResult(
     descriptor: Descriptor,
@@ -18,8 +18,9 @@ final case class RunResult(
     secondaryOverride: Option[Vector[(String, RunResult)]] = None,
     histogramOverride: Option[Vector[Vector[Vector[(Double, Long)]]]] = None,
     reportParams: Option[org.openjdk.jmh.infra.BenchmarkParams] = None
-) {
-  lazy val statistics: Statistics = statisticsOverride.getOrElse(if (publicMetric.nonEmpty) {
+):
+
+  lazy val statistics: Statistics = statisticsOverride.getOrElse(if publicMetric.nonEmpty then
     Statistics(
       publicMetric.get
         .getStatistics()
@@ -29,7 +30,7 @@ final case class RunResult(
         .toVector,
       sampled = mode == Mode.SampleTime && metricKind.isEmpty
     )
-  } else if (mode == Mode.SampleTime && metricKind.isEmpty) {
+  else if mode == Mode.SampleTime && metricKind.isEmpty then
     val histogram = new SampleBuffer
     forks.flatten.flatMap(_.workers).foreach(r => histogram.merge(r.samples))
     Statistics(
@@ -38,15 +39,16 @@ final case class RunResult(
       },
       sampled = true
     )
-  } else Statistics(forks.flatten.map(r => r.score -> 1L)))
+  else Statistics(forks.flatten.map(r => r.score -> 1L)))
 
   /** Member observations retain their original worker/fork/iteration boundaries. */
   lazy val secondaryResults: Vector[(String, RunResult)] = secondaryOverride.getOrElse {
     val base = groupResults ++ auxiliaryResults
     base ++ percentileResults("") ++ base.flatMap { case (name, value) => value.percentileResults(name + ":") }
   }
-  private def percentileResults(prefix: String): Vector[(String, RunResult)] = {
-    if (mode != Mode.SampleTime || metricKind.nonEmpty) Vector.empty
+
+  private def percentileResults(prefix: String): Vector[(String, RunResult)] =
+    if mode != Mode.SampleTime || metricKind.nonEmpty then Vector.empty
     else
       Vector(
         "p0.00" -> 0.0,
@@ -75,9 +77,9 @@ final case class RunResult(
           statisticsOverride = Some(Statistics(Vector(statistics.percentile(point) -> 1L)))
         )
       }
-  }
+
   private lazy val groupResults: Vector[(String, RunResult)] =
-    if (descriptor.members.size <= 1) Vector.empty
+    if descriptor.members.size <= 1 then Vector.empty
     else
       descriptor.members.zipWithIndex.filter(_._1.threads > 0).map { case (member, subgroup) =>
         val observations = forks.map(_.map { iteration =>
@@ -95,9 +97,10 @@ final case class RunResult(
           forks = observations
         )
       }
-  private lazy val auxiliaryResults: Vector[(String, RunResult)] = {
-    if (descriptor.counters.isEmpty) Vector.empty
-    else {
+
+  private lazy val auxiliaryResults: Vector[(String, RunResult)] =
+    if descriptor.counters.isEmpty then Vector.empty
+    else
       val observed = forks.flatten.flatMap(_.workers.flatMap(_.auxiliary.map(c => c.name -> c.kind))).toSet
       descriptor.counters.map(c => c.name -> c.kind).distinct.filter(observed).collect {
         case (name, kind) if kind == "EVENTS" || mode == Mode.Throughput || mode == Mode.AverageTime =>
@@ -106,14 +109,13 @@ final case class RunResult(
               worker.auxiliary.filter(c => c.name == name && c.kind == kind).map(c => worker -> c.value)
             }
             val score =
-              if (kind == "EVENTS") counters.map(_._2).sum
-              else {
+              if kind == "EVENTS" then counters.map(_._2).sum
+              else
                 val values = counters.map { case (worker, value) =>
-                  if (mode == Mode.Throughput) value * Execution.unitNanos(configuration.unit) / worker.elapsedNanos
+                  if mode == Mode.Throughput then value * Execution.unitNanos(configuration.unit) / worker.elapsedNanos
                   else worker.elapsedNanos / value / Execution.unitNanos(configuration.unit)
                 }
-                if (mode == Mode.Throughput) values.sum else values.sum / values.size
-              }
+                if mode == Mode.Throughput then values.sum else values.sum / values.size
             // Scalar EVENTS provide a zero result; rate/time OPERATIONS do not.
             // JMH omits missing operation observations from iteration aggregation.
             Option.when(counters.nonEmpty)(IterationResult(score, counters.map(_._1)))
@@ -123,29 +125,33 @@ final case class RunResult(
               descriptor.copy(name = descriptor.name + ":" + name, members = Vector.empty, counters = Vector.empty),
             forks = observations,
             metricKind = kind,
-            statisticsOverride = if (kind == "EVENTS") {
+            statisticsOverride = if kind == "EVENTS" then
               val scores = observations.flatten.map(_.score -> 1L)
               Some(Statistics(scores ++ Vector.fill(forks.flatten.size - scores.size)(0.0 -> 1L)))
-            } else None
+            else None
           )
       }
-    }
-  }
+
   def sampleCount: Long = publicMetric.fold(statistics.count)(_.getSampleCount())
+
   def percentile(rank: Double): Double =
     publicMetric.fold(statistics.percentile(rank))(_.getStatistics().getPercentile(rank))
+
   def score: Double = publicMetric.fold(
-    if (metricKind == "EVENTS") statistics.values.map { case (v, n) => v * n }.sum else statistics.mean
+    if metricKind == "EVENTS" then statistics.values.map { case (v, n) => v * n }.sum else statistics.mean
   )(_.getScore())
+
   def scoreError: Double =
-    publicMetric.fold(if (metricKind == "EVENTS") Double.NaN else statistics.error)(_.getScoreError())
+    publicMetric.fold(if metricKind == "EVENTS" then Double.NaN else statistics.error)(_.getScoreError())
+
   def scoreConfidence: Vector[Double] = publicMetric.fold(
-    if (metricKind == "EVENTS") Vector(score, score) else Vector(score - scoreError, score + scoreError)
+    if metricKind == "EVENTS" then Vector(score, score) else Vector(score - scoreError, score + scoreError)
   )(_.getScoreConfidence().toVector)
-  def unit: String = {
-    if (publicMetric.nonEmpty) return publicMetric.get.getScoreUnit()
-    if (metricKind == "EVENTS") return "#"
-    val suffix = configuration.unit match {
+
+  def unit: String =
+    if publicMetric.nonEmpty then return publicMetric.get.getScoreUnit()
+    if metricKind == "EVENTS" then return "#"
+    val suffix = configuration.unit match
       case "NANOSECONDS"  => "ns"
       case "MICROSECONDS" => "us"
       case "MILLISECONDS" => "ms"
@@ -153,41 +159,38 @@ final case class RunResult(
       case "MINUTES"      => "min"
       case "HOURS"        => "hr"
       case "DAYS"         => "day"
-    }
-    if (mode == Mode.Throughput) "ops/" + suffix else suffix + "/op"
-  }
-}
+    if mode == Mode.Throughput then "ops/" + suffix else suffix + "/op"
+
+end RunResult
 
 final case class ClockCalibration(
     minimumDeltaNanos: Long,
     averageCallNanos: Double
-) {
+):
   def available: Boolean = minimumDeltaNanos > 0
-}
-object ClockCalibration {
+
+object ClockCalibration:
   val Unavailable: ClockCalibration = ClockCalibration(0, Double.NaN)
-  def measure(): ClockCalibration = {
+
+  def measure(): ClockCalibration =
     var previous = System.nanoTime()
     val start = previous
     var minimum = Long.MaxValue
     var i = 0
-    while (i < 10000) {
+    while i < 10000 do
       val now = System.nanoTime()
       require(now >= previous && now != 0, "Monotonic clock is unavailable")
       val delta = now - previous
-      if (delta > 0) minimum = math.min(minimum, delta)
+      if delta > 0 then minimum = math.min(minimum, delta)
       previous = now
       i += 1
-    }
     require(minimum != Long.MaxValue, "Clock has no observable resolution")
     ClockCalibration(minimum, (previous - start) / 10000.0)
-  }
-}
 
-object Reports {
+object Reports:
   val formats: Vector[String] = Vector("text", "csv", "scsv", "json", "latex", "html")
 
-  def render(results: Vector[RunResult], format: String): String = format match {
+  def render(results: Vector[RunResult], format: String): String = format match
     case "text"  => text(results)
     case "csv"   => csv(results)
     case "scsv"  => scsv(results)
@@ -195,7 +198,6 @@ object Reports {
     case "latex" => latex(results)
     case "html"  => html(results)
     case other   => throw new IllegalArgumentException(s"Unsupported result format: $other")
-  }
 
   def quote(text: String): String = "\"" + text.flatMap {
     case '"'          => "\\\""
@@ -206,23 +208,27 @@ object Reports {
     case c if c < ' ' => f"\\u${c.toInt}%04x"
     case c            => c.toString
   } + "\""
+
   private def number(value: Double): String =
-    if (value.isFinite) value.toString
-    else if (value == Double.PositiveInfinity) quote("+INF")
-    else if (value == Double.NegativeInfinity) quote("-INF")
+    if value.isFinite then value.toString
+    else if value == Double.PositiveInfinity then quote("+INF")
+    else if value == Double.NegativeInfinity then quote("-INF")
     else quote("NaN")
+
   private def array(items: Iterable[String]): String =
     items.mkString("[", ",", "]")
+
   private def obj(items: Iterable[(String, String)]): String = items
     .map { case (key, value) => quote(key) + ":" + value }
     .mkString("{", ",", "}")
-  private def metricJson(run: RunResult): String = {
+
+  private def metricJson(run: RunResult): String =
     val s = run.statistics
     val c = run.configuration
     val raw =
-      if (run.metricKind.isEmpty && !scala.benchmark.internal.JsonReportOptions.rawData)
-        (if (run.mode == Mode.SampleTime) "rawDataHistogram" else "rawData") -> "[]"
-      else if (run.histogramOverride.nonEmpty)
+      if run.metricKind.isEmpty && !scala.benchmark.internal.JsonReportOptions.rawData then
+        (if run.mode == Mode.SampleTime then "rawDataHistogram" else "rawData") -> "[]"
+      else if run.histogramOverride.nonEmpty then
         "rawDataHistogram" -> array(
           run.histogramOverride.get.map(fork =>
             array(
@@ -232,7 +238,7 @@ object Reports {
             )
           )
         )
-      else if (run.mode == Mode.SampleTime && run.metricKind.isEmpty) {
+      else if run.mode == Mode.SampleTime && run.metricKind.isEmpty then
         "rawDataHistogram" -> array(
           run.forks.map(fork =>
             array(fork.map { iteration =>
@@ -246,7 +252,7 @@ object Reports {
             })
           )
         )
-      } else
+      else
         "rawData" -> array(
           run.forks.map(f => array(f.map(r => number(r.score))))
         )
@@ -265,8 +271,10 @@ object Reports {
         raw
       )
     )
-  }
-  def json(results: Vector[RunResult]): String = {
+
+  end metricJson
+
+  def json(results: Vector[RunResult]): String =
     scala.benchmark.internal.JsonReportOptions.initialize()
     array(results.map { run =>
       val c = run.configuration
@@ -275,15 +283,16 @@ object Reports {
           "os" -> quote(System.getProperty("os.name", "unknown")),
           "arch" -> quote(System.getProperty("os.arch", "unknown")),
           "ignoredSettings" -> array(run.descriptor.warnings.map(quote))
-        ) ++ Option
-          .when(run.clock.available)(
-            Vector(
-              "clockMinimumDeltaNanos" -> run.clock.minimumDeltaNanos.toString,
-              "clockAverageCallNanos" -> number(run.clock.averageCallNanos)
+        ) ++
+          Option
+            .when(run.clock.available)(
+              Vector(
+                "clockMinimumDeltaNanos" -> run.clock.minimumDeltaNanos.toString,
+                "clockAverageCallNanos" -> number(run.clock.averageCallNanos)
+              )
             )
-          )
-          .toVector
-          .flatten ++ Platform.buildMetadata.map { case (k, v) => k -> quote(v) }).toMap.toVector.sortBy(_._1)
+            .toVector
+            .flatten ++ Platform.buildMetadata.map { case (k, v) => k -> quote(v) }).toMap.toVector.sortBy(_._1)
       )
       val supplied = run.reportParams
       obj(
@@ -312,11 +321,13 @@ object Reports {
         ) ++ Option.when(run.clock.available)(Platform.metadataSection -> nativeMetadata)
       )
     })
-  }
+
+  end json
+
   private def expanded(results: Vector[RunResult]): Vector[RunResult] =
     results.flatMap(run => run +: run.secondaryResults.map(_._2))
 
-  private def summary(primary: Vector[RunResult]): (Vector[String], Vector[Vector[String]]) = {
+  private def summary(primary: Vector[RunResult]): (Vector[String], Vector[Vector[String]]) =
     val results = expanded(primary)
     val names = results.flatMap(_.parameters.keys).distinct.sorted
     val header = Vector(
@@ -340,27 +351,23 @@ object Reports {
       ) ++ names.map(r.parameters.getOrElse(_, ""))
     }
     (header, rows)
-  }
 
-  def text(results: Vector[RunResult]): String = {
+  def text(results: Vector[RunResult]): String =
     val report = ConsoleReport.render(expanded(results))
-    if (report.isEmpty) "" else report + "\n"
-  }
+    if report.isEmpty then "" else report + "\n"
 
   def csv(results: Vector[RunResult]): String = delimited(results, ",")
   def scsv(results: Vector[RunResult]): String = delimited(results, ";")
 
-  private def delimited(results: Vector[RunResult], separator: String): String = {
+  private def delimited(results: Vector[RunResult], separator: String): String =
     def cell(value: String): String = "\"" + value.replace("\"", "\"\"") + "\""
     val (header, rows) = summary(results)
     (header +: rows).map(_.map(cell).mkString(separator)).mkString("", "\n", "\n")
-  }
 
   /** A standard LaTeX tabular fragment, with no package or PDF-generation dependency. */
-  def latex(results: Vector[RunResult]): String = {
+  def latex(results: Vector[RunResult]): String =
     val (header, rows) = summary(results)
     ResultTable.latex(header, rows)
-  }
 
   def html(results: Vector[RunResult]): String = HtmlReport.render(expanded(results).map { run =>
     val stats = run.statistics
@@ -398,9 +405,10 @@ object Reports {
     )
   })
 
-  def console(results: Vector[RunResult]): Unit = {
+  def console(results: Vector[RunResult]): Unit =
     val text = ConsoleReport.render(expanded(results))
-    if (text.nonEmpty) println(text)
-  }
+    if text.nonEmpty then println(text)
+
   def console(run: RunResult): Unit = console(Vector(run))
-}
+
+end Reports

@@ -1,48 +1,52 @@
 package scala.benchmark.runtime.resultsextensions
 
 import scala.benchmark.*
-import org.openjdk.jmh.infra.BenchmarkParams
-import org.openjdk.jmh.results.{
-  Result,
-  ResultRole,
-  Aggregator,
-  AggregationPolicy,
-  ScalarDerivativeResult,
-  TextResult,
-  RawResults,
-  BenchmarkTaskResult
-}
-import org.openjdk.jmh.util.{
-  SingletonStatistics,
-  HashMultiset,
-  TreeMultiset,
-  HashsetMultimap,
-  Multisets,
-  BoundedPriorityQueue,
-  MultisetStatistics,
-  ListStatistics,
-  Optional
-}
 import scala.jdk.CollectionConverters.*
 
+import org.openjdk.jmh.infra.BenchmarkParams
+import org.openjdk.jmh.results.{
+  AggregationPolicy,
+  Aggregator,
+  BenchmarkTaskResult,
+  RawResults,
+  Result,
+  ResultRole,
+  ScalarDerivativeResult,
+  TextResult
+}
+import org.openjdk.jmh.util.{
+  BoundedPriorityQueue,
+  HashMultiset,
+  HashsetMultimap,
+  ListStatistics,
+  Multisets,
+  MultisetStatistics,
+  Optional,
+  SingletonStatistics,
+  TreeMultiset
+}
+
 class CustomResult
-    extends Result[CustomResult](ResultRole.PRIMARY, "primary", Result.of(7), "#", AggregationPolicy.AVG) {
-  protected def getThreadAggregator(): Aggregator[CustomResult] = new Aggregator[CustomResult] {
+    extends Result[CustomResult](ResultRole.PRIMARY, "primary", Result.of(7), "#", AggregationPolicy.AVG):
+
+  protected def getThreadAggregator(): Aggregator[CustomResult] = new Aggregator[CustomResult]:
     def aggregate(values: java.util.Collection[CustomResult]): CustomResult = new CustomResult
-  }
+
   protected def getIterationAggregator(): Aggregator[CustomResult] = getThreadAggregator()
+
   override protected def getDerivativeResults(): java.util.Collection[? <: Result[?]] =
     java.util.Collections.singletonList(new ScalarDerivativeResult("derived", 14, "#", AggregationPolicy.AVG))
-}
-class TextAccess(text: String, name: String) extends TextResult(text, name) {
+
+class TextAccess(text: String, name: String) extends TextResult(text, name):
   def combine(values: java.util.Collection[TextResult]): TextResult = getThreadAggregator().aggregate(values)
-}
+
 @BenchmarkMode(Array(Mode.SingleShotTime))
 @Warmup(iterations = 0)
 @Measurement(iterations = 1)
 @Fork(0)
-class ResultExtensionBenchmark {
-  @Benchmark def execute(params: BenchmarkParams): Int = {
+class ResultExtensionBenchmark:
+
+  @Benchmark def execute(params: BenchmarkParams): Int =
     assert(scala.benchmark.TimeValue.milliseconds(2).getTime() == 2)
     assert(scala.benchmark.VerboseMode.valueOf("SILENT") == scala.benchmark.VerboseMode.SILENT)
     assert(scala.benchmark.WarmupMode.BULK_INDI.isBulk())
@@ -51,7 +55,7 @@ class ResultExtensionBenchmark {
     val singleton = new SingletonStatistics(7)
     assert(singleton.getN() == 1 && singleton.getMean() == 7 && singleton.getSum() == 7)
     assert(singleton.getVariance().isNaN && singleton.getMeanErrorAt(0.999).isNaN)
-    for (rank <- Vector(-1.0, 0.0, 50.0, 100.0, 101.0, Double.NaN)) assert(singleton.getPercentile(rank) == 7)
+    for rank <- Vector(-1.0, 0.0, 50.0, 100.0, 101.0, Double.NaN) do assert(singleton.getPercentile(rank) == 7)
     assert(singleton.getHistogram(Array(0.0, 7.0, 8.0)).toVector == Vector(0, 1))
     assert(singleton.getHistogram(Array(0.0)).isEmpty)
     val iterator = singleton.getRawData()
@@ -84,9 +88,8 @@ class ResultExtensionBenchmark {
     assert(iteration.getPrimaryResult().getScore() == 7)
     assert(iteration.getSecondaryResults().get("derived").getScore() == 14)
     assert(iteration.getSecondaryResults().get("trace").extendedInfo() == "ab")
-    val heterogeneous = new Aggregator[Result[?]] {
+    val heterogeneous = new Aggregator[Result[?]]:
       def aggregate(values: java.util.Collection[Result[?]]): Result[?] = values.iterator().next()
-    }
     val original = new CustomResult
     assert(heterogeneous.aggregate(Vector[Result[?]](original, new TextResult("", "trace")).asJava) eq original)
     val task = new BenchmarkTaskResult(17, 11)
@@ -175,7 +178,7 @@ class ResultExtensionBenchmark {
       .build()
     assert(scala.util.Try(new scala.benchmark.Runner(rejectedOptions, rejectedFormat).runSingle()).isFailure)
     assert(rejectedFormat.benchmarks == 0 && rejectedFormat.results == 0)
-    for (forks <- Vector(0, 1)) {
+    for forks <- Vector(0, 1) do
       val captured = new CountingFormat
       val parameterOptions = new OptionsBuilder()
         .include("scala.benchmark.runtime.resultsextensions.ResultParamTarget.execute")
@@ -190,14 +193,17 @@ class ResultExtensionBenchmark {
       assert(observations.size() == 3, "Parameter runs were collapsed: " + observations.size())
       assert(observations.asScala.toVector.map(_.getParams().getParam("value")) == Vector("b", "a", "b"))
       assert(captured.results == 3)
-    }
     println("RESULT_EXTENSIONS_OK")
     1
-  }
-}
 
-class ResultModeTarget { @Benchmark def execute(): Int = 1 }
-class CountingFormat extends org.openjdk.jmh.runner.format.OutputFormat {
+  end execute
+
+end ResultExtensionBenchmark
+
+class ResultModeTarget:
+  @Benchmark def execute(): Int = 1
+
+class CountingFormat extends org.openjdk.jmh.runner.format.OutputFormat:
   var benchmarks = 0
   var results = 0
   def startRun(): Unit = ()
@@ -205,12 +211,14 @@ class CountingFormat extends org.openjdk.jmh.runner.format.OutputFormat {
   def endBenchmark(r: org.openjdk.jmh.results.BenchmarkResult): Unit = ()
   def endRun(r: java.util.Collection[org.openjdk.jmh.results.RunResult]): Unit = results = r.size()
   def iteration(p: org.openjdk.jmh.infra.BenchmarkParams, i: org.openjdk.jmh.infra.IterationParams, n: Int): Unit = ()
+
   def iterationResult(
       p: org.openjdk.jmh.infra.BenchmarkParams,
       i: org.openjdk.jmh.infra.IterationParams,
       n: Int,
       r: org.openjdk.jmh.results.IterationResult
   ): Unit = ()
+
   def print(s: String): Unit = ()
   def println(s: String): Unit = ()
   def verbosePrintln(s: String): Unit = ()
@@ -218,20 +226,19 @@ class CountingFormat extends org.openjdk.jmh.runner.format.OutputFormat {
   def write(value: Array[Byte]): Unit = ()
   def flush(): Unit = ()
   def close(): Unit = ()
-}
 
 @BenchmarkMode(Array(Mode.Throughput, Mode.AverageTime))
-class ResultMultipleModesTarget {
+class ResultMultipleModesTarget:
   @Benchmark def execute(): Int = throw new IllegalStateException("runSingle must reject before execution")
-}
 
 @State(Scope.Thread)
-class ResultParamTarget {
+class ResultParamTarget:
   @Param(Array("default")) var value: String = ""
-  @Benchmark def execute(p: BenchmarkParams): Int = {
+
+  @Benchmark def execute(p: BenchmarkParams): Int =
     assert(p.getParam("value") == value)
     val parameters = new org.openjdk.jmh.runner.WorkloadParams
-    parameters.put("value", value, if (value == "a") 0 else 9)
+    parameters.put("value", value, if value == "a" then 0 else 9)
     val reference = new BenchmarkParams(
       p.getBenchmark(),
       p.generatedBenchmark(),
@@ -256,9 +263,11 @@ class ResultParamTarget {
       p.getTimeout()
     )
     assert(
-      if (value == "a") p.compareTo(reference) > 0 else p.compareTo(reference) < 0,
+      if value == "a" then p.compareTo(reference) > 0 else p.compareTo(reference) < 0,
       "Worker parameter ordinal was not transported"
     )
     value.length
-  }
-}
+
+  end execute
+
+end ResultParamTarget

@@ -2,13 +2,16 @@ package scala.benchmark.runtime
 
 import org.openjdk.jmh.annotations.Mode
 
-object BenchmarkRunner {
+object BenchmarkRunner:
+
   def run(options: Options, observer: RunObserver = RunObserver.Disabled): Vector[RunResult] =
     Platform.outputContext(options)(BenchmarkOutput.capture(observer.output(options)(execute(options, observer))))
 
-  private def execute(options: Options, observer: RunObserver): Vector[RunResult] = {
-    if (options.help) { println(Options.help); return Vector.empty }
-    if (options.listFormats) { println("Available formats: " + Reports.formats.mkString(", ")); return Vector.empty }
+  private def execute(options: Options, observer: RunObserver): Vector[RunResult] =
+    if options.help then
+      println(Options.help); return Vector.empty
+    if options.listFormats then
+      println("Available formats: " + Reports.formats.mkString(", ")); return Vector.empty
     val suites = (Platform.inventory ++ options.suites).distinct.sorted
     require(
       suites.nonEmpty,
@@ -40,7 +43,7 @@ object BenchmarkRunner {
     )(_._4.name, _._4.eligibility)
     val selected = selection.selected
     val warmupSelection =
-      if (options.list || options.warmupIncludes.isEmpty) None
+      if options.list || options.warmupIncludes.isEmpty then None
       else
         Some(
           scala.benchmark.internal.Selection(discovered, options.warmupIncludes, options.excludes, Platform.identity)(
@@ -53,27 +56,26 @@ object BenchmarkRunner {
     (selection.skipped ++ warmupSkips).distinct.foreach { case (_, _, _, descriptor) =>
       println("# SKIPPED: " + descriptor.eligibility.diagnostic(descriptor.name, Platform.identity))
     }
-    if (!options.list && selected.isEmpty) return Vector.empty
-    if (options.list) {
+    if !options.list && selected.isEmpty then return Vector.empty
+    if options.list then
       selected.foreach { case (_, _, _, descriptor) =>
         println(s"${descriptor.name} [${descriptor.eligibility.description}]")
-        if (options.listParameters)
+        if options.listParameters then
           descriptor.states
             .flatMap(_.parameters)
             .distinct
             .foreach(p => println(s"  ${p.name}: ${options.parameters.getOrElse(p.name, p.values).mkString(", ")}"))
       }
       return Vector.empty
-    }
     Platform.ensureMeasurementHealthy()
     ForkOutputFailure.check()
     options.output.foreach(Platform.validateOutput)
     def expandedModes(modes: Vector[Mode]): Vector[Mode] =
-      if (modes.contains(Mode.All)) Vector(Mode.Throughput, Mode.AverageTime, Mode.SampleTime, Mode.SingleShotTime)
+      if modes.contains(Mode.All) then Vector(Mode.Throughput, Mode.AverageTime, Mode.SampleTime, Mode.SingleShotTime)
       else modes.distinct
-    val bulkCandidates = (extraWarmups ++ (if (options.warmupMode != "INDI") selected else Vector.empty)).distinct
+    val bulkCandidates = (extraWarmups ++ (if options.warmupMode != "INDI" then selected else Vector.empty)).distinct
     val warmups = bulkCandidates.flatMap { case (suiteName, _, text, descriptor) =>
-      expandedModes(if (options.modes.nonEmpty) options.modes else descriptor.modes).flatMap { mode =>
+      expandedModes(if options.modes.nonEmpty then options.modes else descriptor.modes).flatMap { mode =>
         val parsed = Descriptor.parse(descriptor.index, text, Some(mode))
         val overrides = options.configuration(parsed.configuration)
         val actual = parsed.configured(overrides)
@@ -100,9 +102,9 @@ object BenchmarkRunner {
     try
       selected.foreach { case (suiteName, suite, metadata, descriptor) =>
         val modes =
-          if (options.modes.nonEmpty) options.modes else descriptor.modes
+          if options.modes.nonEmpty then options.modes else descriptor.modes
         val expanded =
-          if (modes.contains(Mode.All))
+          if modes.contains(Mode.All) then
             Vector(
               Mode.Throughput,
               Mode.AverageTime,
@@ -116,7 +118,7 @@ object BenchmarkRunner {
           val actual = parsed.configured(overrides)
           val resolved = actual.resolve(overrides)
           val actionConfig =
-            if (options.warmupMode == "BULK")
+            if options.warmupMode == "BULK" then
               resolved.copy(
                 warmupIterations = 0,
                 warmupNanos = 0,
@@ -124,24 +126,24 @@ object BenchmarkRunner {
                 warmupTime = org.openjdk.jmh.runner.options.TimeValue.NONE
               )
             else resolved
-          val baseConfig = if (mode == Mode.SingleShotTime) actionConfig.copy(synchIterations = false) else actionConfig
+          val baseConfig =
+            if mode == Mode.SingleShotTime then actionConfig.copy(synchIterations = false) else actionConfig
           Platform.validate(baseConfig)
-          if (options.verbosity == "EXTRA") println(s"# Configuration ${actual.name}: $baseConfig")
+          if options.verbosity == "EXTRA" then println(s"# Configuration ${actual.name}: $baseConfig")
           actual.warnings.foreach(w => Console.err.println("# WARNING: " + w))
           Descriptor.indexedCombinations(actual, options.parameters).foreach { case (parameters, orders) =>
             val config = baseConfig.copy(parameterOrder = orders)
-            try {
+            try
               val parameterText = parameters.toVector.sorted.map { case (key, value) => s"$key=$value" }.mkString(", ")
-              val detail = if (parameterText.isEmpty) "" else s"; $parameterText"
+              val detail = if parameterText.isEmpty then "" else s"; $parameterText"
               println(s"# Running ${actual.name} [${mode.shortLabel()}$detail]")
-              val result = if (config.forks == 0) {
+              val result = if config.forks == 0 then
                 Console.err.println(
                   "# WARNING: forks=0 runs without process isolation"
                 )
-                if (!embeddedWarmed) {
+                if !embeddedWarmed then
                   WarmupRequest.execute(warmups, failOnError = options.failOnError, observer = observer);
                   embeddedWarmed = true
-                }
                 observer.startBenchmark(actual, mode, config, parameters)
                 Vector(
                   Execution.trial(
@@ -154,7 +156,7 @@ object BenchmarkRunner {
                     observer = observer.trial(actual, mode, config, parameters)
                   )
                 )
-              } else {
+              else
                 observer.startBenchmark(actual, mode, config, parameters)
                 Vector
                   .tabulate(config.warmupForks + config.forks) { fork =>
@@ -163,27 +165,25 @@ object BenchmarkRunner {
                         Platform
                           .forked(suiteName, actual, mode, config, parameters, warmups, options.failOnError, observer)
                       )
-                    catch {
+                    catch
                       case failure: BenchmarkForkFailure
                           if !options.failOnError && !ForkOutputFailure.failed && !Platform.isCallerInterrupted =>
                         Console.err.println(
                           s"# FAILED fork ${fork + 1} of ${config.warmupForks + config.forks} for ${actual.name}: ${failure.getMessage}"
                         )
-                        if (failure.completed.nonEmpty) Some(failure.completed) else None
-                    }
-                    if (fork < config.warmupForks) None else result
+                        if failure.completed.nonEmpty then Some(failure.completed) else None
+                    if fork < config.warmupForks then None else result
                   }
                   .flatten
-              }
-              if (result.isEmpty) {
-                if (config.forks > 0) observer.endBenchmark(None, forked = true)
+              if result.isEmpty then
+                if config.forks > 0 then observer.endBenchmark(None, forked = true)
                 throw new BenchmarkForkFailure("Benchmark failure", "No measurement forks completed", Vector.empty)
-              }
-              if (
-                config.forks > 0 && (result.size != config.forks || result.exists(
+              if
+                config.forks > 0 &&
+                (result.size != config.forks || result.exists(
                   _.size != config.measurementIterations
                 ))
-              )
+              then
                 Console.err.println(
                   s"# INCOMPLETE ${actual.name}: retained ${result.size} of ${config.forks} measurement forks, iteration counts ${result.map(_.size).mkString(",")}; failed observations excluded"
                 )
@@ -192,40 +192,44 @@ object BenchmarkRunner {
               observer.endBenchmark(Some(run), forked = config.forks > 0)
               completed :+= run
               save()
-            } catch {
+            catch
               case t: Throwable =>
-                if (!ForkOutputFailure.failed && !Platform.isCallerInterrupted)
+                if !ForkOutputFailure.failed && !Platform.isCallerInterrupted then
                   Console.err.println(
                     s"# FAILED ${actual.name}: ${t.getMessage}"
                   )
-                if (
-                  options.failOnError || t.isInstanceOf[TrialObserverFailure] || t.isInstanceOf[
+                if
+                  options.failOnError || t.isInstanceOf[TrialObserverFailure] ||
+                  t.isInstanceOf[
                     UnfinishedWorkersException
                   ] || ForkOutputFailure.failed || Platform.isCallerInterrupted
-                ) {
+                then
                   throw t
-                }
-                if (config.forks == 0 && BenchmarkForkFailure.completed(t).nonEmpty)
+                if config.forks == 0 && BenchmarkForkFailure.completed(t).nonEmpty then
                   throw new IncompleteEmbeddedTrialException(t)
+            end try
 
-            }
           }
         }
       }
-    catch { case error: Throwable => primary = error; throw error }
-    finally {
-      if (!Platform.isCallerInterrupted) {
+    catch
+      case error: Throwable =>
+        primary = error
+        throw error
+    finally
+      if !Platform.isCallerInterrupted then
         try save()
-        catch { case error: Throwable => if (primary != null) primary.addSuppressed(error) else throw error }
-        if (!ForkOutputFailure.failed && !observer.displaysResults) try Reports.console(completed)
-        catch { case error: Throwable => if (primary != null) primary.addSuppressed(error) else throw error }
-      }
-    }
+        catch case error: Throwable => if primary != null then primary.addSuppressed(error) else throw error
+        if !ForkOutputFailure.failed && !observer.displaysResults then
+          try Reports.console(completed)
+          catch case error: Throwable => if primary != null then primary.addSuppressed(error) else throw error
+    end try
     observer.endRun(completed)
     observer.flush()
     observer.close()
-    if (observer.displaysResults) save()
+    if observer.displaysResults then save()
     completed
-  }
 
-}
+  end execute
+
+end BenchmarkRunner

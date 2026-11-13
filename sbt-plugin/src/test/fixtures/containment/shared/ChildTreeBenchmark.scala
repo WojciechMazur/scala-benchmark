@@ -7,13 +7,12 @@ import scala.benchmark.*
 @Warmup(iterations = 0)
 @Measurement(iterations = 1)
 @Fork(1)
-class ChildTreeBenchmark {
+class ChildTreeBenchmark:
   @Param(Array("unused")) var marker: String = ""
   @Param(Array("finish")) var action: String = ""
   @Setup(Level.Trial) def setup(): Unit = TreeHost.start(marker)
-  @Benchmark def execute(): Int = {
-    if (action == "hang") while (true) ()
-    if (action == "crash") TreeHost.crash()
+
+  @Benchmark def execute(): Int =
+    if action == "hang" then while true do ()
+    if action == "crash" then TreeHost.crash()
     1
-  }
-}

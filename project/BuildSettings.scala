@@ -1,12 +1,13 @@
 import sbt.{*, given}
 import sbt.Keys.*
-import xsbti.FileConverter
 import sbtbuildinfo.{BuildInfoKey, BuildInfoOption}
 import sbtbuildinfo.BuildInfoKeys.*
+import xsbti.FileConverter
 
-object BuildSettings {
+object BuildSettings:
   val scalaTagsVersion = "0.13.1"
   val projectVersion = "0.1.0-SNAPSHOT"
+
   /** Libraries and macros are built once with the LTS compiler; consumers may use any later Scala 3. */
   val libraryScalaVersion = "3.3.9"
   val javaRelease = "17"
@@ -77,9 +78,11 @@ object BuildSettings {
     inConfig(configuration)(
       Seq(
         unmanagedSourceDirectories +=
-          projectMatrixBaseDirectory.value.getAbsoluteFile / directory / "src" / sourceDirectory.value.getName / "scala",
+          projectMatrixBaseDirectory.value.getAbsoluteFile / directory / "src" / sourceDirectory.value.getName /
+            "scala",
         unmanagedResourceDirectories +=
-          projectMatrixBaseDirectory.value.getAbsoluteFile / directory / "src" / sourceDirectory.value.getName / "resources"
+          projectMatrixBaseDirectory.value.getAbsoluteFile / directory / "src" / sourceDirectory.value.getName /
+            "resources"
       )
     )
   }
@@ -90,4 +93,4 @@ object BuildSettings {
     Compile / unmanagedSourceDirectories += (LocalRootProject / baseDirectory).value / "examples/shared/src/main/scala"
   )
 
-}
+end BuildSettings

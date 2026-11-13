@@ -1,11 +1,13 @@
 package scala.benchmark.examples
 
+import scala.jdk.CollectionConverters.*
+
 import org.openjdk.jmh.infra.BenchmarkParams
 import org.openjdk.jmh.results.*
 import org.openjdk.jmh.util.ListStatistics
-import scala.jdk.CollectionConverters.*
 
-object ResultApiChecks {
+object ResultApiChecks:
+
   private class Custom(value: Double)
       extends Result[Custom](
         ResultRole.PRIMARY,
@@ -13,15 +15,15 @@ object ResultApiChecks {
         new ListStatistics(Array(value)),
         "#",
         AggregationPolicy.SUM
-      ) {
+      ):
     protected def getThreadAggregator(): Aggregator[Custom] = aggregator(100)
     protected def getIterationAggregator(): Aggregator[Custom] = aggregator(1000)
-    private def aggregator(offset: Double): Aggregator[Custom] = new Aggregator[Custom] {
+
+    private def aggregator(offset: Double): Aggregator[Custom] = new Aggregator[Custom]:
       def aggregate(results: java.util.Collection[Custom]): Custom =
         new Custom(results.asScala.map(_.getScore()).sum + offset)
-    }
-  }
-  def apply(params: BenchmarkParams): Unit = {
+
+  def apply(params: BenchmarkParams): Unit =
     def iteration() = new IterationResult(params, params.getMeasurement(), new IterationResultMetaData(2, 2))
     val first = iteration()
     first.addResult(new Custom(1)); first.addResult(new Custom(2))
@@ -75,7 +77,7 @@ object ResultApiChecks {
     assert(view.size() == 2)
     var immutable = false
     try view.add("rejected")
-    catch { case _: UnsupportedOperationException => immutable = true }
+    catch case _: UnsupportedOperationException => immutable = true
     assert(immutable)
     val copiedValues = multimap.values()
     copiedValues.clear()
@@ -85,5 +87,6 @@ object ResultApiChecks {
     multimap.keys().remove("b")
     assert(multimap.get("b").isEmpty())
 
-  }
-}
+  end apply
+
+end ResultApiChecks

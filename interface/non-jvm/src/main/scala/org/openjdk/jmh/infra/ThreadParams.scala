@@ -35,9 +35,11 @@ final class ThreadParams(
     private val groupThreadCount: Int,
     private val subgroupThreadIndex: Int,
     private val subgroupThreadCount: Int
-) {
+):
+
   def this(index: Int, count: Int) =
     this(index, count, index, count, 0, 1, 0, 1, 0, 1)
+
   def getThreadIndex(): Int = index
   def getThreadCount(): Int = count
   def getGroupIndex(): Int = groupIndex
@@ -48,4 +50,3 @@ final class ThreadParams(
   def getSubgroupCount(): Int = subgroupCount
   def getSubgroupThreadIndex(): Int = subgroupThreadIndex
   def getSubgroupThreadCount(): Int = subgroupThreadCount
-}

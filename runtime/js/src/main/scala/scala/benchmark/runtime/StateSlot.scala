@@ -1,14 +1,15 @@
 package scala.benchmark.runtime
 
 /** Fixture arbitration needs no locks when a single event loop owns all state. */
-final class StateSlot(val instance: AnyRef, val shared: Boolean) {
+final class StateSlot(val instance: AnyRef, val shared: Boolean):
   private var failure: Throwable = null
   private val ready = Array(false, false, false)
-  def enter(level: Int, setup: Boolean): Boolean = {
-    if (failure != null) throw failure
+
+  def enter(level: Int, setup: Boolean): Boolean =
+    if failure != null then throw failure
     !shared || ready(level) != setup
-  }
-  def fail(error: Throwable): Unit = if (shared) failure = error
+
+  def fail(error: Throwable): Unit = if shared then failure = error
+
   def leave(level: Int, setup: Boolean, success: Boolean): Unit =
-    if (shared && success) ready(level) = setup
-}
+    if shared && success then ready(level) = setup

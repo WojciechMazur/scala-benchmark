@@ -1,7 +1,8 @@
 package scala.benchmark.internal.reporting
 
-object ResultTable {
-  def latex(header: Vector[String], rows: Vector[Vector[String]]): String = {
+object ResultTable:
+
+  def latex(header: Vector[String], rows: Vector[Vector[String]]): String =
     def cell(value: String): String = value.flatMap {
       case '\\' => "\\textbackslash{}"
       case '&'  => "\\&"
@@ -22,5 +23,3 @@ object ResultTable {
     def row(values: Vector[String]): String = values.map(cell).mkString(" & ") + " \\\\"
     (Vector(s"\\begin{tabular}{$alignment}", "\\hline", row(header), "\\hline") ++
       rows.map(row) ++ Vector("\\hline", "\\end{tabular}")).mkString("", "\n", "\n")
-  }
-}

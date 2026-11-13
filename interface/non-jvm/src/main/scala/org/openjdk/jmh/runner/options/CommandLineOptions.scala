@@ -3,25 +3,25 @@ package org.openjdk.jmh.runner.options
 import org.openjdk.jmh.annotations.Mode
 import org.openjdk.jmh.results.format.ResultFormatType
 
-class CommandLineOptions(arguments: String*) extends OptionsBuilder {
+class CommandLineOptions(arguments: String*) extends OptionsBuilder:
   private var help = false
   private var list = false
   private var listParams = false
   private var formats = false
   private val scalar = scala.collection.mutable.Set.empty[String]
-  try {
+
+  try
     var index = 0
-    while (index < arguments.size) {
+    while index < arguments.size do
       val key = arguments(index)
-      def argument(): String = {
+      def argument(): String =
         index += 1
         require(index < arguments.size, "Missing argument for " + key)
         arguments(index)
-      }
-      if (key.startsWith("-") && !Set("-e", "-p", "-bm", "-wmb", "-l", "-lp", "-lrf", "-h")(key))
+      if key.startsWith("-") && !Set("-e", "-p", "-bm", "-wmb", "-l", "-lp", "-lrf", "-h")(key) then
         require(scalar.add(key), "Repeated option " + key)
       def mode(value: String): Mode = Mode.deepValueOf(value)
-      key match {
+      key match
         case "-h" | "--help" => help = true
         case "-l"            => list = true
         case "-lp"           => listParams = true
@@ -45,8 +45,9 @@ class CommandLineOptions(arguments: String*) extends OptionsBuilder {
         case "-t"   =>
           val value = argument();
           threads(
-            if (value.equalsIgnoreCase("max")) -1
-            else { require(value.toInt > 0, "Thread count must be positive or max"); value.toInt }
+            if value.equalsIgnoreCase("max") then -1
+            else
+              require(value.toInt > 0, "Thread count must be positive or max"); value.toInt
           )
         case "-tg"  => threadGroups(argument().split(",").map(_.toInt)*)
         case "-opi" => operationsPerInvocation(argument().toInt)
@@ -77,10 +78,13 @@ class CommandLineOptions(arguments: String*) extends OptionsBuilder {
         case value if value.startsWith("-") =>
           throw new IllegalArgumentException("Unsupported benchmark option: " + value)
         case value => include(value)
-      }
+      end match
       index += 1
-    }
-  } catch { case error: Exception => throw new CommandLineOptionException(error.getMessage, error) }
+    end while
+  catch case error: Exception => throw new CommandLineOptionException(error.getMessage, error)
+
+  end try
+
   def shouldHelp(): Boolean = help
   def shouldList(): Boolean = list
   def shouldListWithParams(): Boolean = listParams
@@ -88,4 +92,5 @@ class CommandLineOptions(arguments: String*) extends OptionsBuilder {
   def shouldListProfilers(): Boolean = false
   def showHelp(): Unit = println("JMH-compatible benchmark options: -l -lp -lrf -bm -wi -i -w -r -f -t -p -rf -rff")
   def listResultFormats(): Unit = println(ResultFormatType.values.mkString(", "))
-}
+
+end CommandLineOptions

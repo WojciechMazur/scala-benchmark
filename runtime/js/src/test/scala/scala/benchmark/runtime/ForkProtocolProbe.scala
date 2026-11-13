@@ -1,8 +1,9 @@
 package scala.benchmark.runtime
 
 /** Standalone local probe; the Node test launcher supplies only JSON host services. */
-object ForkProtocolProbe {
-  def main(args: Array[String]): Unit = {
+object ForkProtocolProbe:
+
+  def main(args: Array[String]): Unit =
     val count = 9007199254740993L
     val samples = new SampleBuffer
     samples.addCount(2049, 7)
@@ -45,5 +46,7 @@ object ForkProtocolProbe {
     println(
       "JS fork protocol: exact long counts, histograms, metadata, auxiliary metrics and deadline budgets verified"
     )
-  }
-}
+
+  end main
+
+end ForkProtocolProbe

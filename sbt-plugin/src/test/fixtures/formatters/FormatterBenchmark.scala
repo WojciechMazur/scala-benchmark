@@ -1,19 +1,22 @@
 package scala.benchmark.runtime.formatters
 
-import scala.benchmark.*
 import java.io.{ByteArrayOutputStream, PrintStream}
 import java.util.concurrent.TimeUnit
-import org.openjdk.jmh.results.{Result as Metric, ResultRole, AggregationPolicy}
-import org.openjdk.jmh.runner.{IterationType, WorkloadParams}
-import org.openjdk.jmh.results.format.{ResultFormatFactory, ResultFormatType}
+
+import scala.benchmark.*
 import scala.jdk.CollectionConverters.*
+
+import org.openjdk.jmh.results.{AggregationPolicy, Result as Metric, ResultRole}
+import org.openjdk.jmh.results.format.{ResultFormatFactory, ResultFormatType}
+import org.openjdk.jmh.runner.{IterationType, WorkloadParams}
 
 @BenchmarkMode(Array(Mode.SingleShotTime))
 @Warmup(iterations = 0)
 @Measurement(iterations = 1)
 @Fork(0)
-class FormatterBenchmark {
-  @Benchmark def execute(): Int = {
+class FormatterBenchmark:
+
+  @Benchmark def execute(): Int =
     val formats = ResultFormatType.values().toVector
     // Java-style empty argument lists and the Scala facade must both remain usable.
     assert(org.openjdk.jmh.annotations.Mode.values().length == 5)
@@ -38,7 +41,7 @@ class FormatterBenchmark {
     copied(0) = ResultFormatType.JSON
     assert(ResultFormatType.values()(0) == ResultFormatType.TEXT)
     var cases = 0
-    for (mode <- Vector(Mode.Throughput, Mode.AverageTime, Mode.SampleTime, Mode.SingleShotTime)) {
+    for mode <- Vector(Mode.Throughput, Mode.AverageTime, Mode.SampleTime, Mode.SingleShotTime) do
       val work = new WorkloadParams
       work.put("size", "λ,quoted\"value", 0)
       val params = new BenchmarkParams(
@@ -67,7 +70,7 @@ class FormatterBenchmark {
       val forks = (0 until 2).map { fork =>
         val iterations = (0 until 2).map { iteration =>
           val number = fork * 2 + iteration + 1
-          val primary: Metric[?] = mode match {
+          val primary: Metric[?] = mode match
             case Mode.Throughput =>
               new ThroughputResult(ResultRole.PRIMARY, "work", number * 10.0, 1L, TimeUnit.NANOSECONDS)
             case Mode.AverageTime =>
@@ -78,7 +81,6 @@ class FormatterBenchmark {
               val buffer = new SampleBuffer
               buffer.add(number * 10L)
               new SampleTimeResult(ResultRole.PRIMARY, "work", buffer, TimeUnit.NANOSECONDS)
-          }
           val result = new IterationResult(params, params.getMeasurement(), new IterationResultMetaData(100, 100))
           result.addResult(primary)
           result.addResult(new ScalarResult("count", number.toDouble, "#", AggregationPolicy.AVG))
@@ -91,14 +93,15 @@ class FormatterBenchmark {
       runs.add(run)
       assert(run.getPrimaryResult().getScore() == 25.0)
       assert(run.getSecondaryResults().get("count").getScore() == 2.5)
-      for (format <- formats) {
+      for format <- formats do
         val bytes = new ByteArrayOutputStream
         var flushes = 0
         var closes = 0
-        val stream = new PrintStream(bytes, false, "UTF-8") {
-          override def flush(): Unit = { flushes += 1; super.flush() }
-          override def close(): Unit = { closes += 1; super.close() }
-        }
+        val stream = new PrintStream(bytes, false, "UTF-8"):
+          override def flush(): Unit =
+            flushes += 1; super.flush()
+          override def close(): Unit =
+            closes += 1; super.close()
         val writer = ResultFormatFactory.getInstance(format, stream)
         writer.writeOut(runs)
         val text = bytes.toString("UTF-8")
@@ -110,17 +113,15 @@ class FormatterBenchmark {
         val file = "factory-" + mode.shortLabel() + "." + format.name().toLowerCase
         val fileWriter = ResultFormatFactory.getInstance(format, file)
         fileWriter.writeOut(runs)
-        if (format == ResultFormatType.JSON) {
+        if format == ResultFormatType.JSON then
           // writeOut reads the current collection; a reused file formatter overwrites its destination.
           runs.clear()
           fileWriter.writeOut(runs)
           ResultFormatFactory.getInstance(format, file + ".empty").writeOut(runs)
           runs.add(run)
           fileWriter.writeOut(runs)
-        }
         cases += 1
-      }
-    }
+    end for
     val empty = java.util.Collections.emptyList[RunResult]()
     val deferred = ResultFormatFactory.getInstance(ResultFormatType.JSON, "missing-parent/factory.json")
     assert(scala.util.Try(deferred.writeOut(empty)).failed.get.isInstanceOf[IllegalStateException])
@@ -140,15 +141,18 @@ class FormatterBenchmark {
     facade.writeOut(empty)
     println("RESULT_FORMAT_FACTORY_OK:" + cases)
     cases
-  }
-}
+
+  end execute
+
+end FormatterBenchmark
 
 @BenchmarkMode(Array(Mode.SingleShotTime))
 @Warmup(iterations = 0)
 @Measurement(iterations = 1)
 @Fork(0)
-class FormatterRawDisabledBenchmark {
-  @Benchmark def execute(params: BenchmarkParams): Int = {
+class FormatterRawDisabledBenchmark:
+
+  @Benchmark def execute(params: BenchmarkParams): Int =
     System.setProperty("jmh.json.rawData", "false")
     val iteration = new IterationResult(params, params.getMeasurement(), new IterationResultMetaData(1, 1))
     iteration.addResult(new SingleShotResult(ResultRole.PRIMARY, "work", 10L, TimeUnit.NANOSECONDS))
@@ -167,15 +171,14 @@ class FormatterRawDisabledBenchmark {
     ResultFormatFactory.getInstance(ResultFormatType.JSON, "factory-raw-disabled.json").writeOut(runs)
     println("RESULT_FORMAT_RAW_DISABLED_OK")
     1
-  }
-}
 
 @BenchmarkMode(Array(Mode.SingleShotTime))
 @Warmup(iterations = 0)
 @Measurement(iterations = 1)
 @Fork(0)
-class FormatterDeferredJsonBenchmark {
-  @Benchmark def execute(params: BenchmarkParams): Int = {
+class FormatterDeferredJsonBenchmark:
+
+  @Benchmark def execute(params: BenchmarkParams): Int =
     System.setProperty("jmh.json.rawData", "false")
     val writer = ResultFormatFactory.getInstance(ResultFormatType.JSON, "factory-json-deferred.json")
     System.setProperty("jmh.json.rawData", "true")
@@ -189,5 +192,3 @@ class FormatterDeferredJsonBenchmark {
     )
     println("RESULT_FORMAT_JSON_INITIALIZATION_OK")
     1
-  }
-}

@@ -25,19 +25,20 @@
  */
 package org.openjdk.jmh.results
 
-class RawResults {
+class RawResults:
   var allOps: Double = 0.0
   var measuredOps: Double = 0.0
   var realTime: Long = 0L
   var startTime: Long = 0L
   var stopTime: Long = 0L
-  def getTime(): Long = if (realTime > 0) realTime else stopTime - startTime
-}
+  def getTime(): Long = if realTime > 0 then realTime else stopTime - startTime
 
-class BenchmarkTaskResult(private val allOperations: Long, private val measuredOperations: Long) {
+class BenchmarkTaskResult(private val allOperations: Long, private val measuredOperations: Long):
   private val results = new java.util.ArrayList[Result[?]]
-  def add(result: Result[?]): Unit = { results.add(result); () }
+
+  def add(result: Result[?]): Unit =
+    results.add(result); ()
+
   def getResults(): java.util.Collection[Result[?]] = results
   def getAllOps(): Long = allOperations
   def getMeasuredOps(): Long = measuredOperations
-}
