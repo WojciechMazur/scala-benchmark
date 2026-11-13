@@ -12,27 +12,7 @@ object RunnerFailureChecks:
   def settings(backend: String): Seq[Setting[?]] = Seq(
     verifyRunnerFailures := Def.uncached {
       val directory = baseDirectory.value
-      val files = (target.value ** "*").get().filter(_.isFile)
-      def artifact(name: String): File = files.find(_.getName == name).getOrElse(sys.error("Missing " + name))
-      val converter = fileConverter.value
-      val cp = (Jmh / fullClasspath).value.map(e => converter.toPath(e.data).toString)
-      val command =
-        if backend == "jvm" then
-          Vector(
-            java.nio.file.Paths.get(sys.props("java.home"), "bin", "java").toString,
-            "-Djmh.ignoreLock=true",
-            "-classpath",
-            cp.mkString(java.io.File.pathSeparator),
-            "org.openjdk.jmh.Main"
-          )
-        else if backend == "native" then
-          Vector(files.find(f => f.canExecute && Set("benchmarks", "benchmarks.exe")(f.getName)).get.getAbsolutePath)
-        else
-          Vector(
-            "node",
-            artifact("node-host.mjs").getAbsolutePath,
-            files.find(f => f.getName == "main.js" && f.getPath.contains("-opt/")).get.getAbsolutePath
-          )
+      val command = FixtureBuild.benchmarkCommand(backend).value
       val repository = file(sys.props("benchmark.scripted.support")).getParentFile.getParentFile.getParentFile
       val evidence = repository / "target/execution-parity/runner-failures" / backend
       IO.delete(evidence); IO.createDirectory(evidence)

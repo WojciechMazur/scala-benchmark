@@ -13,28 +13,10 @@ object AggregationChecks:
       val evidence = repository / "target/execution-parity/aggregation" / backend
       IO.createDirectory(evidence)
       val directory = baseDirectory.value
-      val converter = fileConverter.value
-      val classpath = (Jmh / fullClasspath).value
-        .map(e => converter.toPath(e.data).toFile)
-        .mkString(java.io.File.pathSeparator)
-      val log =
-        if backend == "jvm" then
-          Process(
-            Seq(
-              (file(sys.props("java.home")) / "bin/java").getAbsolutePath,
-              "-Djmh.ignoreLock=true",
-              "-cp",
-              classpath,
-              "org.openjdk.jmh.Main",
-              "AggregationEdgeBenchmark",
-              "-f",
-              "0",
-              "-foe",
-              "true"
-            ),
-            directory
-          ).!!
-        else IO.read(directory / "aggregation.log")
+      // Benchmark output goes to the process's own stdout on every platform, as in JMH.
+      val forks = if backend == "jvm" then Seq("-f", "0") else Nil
+      val command = FixtureBuild.benchmarkCommand(backend).value ++ Seq("AggregationEdgeBenchmark", "-foe", "true")
+      val log = Process(command ++ forks, directory).!!
       val observations = log.linesIterator
         .filter(_.contains("AGGREGATION\t"))
         .map(line => line.substring(line.indexOf("AGGREGATION\t")))
@@ -78,6 +60,7 @@ object AggregationChecks:
       val actual = ujson.Obj.from(observations.map { case (key, values) => key -> ujson.Arr.from(values) })
       IO.write(evidence / "observations.json", ujson.write(actual, indent = 2))
       IO.write(evidence / "execution.log", log)
+      val converter = fileConverter.value
       val fixtureSources = (Compile / sources).value
       val dependencies = (Compile / dependencyClasspath).value
         .map(e => converter.toPath(e.data).toFile)

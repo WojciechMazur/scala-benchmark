@@ -1,4 +1,4 @@
-> bench Jmh/run AggregationEdgeBenchmark -foe true -o aggregation.log
+> bench Jmh/run AggregationEdgeBenchmark -foe true
 > bench Jmh/run NumericCounterEdgeBenchmark -foe true -rf json -rff numeric-counters.json
 > bench Jmh/run CounterApiEdgeProbe -foe true -to 10s -rf json -rff counter-api.json
 > bench Jmh/run NumericCounterEdgeBenchmark -foe true -rf text -rff counters.text

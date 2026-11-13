@@ -117,6 +117,34 @@ object FixtureBuild:
   def nodeImport(module: File): Seq[Setting[?]] =
     Seq(ScalaJSBenchmarkPlugin.autoImport.benchmarkNodeOptions := Seq("--import", module.getAbsolutePath))
 
+  /** Command line that runs the row's benchmarks without sbt: upstream JMH, the linked executable, or Node.js with
+    * the linked module. The benchmarks must have been run through sbt before, so that they are linked.
+    */
+  def benchmarkCommand(platform: String): Def.Initialize[Task[Vector[String]]] = Def.task {
+    val files = (target.value ** "*").get().filter(_.isFile)
+    def artifact(description: String)(predicate: File => Boolean): String =
+      files.find(predicate).getOrElse(sys.error("Missing " + description)).getAbsolutePath
+    platform match
+      case "jvm" =>
+        val converter = fileConverter.value
+        val classpath = (Jmh / fullClasspath).value.map(entry => converter.toPath(entry.data).toString)
+        Vector(
+          (file(sys.props("java.home")) / "bin/java").getAbsolutePath,
+          "-Djmh.ignoreLock=true",
+          "-classpath",
+          classpath.mkString(java.io.File.pathSeparator),
+          "org.openjdk.jmh.Main"
+        )
+      case "native" =>
+        Vector(artifact("linked executable")(f => f.canExecute && Set("benchmarks", "benchmarks.exe")(f.getName)))
+      case _ =>
+        Vector(
+          "node",
+          artifact("Node.js host")(_.getName == "node-host.mjs"),
+          artifact("linked module")(f => f.getName == "main.js" && f.getPath.contains("-opt/"))
+        )
+  }
+
   /** Restricts compilation to the named source files. */
   def only(names: String*): Seq[Setting[?]] =
     Seq(Compile / sources := (Compile / sources).value.filter(source => names.contains(source.getName)))
