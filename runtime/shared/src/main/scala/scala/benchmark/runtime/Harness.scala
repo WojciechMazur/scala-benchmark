@@ -187,6 +187,18 @@ final private class HarnessMacro[Q <: Quotes](q: Q) extends BenchmarkSymbols[Q](
       stateArguments(method).foreach(visit)
     }
 
+    // A macro cannot change how other methods are compiled, unlike JMH's compiler directives on the JVM.
+    for
+      cls <- (benchmarkClass :: states.toList).distinct
+      method <- cls.declaredMethods
+      if annotation[CompilerControl](method).nonEmpty && !inventory.contains(method)
+    do
+      report.warning(
+        s"@CompilerControl on ${method.name} only takes effect on the JVM; " +
+          "add @noinline or @inline for Scala Native and Scala.js",
+        method.pos.getOrElse(Position.ofMacroExpansion)
+      )
+
     val instances = mutable.ArrayBuffer.empty[StateInstance]
     private val shared = mutable.Map.empty[Symbol, Int]
     val holders: Map[Symbol, Int] = eligible.map(method => method -> instantiate(benchmarkClass)).toMap
