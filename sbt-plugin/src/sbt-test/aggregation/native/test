@@ -1,0 +1,10 @@
+> benchmarksNative/Jmh/run AggregationEdgeBenchmark -foe true -o aggregation.log
+> benchmarksNative/Jmh/run NumericCounterEdgeBenchmark -foe true -rf json -rff numeric-counters.json
+> benchmarksNative/Jmh/run CounterApiEdgeProbe -foe true -to 10s -rf json -rff counter-api.json
+> benchmarksNative/Jmh/run NumericCounterEdgeBenchmark -foe true -rf text -rff counters.text
+> benchmarksNative/Jmh/run NumericCounterEdgeBenchmark -foe true -rf csv -rff counters.csv
+> benchmarksNative/Jmh/run NumericCounterEdgeBenchmark -foe true -rf scsv -rff counters.scsv
+> benchmarksNative/Jmh/run NumericCounterEdgeBenchmark -foe true -rf html -rff counters.html
+> benchmarksNative/Jmh/run NumericCounterEdgeBenchmark -foe true -rf latex -rff counters.latex
+> benchmarksNative/Jmh/run ZeroCounterTarget -bm avgt -wi 0 -i 1 -r 3ms -f 1 -foe true -rf json -rff zero-operations.json
+> verifyAggregation

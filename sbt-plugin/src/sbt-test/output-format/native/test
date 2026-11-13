@@ -1,0 +1,9 @@
+> benchmarksNative/Jmh/run TrialObserverBenchmark -foe true
+> benchmarksNative/Jmh/run OutputFormatApiBenchmark -foe true
+> benchmarksNative/Jmh/run OutputFormatEdgeApiBenchmark -foe true
+> benchmarksNative/Jmh/run OutputGroupApiBenchmark -foe true
+> benchmarksNative/Jmh/run OutputFormatListingApiBenchmark -foe true
+> benchmarksNative/Jmh/run OutputFormatCrashApiBenchmark -foe true
+> benchmarksNative/Jmh/run OutputFormatCancellationApiBenchmark -foe true
+> benchmarksNative/Jmh/run OutputFormatMutationApiBenchmark -foe true
+> benchmarksNative/Jmh/run OutputFormatReportApiBenchmark -foe true

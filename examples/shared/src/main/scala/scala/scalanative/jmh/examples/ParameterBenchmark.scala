@@ -1,31 +1,32 @@
 package scala.scalanative.jmh.examples
 
-import org.openjdk.jmh.annotations._
+import java.util.concurrent.TimeUnit
+import org.openjdk.jmh.annotations.*
 
+/** Compare decimal parsing with a counted loop and an iterator pipeline. */
 @State(Scope.Thread)
-@BenchmarkMode(Array(Mode.SingleShotTime))
-@Warmup(iterations = 0)
-@Measurement(iterations = 1)
-@Fork(1)
+@BenchmarkMode(Array(Mode.AverageTime))
+@Warmup(iterations = 3, time = 1, timeUnit = TimeUnit.SECONDS)
+@Measurement(iterations = 5, time = 1, timeUnit = TimeUnit.SECONDS)
+@Fork(2)
+@Threads(1)
+@OutputTimeUnit(TimeUnit.MICROSECONDS)
 class ParameterBenchmark {
-  @Param var mode: Mode = _
-  @Param(Array("true")) var flag: Boolean = false
-  @Param(Array("a")) var character: Char = 0
-  @Param(Array("2")) var boxed: java.lang.Integer = _
-  @Param(Array("")) var text: String = _
-  @Setup def check(): Unit = {
-    assert(
-      mode != null && flag && character == 'a' && boxed
-        .intValue() == 2 && text == ""
-    )
+  @Param(Array("64", "1024")) var size: Int = 0
+  private var records: Array[String] = _
+
+  @Setup(Level.Trial) def prepare(): Unit =
+    records = Array.tabulate(size)(i => ((i * 7919) % 1000000 - 500000).toString)
+
+  @Benchmark def parseLoop(): Long = {
+    var total = 0L
+    var i = 0
+    while (i < records.length) {
+      total += java.lang.Integer.parseInt(records(i))
+      i += 1
+    }
+    total
   }
-  @Benchmark def booleanResult(): Boolean = flag
-  @Benchmark def byteResult(): Byte = character.toByte
-  @Benchmark def charResult(): Char = character
-  @Benchmark def shortResult(): Short = character.toShort
-  @Benchmark def intResult(): Int = boxed.intValue()
-  @Benchmark def longResult(): Long = boxed.longValue()
-  @Benchmark def floatResult(): Float = boxed.floatValue()
-  @Benchmark def doubleResult(): Double = boxed.doubleValue()
-  @Benchmark def referenceResult(): String = text
+
+  @Benchmark def parseIterator(): Long = records.iterator.map(record => java.lang.Integer.parseInt(record).toLong).sum
 }

@@ -1,0 +1,4 @@
+> benchmarksJS/Jmh/run FormatterBenchmark -foe true
+> benchmarksJS/Jmh/run FormatterRawDisabledBenchmark -foe true
+> benchmarksJS/Jmh/run FormatterDeferredJsonBenchmark -foe true
+> benchmarksJS/verifyFactoryFiles

@@ -40,13 +40,13 @@ import dotty.tools.dotc.plugins.PluginPhase
 import dotty.tools.dotc.{report, transform}
 import scala.collection.mutable
 
-/** Expands the loop templates before Scala inlining. Every benchmark call and invocation fixture
-  * becomes part of the generated loop, with no callback. The Native backend subsequently processes
-  * these trees like ordinary Scala.
+/** Expands the loop templates before Scala inlining. Every benchmark call and invocation fixture becomes part of the
+  * generated loop, with no callback. The Native backend subsequently processes these trees like ordinary Scala.
   */
-final class BenchmarkHarnesses extends PluginPhase {
+final class BenchmarkHarnesses(nativeBackend: Boolean = true, jvmBackend: Boolean = false) extends PluginPhase {
   val phaseName = "scalanative-jmh-harnesses"
-  override val runsAfter = Set(transform.PostTyper.name)
+  override val runsAfter =
+    Set(transform.PostTyper.name, "benchmark-facade-annotations", "benchmark-platform-eligibility")
   override val runsBefore = Set(transform.Pickler.name)
   private val prefix = "org.openjdk.jmh.annotations."
   private val runtime = "scala.scalanative.jmh."
@@ -85,12 +85,16 @@ final class BenchmarkHarnesses extends PluginPhase {
   private def fixtures(symbol: ClassSymbol, setup: Boolean)(using
       Context
   ): List[Symbol] = {
-    val all =
-      methods(symbol).filter(s => annotation(s, if (setup) "Setup" else "TearDown").nonEmpty)
-    val order = symbol.baseClasses.reverse.zipWithIndex.toMap
-    val sorted =
-      all.sortBy(s => (order.getOrElse(s.owner.asClass, 0), s.name.toString))
-    if (setup) sorted else sorted.reverse
+    // Retain annotated declarations hidden by overrides: JMH emits each
+    // declaration's helper call, with normal virtual dispatch at the call site.
+    val all = symbol.baseClasses
+      .flatMap(_.info.decls.toList)
+      .filter(s => s.is(Method) && annotation(s, if (setup) "Setup" else "TearDown").nonEmpty)
+      .toList
+      .distinct
+    // JMH 1.37's reflection generator orders helpers by qualified method name
+    // for both setup and teardown (RFMethodInfo.compareTo).
+    all.sortBy(s => (s.owner.fullName.toString, s.name.toString))
   }
   private def arguments(
       annotation: Annotation
@@ -136,7 +140,9 @@ final class BenchmarkHarnesses extends PluginPhase {
     "EXCLUDE",
     "COMPILE_ONLY",
     "PRINT",
-    "BREAK"
+    "BREAK",
+    "OPERATIONS",
+    "EVENTS"
   )
   private def constant(tree: Tree)(using Context): Option[String] = tree match {
     case Literal(c)                         => Option(c.value).map(_.toString)
@@ -200,9 +206,8 @@ final class BenchmarkHarnesses extends PluginPhase {
   private def parameters(method: Symbol)(using Context): List[Type] = {
     def loop(tpe: Type): List[Type] = tpe match {
       case mt: MethodType => mt.paramInfos ::: loop(mt.resType)
-      case _: PolyType    =>
-        fail("Generic benchmark and fixture methods are unsupported", method)
-      case _ => Nil
+      case pt: PolyType   => loop(pt.instantiate(pt.paramInfos.map(_.hi)))
+      case _              => Nil
     }
     loop(method.info)
   }
@@ -212,17 +217,22 @@ final class BenchmarkHarnesses extends PluginPhase {
         symbol.addAnnotation(requiredClass("scala.noinline"))
       case "INLINE" =>
         symbol.addAnnotation(
-          requiredClass("scala.scalanative.annotation.alwaysinline")
+          requiredClass(if (nativeBackend) "scala.scalanative.annotation.alwaysinline" else "scala.inline")
         )
       case other =>
         fail(
-          s"CompilerControl.$other has no supported Native equivalent",
+          s"CompilerControl.$other has no supported equivalent on this backend",
           symbol
         )
     }
 
   override def transformDefDef(tree: DefDef)(using Context): Tree = {
     try {
+      if (
+        jvmBackend || (tree.symbol.owner.isClass &&
+          !PlatformEligibility.effective(tree.symbol.owner.asClass, Some(tree.symbol)).supports(nativeBackend))
+      )
+        return tree
       val control = annotation(tree.symbol, "CompilerControl").orElse(
         annotation(tree.symbol.owner, "CompilerControl")
       )
@@ -307,19 +317,64 @@ final class BenchmarkHarnesses extends PluginPhase {
     // The source unit may contain no user-written inline call. Inlining skips
     // such units unless generators explicitly request traversal.
     ctx.compilationUnit.needsInlining = true
-    val benchmarks =
+    val inventory =
       (if (benchmarkClass.isOneOf(ModuleClass | Abstract | Trait)) Nil
        else methods(benchmarkClass))
-        .filter(annotation(_, "Benchmark").nonEmpty)
+        .filter(m => (m :: m.allOverriddenSymbols.toList).exists(annotation(_, "Benchmark").nonEmpty))
         .sortBy(_.name.toString)
-    if (benchmarks.map(_.name).distinct.size != benchmarks.size)
-      fail("Overloaded @Benchmark methods are unsupported", benchmarkClass)
-    val states = mutable.ArrayBuffer.empty[ClassSymbol]
+    inventory.foreach { method =>
+      val restriction = PlatformEligibility.effective(benchmarkClass, Some(method))
+      if (restriction.allowed.isEmpty)
+        fail(
+          "Empty effective @Platforms intersection for " + benchmarkClass.fullName.toString + "." + method.name.toString +
+            (if (restriction.reasons.isEmpty) "" else ": " + restriction.reasons.mkString("; ")),
+          benchmarkClass
+        )
+    }
+    def groupName(method: Symbol): String = value(annotation(method, "Group"), "value", method.name.toString)
+    val groups = inventory.groupBy(groupName)
+    def restrictions(method: Symbol): PlatformEligibility.Restriction = {
+      val entries = groups(groupName(method)).map(m => PlatformEligibility.effective(benchmarkClass, Some(m)))
+      PlatformEligibility.Restriction(
+        entries.foldLeft(PlatformEligibility.all)((allowed, r) => allowed.filter(r.allowed.contains)),
+        entries.flatMap(_.reasons).distinct
+      )
+    }
+    groups.values.foreach { members =>
+      if (restrictions(members.head).allowed.isEmpty)
+        fail("Empty effective @Platforms intersection for group " + groupName(members.head), benchmarkClass)
+    }
+    val benchmarks = inventory.filter(m => !jvmBackend && restrictions(m).supports(nativeBackend))
+    benchmarks.groupBy(groupName).values.foreach { members =>
+      if (members.map(_.name).distinct.size != members.size)
+        fail("Duplicate @Benchmark method name within a group", benchmarkClass)
+    }
+    if (jvmBackend) return generateJvmInventory(benchmarkClass, inventory)
+    val stateClasses = mutable.ArrayBuffer.empty[ClassSymbol]
     val dependencies = mutable.Map.empty[ClassSymbol, List[ClassSymbol]]
     val active = mutable.Set.empty[ClassSymbol]
+    val auxMembers = mutable.Map.empty[ClassSymbol, List[Symbol]]
+    val numeric = Set(
+      "scala.Byte",
+      "scala.Short",
+      "scala.Int",
+      "scala.Long",
+      "scala.Float",
+      "scala.Double",
+      "java.lang.Byte",
+      "java.lang.Short",
+      "java.lang.Integer",
+      "java.lang.Long",
+      "java.lang.Float",
+      "java.lang.Double"
+    )
+    def counterKind(cls: ClassSymbol): String = value(inherited(cls, "AuxCounters"), "value", "OPERATIONS")
     val special = Set(
       "org.openjdk.jmh.infra.Blackhole",
-      "org.openjdk.jmh.infra.ThreadParams"
+      "org.openjdk.jmh.infra.ThreadParams",
+      "org.openjdk.jmh.infra.BenchmarkParams",
+      "org.openjdk.jmh.infra.IterationParams",
+      "org.openjdk.jmh.infra.Control"
     )
     def stateArguments(method: Symbol): List[ClassSymbol] =
       parameters(method).flatMap { tpe =>
@@ -333,26 +388,37 @@ final class BenchmarkHarnesses extends PluginPhase {
         ) List(cls.asClass)
         else
           fail(
-            "Arguments must be @State classes, Blackhole or ThreadParams",
+            "Arguments must be @State classes or JMH infrastructure (Blackhole, *Params, Control)",
             method
           )
       }
     def visit(cls: ClassSymbol): Unit = {
       if (active(cls)) fail("Cycle in @State dependencies", cls)
-      if (!states.contains(cls)) {
+      if (!stateClasses.contains(cls)) {
         if (
-          cls.isOneOf(Abstract | Trait | ModuleClass) || !cls.owner.is(
-            Package
-          )
+          cls.isOneOf(Abstract | Trait | ModuleClass) ||
+          !(cls.owner.is(Package) || cls.owner.is(ModuleClass))
         )
-          fail("Benchmark states must be concrete top-level classes", cls)
+          fail("Benchmark states must be concrete classes at package or object scope", cls)
         if (!cls.info.decls.exists(s => s.isConstructor && parameters(s).isEmpty && !s.is(Private)))
           fail("Benchmark states require a public no-argument constructor", cls)
         val scope = value(inherited(cls, "State"), "value", "Thread")
-        if (scope == "Group")
-          fail("Scope.Group is not supported by Native JMH yet", cls)
-        if (annotation(cls, "AuxCounters").nonEmpty)
-          fail("AuxCounters is not supported by Native JMH yet", cls)
+        if (inherited(cls, "AuxCounters").nonEmpty) {
+          if (scope != "Thread") fail("@AuxCounters requires Scope.Thread", cls)
+          val members = cls.info.decls
+            .filter(s =>
+              s.isTerm && !s.isConstructor && !s.isOneOf(Private | Protected) &&
+                !s.privateWithin.exists && (!s.is(Method) || !(s.info.finalResultType =:= defn.UnitType))
+            )
+            .toList
+          members.foreach { member =>
+            if (!numeric(member.info.finalResultType.classSymbol.fullName.toString))
+              fail("Public auxiliary counters must have numeric types", member)
+            if (member.is(Method) && parameters(member).nonEmpty)
+              fail("Auxiliary counter methods must have no arguments", member)
+          }
+          auxMembers(cls) = members.sortBy(_.name.toString)
+        }
         active += cls
         val helpers = fixtures(cls, true) ::: fixtures(cls, false)
         helpers.foreach { m =>
@@ -364,33 +430,62 @@ final class BenchmarkHarnesses extends PluginPhase {
             fail("Fixture methods must be public and return Unit", m)
         }
         val deps = helpers.flatMap(stateArguments).distinct
+        def rank(scope: String): Int = scope match {
+          case "Benchmark" => 0
+          case "Group"     => 1
+          case _           => 2
+        }
+        if (deps.exists(dep => rank(scope) < rank(value(inherited(dep, "State"), "value", "Thread"))))
+          fail("A state cannot depend on a state with a narrower sharing scope", cls)
         dependencies(cls) = deps
         deps.foreach(visit)
         active -= cls
-        states += cls
+        stateClasses += cls
       }
     }
     if (benchmarks.nonEmpty) visit(benchmarkClass)
     benchmarks.foreach { m =>
       if (m.isOneOf(Private | Protected | Abstract) || m.privateWithin.exists)
         fail("Benchmark methods must be public and concrete", m)
-      if (
-        annotation(m, "Group").nonEmpty || annotation(
-          m,
-          "GroupThreads"
-        ).nonEmpty
-      )
-        fail("Benchmark groups are not supported by Native JMH yet", m)
+      if (annotation(m, "Group").nonEmpty && annotation(m, "Threads").nonEmpty)
+        fail("@Threads is ambiguous on a grouped method; use @GroupThreads", m)
+      if (annotation(m, "GroupThreads").nonEmpty && annotation(m, "Group").isEmpty)
+        fail("@GroupThreads requires @Group", m)
       stateArguments(m).foreach(visit)
     }
-    def id(cls: ClassSymbol): Int = states.indexOf(cls)
-    def reachable(method: Symbol): List[ClassSymbol] = {
-      def walk(cls: ClassSymbol): List[ClassSymbol] =
-        dependencies(cls).flatMap(walk) ::: List(cls)
-      (walk(benchmarkClass) ::: stateArguments(method).flatMap(walk)).distinct
+    // JMH allocates Thread state per injection site. Benchmark/Group states
+    // collapse by class, with runtime workers applying their sharing scope.
+    case class StateInstance(cls: ClassSymbol, id: Int, arguments: Map[Symbol, List[Int]]) {
+      def dependencies: List[Int] = arguments.values.flatten.toList.distinct.sorted
     }
-
-    val suiteType = requiredClassRef(runtime + "Suite")
+    val instances = mutable.ArrayBuffer.empty[StateInstance]
+    val sharedInstances = mutable.Map.empty[ClassSymbol, Int]
+    def instantiateState(cls: ClassSymbol): Int = sharedInstances.getOrElse(
+      cls, {
+        val arguments = (fixtures(cls, true) ::: fixtures(cls, false)).distinct.map { helper =>
+          helper -> stateArguments(helper).map(instantiateState)
+        }.toMap
+        val id = instances.size
+        instances += StateInstance(cls, id, arguments)
+        if (value(inherited(cls, "State"), "value", "Thread") != "Thread") sharedInstances(cls) = id
+        id
+      }
+    )
+    val holders = benchmarks.map(m => m -> instantiateState(benchmarkClass)).toMap
+    val benchmarkArguments = benchmarks.map(m => m -> stateArguments(m).map(instantiateState)).toMap
+    def reachable(method: Symbol): List[Int] = {
+      def walk(id: Int): List[Int] = instances(id).dependencies.flatMap(walk) ::: List(id)
+      (walk(holders(method)) ::: benchmarkArguments(method).flatMap(walk)).distinct
+    }
+    def counters(method: Symbol): List[(Int, Symbol)] = {
+      val members = reachable(method).flatMap(id => auxMembers.getOrElse(instances(id).cls, Nil).map(id -> _))
+      if (members.map(_._2.name.toString).distinct.size != members.size)
+        fail("Conflicting auxiliary counter names injected into benchmark", method)
+      members
+    }
+    val suiteType = requiredClassRef(
+      if (jvmBackend) "scala.benchmark.internal.BenchmarkInventory" else runtime + "Suite"
+    )
     val environmentType = requiredClassRef(runtime + "Environment")
     val controlType = requiredClassRef(runtime + "IterationControl")
     val rawType = requiredClassRef(runtime + "RawResult")
@@ -410,6 +505,7 @@ final class BenchmarkHarnesses extends PluginPhase {
       case v: Int     => Constant(v)
       case v: Boolean => Constant(v)
       case v: Long    => Constant(v)
+      case v: Double  => Constant(v)
       case _          =>
         throw new IllegalArgumentException(s"Unsupported literal $value")
     })
@@ -417,21 +513,31 @@ final class BenchmarkHarnesses extends PluginPhase {
       target
         .select(target.tpe.widen.classSymbol.requiredMethod(name))
         .appliedToArgs(args.toList)
-    def state(env: Tree, cls: ClassSymbol): Tree =
-      call(env, "state", literal(id(cls))).cast(cls.typeRef)
-    def injected(env: Tree, tpe: Type): Tree =
+    def state(env: Tree, id: Int): Tree =
+      call(env, "state", literal(id)).cast(instances(id).cls.typeRef)
+    def injected(env: Tree, tpe: Type, stateId: => Int): Tree =
       tpe.classSymbol.fullName.toString match {
         case "org.openjdk.jmh.infra.Blackhole" =>
           env.select(environmentType.classSymbol.requiredMethod("blackhole"))
         case "org.openjdk.jmh.infra.ThreadParams" =>
           env.select(environmentType.classSymbol.requiredMethod("threadParams"))
-        case _ => state(env, tpe.classSymbol.asClass)
+        case "org.openjdk.jmh.infra.BenchmarkParams" =>
+          env.select(environmentType.classSymbol.requiredMethod("benchmarkParams"))
+        case "org.openjdk.jmh.infra.IterationParams" =>
+          env.select(environmentType.classSymbol.requiredMethod("iterationParams"))
+        case "org.openjdk.jmh.infra.Control" =>
+          env.select(environmentType.classSymbol.requiredMethod("notifyControl"))
+        case _ => state(env, stateId)
       }
-    def invoke(target: Tree, method: Symbol, env: Tree): Tree = {
+    def invoke(target: Tree, method: Symbol, env: Tree, arguments: List[Int] = Nil): Tree = {
+      val states = arguments.iterator
       def applyLists(tree: Tree, tpe: Type): Tree = tpe match {
+        case pt: PolyType =>
+          val types = pt.paramInfos.map(_.hi)
+          applyLists(tree.appliedToTypes(types), pt.instantiate(types))
         case mt: MethodType =>
           applyLists(
-            tree.appliedToArgs(mt.paramInfos.map(injected(env, _))),
+            tree.appliedToArgs(mt.paramInfos.map(tpe => injected(env, tpe, states.next()))),
             mt.resType
           )
         case _ => tree
@@ -457,32 +563,77 @@ final class BenchmarkHarnesses extends PluginPhase {
         If(selector.select(defn.Int_==).appliedTo(literal(n)), body, next)
       }
     def helpers(
-        cls: ClassSymbol,
+        stateId: Int,
         isSetup: Boolean,
         lvl: Int,
         target: Tree,
         env: Tree
     ): Tree =
       Block(
-        fixtures(cls, isSetup)
+        fixtures(instances(stateId).cls, isSetup)
           .filter(level(_, isSetup) == lvl)
-          .map(invoke(target, _, env)),
+          .map(m => invoke(target, m, env, instances(stateId).arguments(m))),
         unitLiteral
       )
 
-    val metadata = benchmarks.map { benchmark =>
+    val entries = groups.toList.sortBy(_._1).map(_._2.head)
+    val metadata = entries.map { benchmark =>
       val props = mutable.Map.empty[String, String]
       def put(key: String, v: String): Unit = props(key) = v
-      def config(name: String): Option[Annotation] =
-        annotation(benchmark, name).orElse(inherited(benchmarkClass, name))
+      val groupMembers = groups(groupName(benchmark))
+      val annotationCache = mutable.Map.empty[String, List[Annotation]]
+      def groupAnnotations(name: String): List[Annotation] = annotationCache.getOrElseUpdate(
+        name, {
+          def signature(ann: Annotation): Map[String, List[String]] =
+            arguments(ann).flatMap { case (key, tree) =>
+              val values = constant(tree).toList match {
+                case Nil    => strings(tree)
+                case values => values
+              }
+              val blank = values.isEmpty || values == List("blank_blank_blank_2014") ||
+                (Set("Warmup", "Measurement", "Fork")(name) && values == List("-1")) ||
+                (key == "timeUnit" && values == List("SECONDS"))
+              if (blank) None else Some(key -> values)
+            }
+          val inheritedAnnotations = benchmarkClass.baseClasses.filterNot(_.is(Trait)).flatMap(annotation(_, name))
+          var result = List.empty[Annotation]
+          groupMembers.foreach { method =>
+            val annotations = annotation(method, name).toList ::: inheritedAnnotations
+            if (result.nonEmpty && annotations.nonEmpty && result.map(signature) != annotations.map(signature))
+              fail(s"Colliding $name annotations in group ${groupName(benchmark)}", method)
+            result = annotations
+          }
+          result
+        }
+      )
+      def config(name: String): Option[Annotation] = groupAnnotations(name).headOption
+      def groupValue(name: String, argument: String, default: String): String =
+        groupAnnotations(name).iterator
+          .map(ann => value(Some(ann), argument, default))
+          .find { v =>
+            v != "blank_blank_blank_2014" &&
+            !(Set("Warmup", "Measurement", "Fork")(name) && v == "-1")
+          }
+          .getOrElse(default)
       put(
         "name",
-        benchmarkClass.fullName.toString + "." + benchmark.name.toString
+        benchmarkClass.fullName.toString + "." + value(annotation(benchmark, "Group"), "value", benchmark.name.toString)
       )
-      val modes = config("BenchmarkMode")
-        .flatMap(a => arguments(a).get("value"))
-        .map(enums)
-        .getOrElse(List("Throughput"))
+      put("generatedTarget", benchmarkClass.fullName.toString + suffix + ".measure")
+      val restriction = restrictions(benchmark)
+      put("platforms", restriction.allowed.mkString(","))
+      put("platformReasons", restriction.reasons.size.toString)
+      restriction.reasons.zipWithIndex.foreach { case (reason, i) => put(s"platformReason.$i", reason) }
+      val declaredModes = groupMembers
+        .flatMap(m =>
+          annotation(m, "BenchmarkMode")
+            .orElse(inherited(benchmarkClass, "BenchmarkMode"))
+            .flatMap(a => arguments(a).get("value"))
+            .toList
+            .flatMap(enums)
+        )
+        .distinct
+      val modes = if (declaredModes.isEmpty) List("Throughput") else declaredModes
       put(
         "modes",
         (if (modes.contains("All"))
@@ -495,7 +646,7 @@ final class BenchmarkHarnesses extends PluginPhase {
           key: String,
           allowZero: Boolean = false
       ): Unit = {
-        val v = value(config(ann), arg, "-1").toInt
+        val v = groupValue(ann, arg, "-1").toInt
         if (v != -1) {
           if (v < (if (allowZero) 0 else 1))
             fail(s"Invalid $ann.$arg: $v", benchmark)
@@ -503,12 +654,15 @@ final class BenchmarkHarnesses extends PluginPhase {
         }
       }
       def duration(ann: String, key: String): Unit = {
-        val time = value(config(ann), "time", "-1").toLong
-        if (time != -1) {
-          if (time <= 0) fail(s"$ann.time must be positive", benchmark)
-          val unit = java.util.concurrent.TimeUnit
-            .valueOf(value(config(ann), "timeUnit", "SECONDS"))
+        val declared = groupAnnotations(ann).find(a => value(Some(a), "time", "-1") != "-1")
+        declared.foreach { annotation =>
+          val time = value(Some(annotation), "time", "-1").toLong
+          if (time < 0) fail(s"$ann.time must be nonnegative", benchmark)
+          val unit = java.util.concurrent.TimeUnit.valueOf(value(Some(annotation), "timeUnit", "SECONDS"))
           put(key, unit.toNanos(time).toString)
+          val prefix = if (ann == "Warmup") "warmup" else if (ann == "Measurement") "measurement" else "timeout"
+          put(prefix + "TimeValue", time.toString)
+          put(prefix + "TimeUnit", unit.name())
         }
       }
       number("Warmup", "iterations", "warmupIterations", true)
@@ -520,16 +674,35 @@ final class BenchmarkHarnesses extends PluginPhase {
       duration("Timeout", "timeoutNanos")
       number("Fork", "value", "forks", true);
       number("Fork", "warmups", "warmupForks", true)
-      val threads = value(config("Threads"), "value", "1")
+      val threads = groupValue("Threads", "value", "1")
       put("threads", threads)
       number("OperationsPerInvocation", "value", "operationsPerInvocation")
-      put("unit", value(config("OutputTimeUnit"), "value", "SECONDS"))
-      val used = reachable(benchmark)
-      put("states", used.map(id).mkString(","))
-      used.foreach { cls =>
-        val pre = s"state.${id(cls)}."
+      put("unit", groupValue("OutputTimeUnit", "value", "SECONDS"))
+      val members = groups(groupName(benchmark))
+      val grouped = members.exists(annotation(_, "Group").nonEmpty)
+      val eligible = benchmarks.contains(benchmark)
+      val used = if (eligible) members.flatMap(reachable).distinct else Nil
+      if (
+        eligible && !grouped && used
+          .exists(id => value(inherited(instances(id).cls, "State"), "value", "Thread") == "Group")
+      )
+        fail("Scope.Group requires a grouped benchmark", benchmark)
+      if (grouped) {
+        put("members", members.size.toString)
+        members.zipWithIndex.foreach { case (member, index) =>
+          val threads = value(annotation(member, "GroupThreads"), "value", "1").toInt
+          if (threads < 0) fail("GroupThreads must be nonnegative", member)
+          put(s"member.$index.name", member.name.toString)
+          put(s"member.$index.threads", threads.toString)
+          put(s"member.$index.states", (if (eligible) reachable(member) else Nil).mkString(","))
+        }
+      }
+      put("states", used.mkString(","))
+      used.foreach { stateId =>
+        val cls = instances(stateId).cls
+        val pre = s"state.$stateId."
         put(pre + "scope", value(inherited(cls, "State"), "value", "Thread"))
-        put(pre + "dependencies", dependencies(cls).map(id).mkString(","))
+        put(pre + "dependencies", instances(stateId).dependencies.mkString(","))
         val params = fields(cls)
         put(pre + "params", params.map(_.name.toString).distinct.mkString(","))
         params.foreach { field =>
@@ -552,11 +725,37 @@ final class BenchmarkHarnesses extends PluginPhase {
                 .map(_.name.toString)
                 .toList
             } else values
+          if (eligible) actual.foreach { text =>
+            val valid = try {
+              field.info.classSymbol.fullName.toString match {
+                case "scala.Boolean" | "java.lang.Boolean" => text == "true" || text == "false"
+                case "scala.Char" | "java.lang.Character"  => text.length == 1
+                case "scala.Byte" | "java.lang.Byte"       => java.lang.Byte.parseByte(text); true
+                case "scala.Short" | "java.lang.Short"     => java.lang.Short.parseShort(text); true
+                case "scala.Int" | "java.lang.Integer"     => java.lang.Integer.parseInt(text); true
+                case "scala.Long" | "java.lang.Long"       => java.lang.Long.parseLong(text); true
+                case "scala.Float" | "java.lang.Float"     => java.lang.Float.parseFloat(text); true
+                case "scala.Double" | "java.lang.Double"   => java.lang.Double.parseDouble(text); true
+                case _                                     => true
+              }
+            } catch { case _: NumberFormatException => false }
+            if (!valid) fail(s"Invalid @Param value '$text' for ${field.name}", field)
+          }
           put(pre + s"param.${field.name}.count", actual.size.toString)
           actual.zipWithIndex.foreach { case (v, i) =>
             put(pre + s"param.${field.name}.$i", v)
           }
         }
+      }
+      val counterEntries = if (eligible) members.zipWithIndex.flatMap { case (method, member) =>
+        counters(method).map { case (cls, counter) => (counter.name.toString, counterKind(instances(cls).cls), member) }
+      }
+      else Nil
+      put("counters", counterEntries.size.toString)
+      counterEntries.zipWithIndex.foreach { case ((name, kind, member), i) =>
+        put(s"counter.$i.name", name)
+        put(s"counter.$i.kind", kind)
+        put(s"counter.$i.member", member.toString)
       }
       val ignored = config("Fork").toList
         .flatMap(arguments)
@@ -600,7 +799,7 @@ final class BenchmarkHarnesses extends PluginPhase {
     ) { args =>
       choose(
         args.head,
-        states.toList.map(cls => id(cls) -> New(cls.typeRef, Nil)),
+        instances.toList.map(i => i.id -> New(i.cls.typeRef, Nil)),
         nullLiteral
       )
     }
@@ -611,7 +810,8 @@ final class BenchmarkHarnesses extends PluginPhase {
       defn.UnitType
     ) { args =>
       val List(which, target, parameter, text) = args: @unchecked
-      val cases = states.toList.map { cls =>
+      val cases = instances.toList.map { instance =>
+        val cls = instance.cls
         val assignments = fields(cls).map { field =>
           val bridge = field.owner.info
             .member(bridgeName(field))
@@ -623,8 +823,8 @@ final class BenchmarkHarnesses extends PluginPhase {
             )
           val typeName = field.info.classSymbol.fullName.toString
           val conversion = Map(
-            "scala.Boolean" -> "boolean",
-            "java.lang.Boolean" -> "boolean",
+            "scala.Boolean" -> "paramBoolean",
+            "java.lang.Boolean" -> "paramBoolean",
             "scala.Byte" -> "byte",
             "java.lang.Byte" -> "byte",
             "scala.Short" -> "short",
@@ -667,7 +867,7 @@ final class BenchmarkHarnesses extends PluginPhase {
             unitLiteral
           )
         }
-        id(cls) -> Block(assignments, unitLiteral)
+        instance.id -> Block(assignments, unitLiteral)
       }
       choose(which, cases, unitLiteral)
     }
@@ -680,15 +880,61 @@ final class BenchmarkHarnesses extends PluginPhase {
       val List(which, lvl, target, env) = args: @unchecked
       choose(
         which,
-        states.toList.map { cls =>
-          id(cls) -> choose(
+        instances.toList.map { instance =>
+          val cls = instance.cls
+          instance.id -> choose(
             lvl,
-            (0 to 2).toList.map(n => n -> helpers(cls, setup, n, target.cast(cls.typeRef), env)),
+            (0 to 2).toList.map(n => n -> helpers(instance.id, setup, n, target.cast(cls.typeRef), env)),
             unitLiteral
           )
         },
         unitLiteral
       )
+    }
+    def auxiliaryMethod(reset: Boolean): DefDef = method(
+      if (reset) "resetAuxiliary" else "auxiliary",
+      List("benchmark", "environment"),
+      List(defn.IntType, environmentType),
+      if (reset) defn.UnitType else defn.ArrayOf(defn.DoubleType)
+    ) { args =>
+      val List(which, env) = args: @unchecked
+      val cases = entries.zipWithIndex.filter(p => benchmarks.contains(p._1)).map { case (head, index) =>
+        val alternatives = groups(groupName(head)).zipWithIndex.map { case (benchmark, subgroup) =>
+          val values = counters(benchmark).flatMap { case (cls, counter) =>
+            val accessor =
+              if (counter.is(Method)) invoke(state(env, cls), counter, env) else state(env, cls).select(counter)
+            if (reset) {
+              // Scala vars become accessor methods on JVM; JMH does not reset
+              // them as Java public fields. Keep the shared-source behavior.
+              if (counter.is(Method) || !instances(cls).cls.is(JavaDefined)) Nil
+              else {
+                val tpe = counter.info.classSymbol.fullName.toString
+                val values = requiredModule(runtime + "Values")
+                val zero =
+                  if (tpe.startsWith("java.lang."))
+                    call(ref(values), "zero", literal(tpe)).cast(counter.info)
+                  else call(ref(values), tpe.stripPrefix("scala.").toLowerCase, literal("0"))
+                List(Assign(accessor, zero))
+              }
+            } else
+              List(
+                If(
+                  call(env, "counterEnabled", literal(counterKind(instances(cls).cls))),
+                  call(ref(requiredModule(runtime + "Values")), "counter", accessor),
+                  literal(0.0)
+                )
+              )
+          }
+          subgroup -> (if (reset) Block(values, unitLiteral) else JavaSeqLiteral(values, TypeTree(defn.DoubleType)))
+        }
+        val subgroup = call(env.select(environmentType.classSymbol.requiredMethod("threadParams")), "getSubgroupIndex")
+        index -> choose(
+          subgroup,
+          alternatives,
+          if (reset) unitLiteral else JavaSeqLiteral(Nil, TypeTree(defn.DoubleType))
+        )
+      }
+      choose(which, cases, if (reset) unitLiteral else JavaSeqLiteral(Nil, TypeTree(defn.DoubleType)))
     }
     val measure = method(
       "measure",
@@ -697,14 +943,16 @@ final class BenchmarkHarnesses extends PluginPhase {
       rawType
     ) { args =>
       val List(which, env, control) = args: @unchecked
-      val cases = benchmarks.zipWithIndex.map { case (benchmark, index) =>
-        val invocation = invoke(state(env, benchmarkClass), benchmark, env)
+      val cases = benchmarks.map { benchmark =>
+        val index = inventory.indexOf(benchmark)
+        val invocation = invoke(state(env, holders(benchmark)), benchmark, env, benchmarkArguments(benchmark))
         val consumed =
           if (benchmark.info.finalResultType =:= defn.UnitType) invocation
           else {
             val blackhole = injected(
               env,
-              requiredClassRef("org.openjdk.jmh.infra.Blackhole")
+              requiredClassRef("org.openjdk.jmh.infra.Blackhole"),
+              -1
             )
             val overloads = blackhole.tpe.classSymbol.info
               .member("consume".toTermName)
@@ -719,8 +967,8 @@ final class BenchmarkHarnesses extends PluginPhase {
             blackhole.select(consumer.symbol).appliedTo(invocation)
           }
         val used = reachable(benchmark)
-        val hasInvocation = used.exists(cls =>
-          (fixtures(cls, true) ::: fixtures(cls, false)).exists(m =>
+        val hasInvocation = used.exists(id =>
+          (fixtures(instances(id).cls, true) ::: fixtures(instances(id).cls, false)).exists(m =>
             annotation(m, "Setup")
               .map(_ => level(m, true))
               .getOrElse(level(m, false)) == 2
@@ -730,16 +978,16 @@ final class BenchmarkHarnesses extends PluginPhase {
           val order = if (setup) used else used.reverse
           Block(
             order
-              .filter(cls => fixtures(cls, setup).exists(level(_, setup) == 2))
-              .map { cls =>
+              .filter(id => fixtures(instances(id).cls, setup).exists(level(_, setup) == 2))
+              .map { stateId =>
                 env
                   .select(
                     environmentType.classSymbol.requiredMethod("guarded")
                   )
                   .appliedToArgs(
-                    List(literal(id(cls)), literal(2), literal(setup))
+                    List(literal(stateId), literal(2), literal(setup))
                   )
-                  .appliedTo(helpers(cls, setup, 2, state(env, cls), env))
+                  .appliedTo(helpers(stateId, setup, 2, state(env, stateId), env))
               },
             unitLiteral
           )
@@ -756,21 +1004,36 @@ final class BenchmarkHarnesses extends PluginPhase {
               literal(hasInvocation),
               consumed,
               inlineFixtures(true),
-              inlineFixtures(false)
+              inlineFixtures(false),
+              env.select(environmentType.classSymbol.requiredMethod("notifyControl"))
             )
           )
       }
+      val byIndex = cases.toMap
+      val dispatched = groups.toList.sortBy(_._1).flatMap { case (_, members) =>
+        val eligible = members.filter(benchmarks.contains)
+        eligible.headOption.map { head =>
+          val subgroup =
+            call(env.select(environmentType.classSymbol.requiredMethod("threadParams")), "getSubgroupIndex")
+          entries.indexOf(head) -> choose(
+            subgroup,
+            eligible.zipWithIndex.map { case (member, i) => i -> byIndex(inventory.indexOf(member)) },
+            Throw(New(requiredClassRef("java.lang.IllegalArgumentException"), Nil))
+          )
+        }
+      }
       choose(
         which,
-        cases,
+        dispatched,
         Throw(New(requiredClassRef("java.lang.IllegalArgumentException"), Nil))
       )
     }
     measure.symbol.addAnnotation(requiredClass("scala.noinline"))
     // Avoid a parameter-specialized copy of the outer harness boundary.
-    measure.symbol.addAnnotation(
-      requiredClass("scala.scalanative.annotation.nospecialize")
-    )
+    if (nativeBackend)
+      measure.symbol.addAnnotation(
+        requiredClass("scala.scalanative.annotation.nospecialize")
+      )
     ModuleDef(
       module,
       List(
@@ -779,8 +1042,50 @@ final class BenchmarkHarnesses extends PluginPhase {
         assign,
         fixtureDef(true),
         fixtureDef(false),
+        auxiliaryMethod(true),
+        auxiliaryMethod(false),
         measure
       )
     )
   }
+  private def generateJvmInventory(cls: ClassSymbol, benchmarks: List[Symbol])(using Context): Tree = {
+    val module = newCompleteModuleSymbol(
+      cls.owner,
+      (className(cls) + suffix).toTermName,
+      Synthetic,
+      Synthetic,
+      List(defn.ObjectType, requiredClassRef("scala.benchmark.internal.BenchmarkInventory")),
+      newScope,
+      coord = cls.span
+    ).entered
+    val owner = module.moduleClass.asClass
+    dotty.tools.dotc.sbt.APIUtils.registerDummyClass(owner)
+    val metadata =
+      newSymbol(owner, "metadata".toTermName, Method, MethodType(Nil, Nil, defn.ArrayOf(defn.StringType))).entered
+    def escape(v: String): String = v.flatMap {
+      case '\\'                     => "\\\\"
+      case '\n'                     => "\\n"
+      case '\r'                     => "\\r"
+      case '\t'                     => "\\t"
+      case c if " =:#!".contains(c) => "\\" + c
+      case c                        => c.toString
+    }
+    val entries =
+      benchmarks.groupBy(m => value(annotation(m, "Group"), "value", m.name.toString)).toList.sortBy(_._1).map {
+        case (name, members) =>
+          val restrictions = members.map(m => PlatformEligibility.effective(cls, Some(m)))
+          val allowed =
+            restrictions.foldLeft(PlatformEligibility.all)((allowed, r) => allowed.filter(r.allowed.contains))
+          val reasons = restrictions.flatMap(_.reasons).distinct
+          val props = List(
+            "name" -> (cls.fullName.toString + "." + name),
+            "platforms" -> allowed.mkString(","),
+            "platformReasons" -> reasons.size.toString
+          ) :::
+            reasons.zipWithIndex.map { case (reason, i) => s"platformReason.$i" -> reason }
+          Literal(Constant(props.map { case (k, v) => escape(k) + "=" + escape(v) }.mkString("\n")))
+      }
+    ModuleDef(module, List(DefDef(metadata.asTerm, _ => JavaSeqLiteral(entries, TypeTree(defn.StringType)))))
+  }
+
 }

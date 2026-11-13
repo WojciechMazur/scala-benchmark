@@ -1,0 +1,4 @@
+> benchmarks/Jmh/run FormatterBenchmark -foe true
+> benchmarks/Jmh/run FormatterRawDisabledBenchmark -foe true
+> benchmarks/Jmh/run FormatterDeferredJsonBenchmark -foe true
+> benchmarks/verifyFactoryFiles

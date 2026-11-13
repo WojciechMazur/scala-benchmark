@@ -1,0 +1,1 @@
+> benchmarksNative/Jmh/run ResultExtensionBenchmark -foe true

@@ -1,107 +1,72 @@
 import sbt.{*, given}
-import scala.scalanative.sbtplugin.ScalaNativePlugin
-import scala.scalanative.sbtplugin.ScalaNativePlugin.autoImport.*
-import org.scalajs.sbtplugin.ScalaJSPlugin
-import scala.benchmark.sbtplugin.{BenchmarkVersion, NativeBenchmarkPlugin}
+import sbt.io.Hash
+import java.io.File
+import pl.project13.scala.sbt.JmhPlugin
 import scala.benchmark.sbtplugin.NativeBenchmarkPlugin.autoImport.*
+import BuildSettings.*
+import BuildPlatforms.*
+import ScriptedPlugin.autoImport.*
+import sbtbuildinfo.BuildInfoPlugin
 
-ThisBuild / organization := "org.scala-native"
-ThisBuild / version := BenchmarkVersion.value
-ThisBuild / scalaVersion := "3.3.8"
-ThisBuild / crossScalaVersions := Seq("3.3.8", "3.9.0")
-ThisBuild / homepage := Some(uri("https://github.com/scala-native/scala-benchmark"))
-ThisBuild / licenses := Seq(
-  "GPLv2 with Classpath Exception" -> uri("https://openjdk.org/legal/gplv2+ce.html")
-)
-ThisBuild / scalacOptions ++= Seq("-deprecation", "-feature", "-unchecked")
-
-def sharedSettings(module: String) = Seq(
-  name := "benchmark-" + module,
-  exportJars := true,
-  Compile / unmanagedSourceDirectories += (ThisBuild / baseDirectory).value / module / "shared/src/main/scala",
-  Compile / packageBin / mappings ++= Def.uncached {
-    val root = (ThisBuild / baseDirectory).value
-    val converter = fileConverter.value
-    Seq("LICENSE", "NOTICE").map(name => converter.toVirtualFile((root / name).toPath) -> name)
-  },
-  Compile / packageSrc / mappings ++= Def.uncached {
-    val root = (ThisBuild / baseDirectory).value
-    val converter = fileConverter.value
-    Seq("LICENSE", "NOTICE").map(name => converter.toVirtualFile((root / name).toPath) -> name)
-  }
-)
+organization := "org.scala-native"
+version := projectVersion
+scalaVersion := defaultScalaVersion
+crossScalaVersions := supportedScalaVersions
+homepage := Some(uri("https://github.com/scala-native/scala-benchmark"))
+licenses := Seq("GPLv2 with Classpath Exception" -> uri("https://openjdk.org/legal/gplv2+ce.html"))
+scalacOptions ++= Seq("-deprecation", "-feature", "-unchecked")
 
 lazy val root = project
   .in(file("."))
   .aggregate(
-    coreJVM,
-    coreNative,
-    coreJS,
-    jmhApiJVM,
-    jmhApiNative,
-    jmhApiJS,
-    runtimeJVM,
-    runtimeNative,
-    runtimeJS,
-    compilerPlugin,
-    nativeExamples,
-    jvmExamples,
-    jsExamples,
-    sbtScalaBenchmark
+    (Seq(interface, runtime, examples)
+      .flatMap(_.projectRefs) ++ Seq(LocalProject(compilerPlugin.id), LocalProject(sbtPlugin.id))) *
   )
   .settings(name := "scala-benchmark", publish / skip := true)
 
-lazy val coreJVM = project.in(file("core/jvm")).settings(sharedSettings("core"))
-lazy val coreNative =
-  project.in(file("core/native")).enablePlugins(ScalaNativePlugin).settings(sharedSettings("core"))
-lazy val coreJS =
-  project.in(file("core/js")).enablePlugins(ScalaJSPlugin).settings(sharedSettings("core"))
-
-lazy val jmhApiJVM = project.in(file("jmh-api/jvm")).settings(sharedSettings("jmh-api"))
-lazy val jmhApiNative = project
-  .in(file("jmh-api/native"))
-  .enablePlugins(ScalaNativePlugin)
-  .settings(sharedSettings("jmh-api"))
-lazy val jmhApiJS =
-  project.in(file("jmh-api/js")).enablePlugins(ScalaJSPlugin).settings(sharedSettings("jmh-api"))
-
-lazy val runtimeJVM = project
-  .in(file("runtime/jvm"))
-  .dependsOn(coreJVM, jmhApiJVM)
-  .settings(sharedSettings("runtime"))
-  .settings(
-    publish / skip := true, // Deterministic test backend; JVM benchmarks use upstream JMH.
-    libraryDependencies ++= Seq(
-      "com.github.sbt" % "junit-interface" % "0.13.3" % Test,
-      "junit" % "junit" % "4.13.2" % Test,
-      "org.apache.commons" % "commons-math3" % "3.6.1" % Test
-    )
+lazy val interface = projectMatrix
+  .in(file("interface"))
+  .settings(librarySettings("interface"), sourceLayout("shared"))
+  .libraryPlatforms(
+    jvmSettings = sourceLayout("jvm") ++ Seq(
+      libraryDependencies ++= Seq(
+        "org.openjdk.jmh" % "jmh-core" % "1.37",
+        "org.openjdk.jmh" % "jmh-generator-reflection" % "1.37"
+      )
+    ),
+    nativeSettings = sourceLayout("non-jvm") ++ sourceLayout("native"),
+    jsSettings = sourceLayout("non-jvm") ++ sourceLayout("js")
   )
 
-lazy val runtimeNative = project
-  .in(file("runtime/native"))
-  .enablePlugins(ScalaNativePlugin)
-  .dependsOn(coreNative, jmhApiNative)
-  .settings(sharedSettings("runtime"))
-
-lazy val runtimeJS = project
-  .in(file("runtime/js"))
-  .enablePlugins(ScalaJSPlugin)
-  .dependsOn(coreJS, jmhApiJS)
-  .settings(name := "benchmark-runtime", publish / skip := true)
+lazy val runtime = projectMatrix
+  .in(file("runtime"))
+  .dependsOn(interface)
+  .settings(
+    librarySettings("runtime"),
+    sourceLayout("shared"),
+    libraryDependencies += "com.lihaoyi" %% "scalatags" % scalaTagsVersion
+  )
+  .libraryPlatforms(
+    jvmSettings = sourceLayout("jvm-native") ++ sourceLayout("jvm") ++ junitSettings ++ Seq(
+      publish / skip := true,
+      libraryDependencies += "org.apache.commons" % "commons-math3" % "3.6.1" % Test
+    ),
+    nativeSettings = sourceLayout("non-jvm") ++ sourceLayout("jvm-native") ++ sourceLayout("native"),
+    jsSettings = sourceLayout("non-jvm") ++ sourceLayout("js")
+  )
 
 lazy val compilerPlugin = project
   .in(file("compiler-plugin"))
-  .dependsOn(runtimeJVM % "test->compile")
+  .dependsOn(runtime.jvm(true) % "test->compile")
   .settings(
+    legalSettings,
+    junitSettings,
     name := "benchmark-plugin",
+    scalaVersion := defaultScalaVersion,
+    crossScalaVersions := supportedScalaVersions,
     crossVersion := CrossVersion.full,
     exportJars := true,
-    libraryDependencies ++= Seq(
-      "org.scala-lang" %% "scala3-compiler" % scalaVersion.value % Provided,
-      "com.github.sbt" % "junit-interface" % "0.13.3" % Test,
-      "junit" % "junit" % "4.13.2" % Test
-    ),
+    libraryDependencies += "org.scala-lang" %% "scala3-compiler" % scalaVersion.value % Provided,
     Test / fork := true,
     Test / javaOptions ++= Def.uncached {
       val converter = fileConverter.value
@@ -109,62 +74,65 @@ lazy val compilerPlugin = project
         "-Dscalanative.jmh.plugin=" + converter.toPath((Compile / packageBin).value).toAbsolutePath,
         "-Dscalanative.jmh.testClasspath=" + (Test / fullClasspath).value
           .map(entry => converter.toPath(entry.data).toAbsolutePath)
-          .mkString(java.io.File.pathSeparator)
+          .mkString(File.pathSeparator)
       )
-    },
-    Compile / packageBin / mappings ++= Def.uncached {
-      val converter = fileConverter.value
-      Seq("LICENSE", "NOTICE")
-        .map(name => converter.toVirtualFile((baseDirectory.value / name).toPath) -> name)
-    },
-    Compile / packageSrc / mappings ++= Def.uncached {
-      val converter = fileConverter.value
-      Seq("LICENSE", "NOTICE")
-        .map(name => converter.toVirtualFile((baseDirectory.value / name).toPath) -> name)
     }
   )
 
-lazy val nativeExamples = project
-  .in(file("examples/native"))
-  .enablePlugins(ScalaNativePlugin, pl.project13.scala.sbt.JmhPlugin)
-  .dependsOn(runtimeNative)
+lazy val examples = projectMatrix
+  .in(file("examples"))
+  .dependsOn(runtime)
+  .enablePlugins(JmhPlugin)
+  .libraryPlatforms()
   .settings(
-    publish / skip := true,
+    exampleSettings,
     benchmarkUsePublishedArtifacts := false,
-    Compile / unmanagedSourceDirectories += (ThisBuild / baseDirectory).value / "examples/shared/src/main/scala",
     Compile / scalacOptions ++= Def.uncached {
-      val jar = fileConverter.value.toPath((compilerPlugin / Compile / packageBin).value)
-      Seq(
-        "-Xplugin:" + jar.toAbsolutePath,
-        "-P:scalanative-jmh:cacheKey=" + sbt.io.Hash.toHex(sbt.io.Hash(jar.toFile))
+      require(
+        scalaVersion.value == (compilerPlugin / scalaVersion).value,
+        "Select the same Scala version for examples and compilerPlugin using ++"
       )
+      val jar = fileConverter.value.toPath((compilerPlugin / Compile / packageBin).value)
+      Seq("-Xplugin:" + jar.toAbsolutePath, "-P:scalanative-jmh:cacheKey=" + Hash.toHex(Hash(jar.toFile)))
     }
   )
 
-lazy val jvmExamples = project
-  .in(file("examples/jvm"))
-  .enablePlugins(pl.project13.scala.sbt.JmhPlugin)
+lazy val sbtPlugin = project
+  .in(file("sbt-plugin"))
+  .enablePlugins(SbtPlugin, ScriptedPlugin, BuildInfoPlugin)
   .settings(
-    publish / skip := true,
-    Compile / unmanagedSourceDirectories += (ThisBuild / baseDirectory).value / "examples/shared/src/main/scala"
-  )
-
-lazy val sbtScalaBenchmark = project
-  .in(file("sbt-scala-benchmark"))
-  .enablePlugins(SbtPlugin)
-  .settings(
+    pluginBuildInfoSettings,
+    Compile / unmanagedSources ++= reportingSources((LocalRootProject / baseDirectory).value),
     name := "sbt-scala-benchmark",
-    scalaVersion := "3.8.4",
-    crossScalaVersions := Seq("3.8.4"),
+    libraryDependencies += "com.lihaoyi" %% "scalatags" % scalaTagsVersion,
+    scalaVersion := sbtScalaVersion,
+    crossScalaVersions := Seq(sbtScalaVersion),
     pluginCrossBuild / sbtVersion := "2.0.11",
     addSbtPlugin("org.scala-native" % "sbt-scala-native" % "0.5.12"),
     addSbtPlugin("org.scala-js" % "sbt-scalajs" % "1.22.0"),
     addSbtPlugin("pl.project13.scala" % "sbt-jmh" % "0.4.8"),
-    Compile / unmanagedSources += (ThisBuild / baseDirectory).value / "project/BenchmarkVersion.scala"
+    scriptedBufferLog := false,
+    scriptedLaunchOpts ++= Seq(
+      "-Xmx1024m",
+      "-Dplugin.version=" + version.value,
+      "-Dbenchmark.scala.version=" + (compilerPlugin / scalaVersion).value,
+      "-Dbenchmark.scripted.support=" + ((LocalRootProject / baseDirectory).value / "sbt-plugin/src/sbt-test-common").getAbsolutePath,
+      "-Dbenchmark.test.sources=" + ((LocalRootProject / baseDirectory).value / "sbt-plugin/src/sbt-test-sources/scala").getAbsolutePath
+    ),
+    scriptedDependencies := {
+      require(
+        (interface.jvm(true) / scalaVersion).value == minimumScalaVersion &&
+          (interface.native(true) / scalaVersion).value == minimumScalaVersion &&
+          (interface.js(true) / scalaVersion).value == minimumScalaVersion,
+        "Scripted checks require library publication with Scala " + minimumScalaVersion +
+          "; run reload after ++ before invoking sbtPlugin/scripted."
+      )
+      publishLocal.value
+      (compilerPlugin / publishLocal).value
+      (interface.jvm(true) / publishLocal).value
+      (interface.native(true) / publishLocal).value
+      (interface.js(true) / publishLocal).value
+      (runtime.native(true) / publishLocal).value
+      (runtime.js(true) / publishLocal).value
+    }
   )
-
-lazy val jsExamples = project
-  .in(file("examples/js"))
-  .enablePlugins(ScalaJSPlugin, pl.project13.scala.sbt.JmhPlugin)
-  .dependsOn(runtimeJS)
-  .settings(publish / skip := true)

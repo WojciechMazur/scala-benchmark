@@ -1,0 +1,4 @@
+> benchmarksNative/Jmh/run FormatterBenchmark -foe true
+> benchmarksNative/Jmh/run FormatterRawDisabledBenchmark -foe true
+> benchmarksNative/Jmh/run FormatterDeferredJsonBenchmark -foe true
+> benchmarksNative/verifyFactoryFiles

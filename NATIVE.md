@@ -5,8 +5,11 @@ compiler plugin generates typed Scala harnesses, including direct benchmark
 calls inside measurement loops. The executable coordinates its own worker
 threads and fresh process forks; a JVM is not required to run a linked benchmark.
 
-The initial compiler compatibility matrix is Scala 3.3.8 and 3.9.0 on Linux and
-macOS. Windows and Scala 2 are not supported by this harness.
+The initial compiler compatibility matrix is Scala 3.3.3–3.3.9, 3.9.0, and 3.10.0 on Linux,
+macOS, and Windows (x86-64). Scala 2 is not supported by this harness.
+On Windows, install LLVM/Clang and the Visual Studio C++ tools with a Windows
+SDK, and run sbt from a developer command prompt. CI uses LLVM 20.1.4 and checks
+both disabled LTO and ThinLTO.
 
 ## Set up a benchmark project
 
@@ -22,7 +25,7 @@ Enable it on a dedicated Native benchmark project:
 ```scala
 lazy val benchmarks = project
   .enablePlugins(ScalaNativePlugin, JmhPlugin)
-  .settings(scalaVersion := "3.3.8")
+  .settings(scalaVersion := "3.3.9")
 ```
 
 Put benchmark definitions in `src/main/scala`, or share that source directory
@@ -34,7 +37,7 @@ the Native classpath: it defines the same API names but has no Native code.
 package example
 
 import java.util.concurrent.TimeUnit
-import org.openjdk.jmh.annotations._
+import scala.benchmark.*
 
 @State(Scope.Thread)
 @BenchmarkMode(Array(Mode.AverageTime))
@@ -93,7 +96,12 @@ settings in mind.
 
 Console output includes the score and its 99.9% Student-t confidence interval.
 JSON preserves per-fork iteration scores or quantized sample histograms; CSV
-provides a summary. The JSON metric envelope follows JMH's conventions, with
+and semicolon-separated SCSV provide summaries. `-rf text` saves the aligned
+console summary and percentile tables; `-rf latex` produces an escaped LaTeX
+`tabular` fragment. `-rf html` produces a self-contained report with summary and
+percentile tables, execution metadata, and expandable raw measurements, rendered
+with ScalaTags Text. All six formats use `-rff <path>`. HTML reports need no
+scripts or external assets. The JSON metric envelope follows JMH's conventions, with
 additional Native metadata and explicit unavailable JVM fields. Results identify
 the Native harness rather than claiming to have been produced by upstream JMH.
 The conventional confidence interval is a statistical summary, not a guarantee
@@ -113,11 +121,17 @@ trial setup, so constructors must not depend on them. Multiple parameters form
 a Cartesian product. A private parameter field's defining state must also be
 compiled with the plugin, which generates an assignment bridge.
 
-The first release supports public benchmark and fixture methods in concrete
-top-level classes with public no-argument constructors. Benchmark overloads and
-generic benchmark methods are rejected. Groups, GroupThreads, Scope.Group,
-AuxCounters, BenchmarkParams, IterationParams, Control, profilers and the
-Runner/OptionsBuilder API are deferred and must not be silently approximated.
+Benchmark definitions use concrete classes at package scope, with public methods
+and no-argument constructors. State classes may also be declared inside objects.
+Generic benchmark methods with erased state bounds and overloaded methods in
+separate groups are supported. Ordinary inner classes requiring an enclosing
+instance remain unsupported.
+
+Native implements Groups, GroupThreads, Scope.Group, AuxCounters,
+BenchmarkParams, IterationParams, Control and the Runner/OptionsBuilder API.
+Public custom OutputFormat Runner integration is implemented, including genuine
+fork callbacks and report updates. Profilers are excluded.
+See [the capability matrix](CAPABILITY_MATRIX.md) for verification and limits.
 
 CompilerControl.INLINE and DONT_INLINE map to existing Native compiler controls.
 Other CompilerControl modes are rejected. JVM-specific Fork settings, including
@@ -149,20 +163,20 @@ controlled hardware.
 ## Developing the harness
 
 ```text
-sbt --batch "++3.3.8; runtimeJVM/test; compilerPlugin/test; nativeExamples/Jmh/run -l"
-sbt --batch "++3.9.0; runtimeJS/compile"
+sbt --batch "runtimeJVM/test; compilerPlugin/test; examplesNative/Jmh/run -l"
+sbt --batch "++ 3.9.0; runtimeJS/compile"
 ```
 
 The deterministic JVM tests exercise the Native harness's portable logic. JVM
 performance benchmarks themselves should use upstream JMH, not the JVM test
-backend. The integration checks in `scripts/check.py` run the generated Native examples,
-parse JSON and CSV, and check process failure handling without narrow timing thresholds.
+backend. The sbt scripted tests run the generated Native examples, parse JSON and CSV,
+and check process failure handling without narrow timing thresholds.
 
-Publish the shared Native runtime with Scala 3.3.8, the minimum supported
-compiler, so its TASTy remains readable by both supported versions. The
+Publish the shared Native runtime with Scala 3.3.3, the minimum supported
+compiler, so its TASTy remains readable by all supported versions. The
 compiler plugin is published separately for each full Scala version. The JVM
 runtime backend is only a test dependency and is not published.
 
 The compatibility API and relevant harness algorithms are adapted from OpenJDK
-JMH 1.37. See `runtime/LICENSE`, `runtime/NOTICE` and
+JMH 1.37. See `runtime/LICENSE`, `runtime/NOTICE`, `interface/LICENSE` and
 `compiler-plugin/LICENSE` for the retained GPLv2 with Classpath Exception notices.

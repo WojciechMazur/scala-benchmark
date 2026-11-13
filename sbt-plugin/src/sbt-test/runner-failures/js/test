@@ -1,0 +1,2 @@
+> benchmarksJS/Jmh/run ZEmbeddedRecoveryBenchmark -foe true
+> verifyRunnerFailures

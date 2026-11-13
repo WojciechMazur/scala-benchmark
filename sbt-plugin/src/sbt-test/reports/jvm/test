@@ -1,0 +1,10 @@
+> benchmarks/Jmh/run ReportFormatsBenchmark.execute -rf json -rff report.json
+> benchmarks/Jmh/run ReportFormatsBenchmark.execute -rf csv -rff report.csv
+> benchmarks/Jmh/run ReportFormatsBenchmark.execute -rf scsv -rff report.scsv
+> benchmarks/Jmh/run ReportFormatsBenchmark.execute -rf text -rff report.txt
+> benchmarks/Jmh/run ReportFormatsBenchmark.execute -rf latex -rff report.tex
+> benchmarks/Jmh/run ReportFormatsBenchmark.execute -rf html -rff report.html
+> verifyAllFormats
+> benchmarks/Jmh/run ReportFormatsBenchmark.execute -bm all -rf json -rff modes.json
+> benchmarks/Jmh/run ReportFormatsBenchmark.execute -bm all -rf html -rff modes.html
+> verifyAllModes

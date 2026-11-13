@@ -1,0 +1,2 @@
+> benchmarksJS/Jmh/run StdioBenchmark -foe true
+> benchmarksJS/verifyStdio

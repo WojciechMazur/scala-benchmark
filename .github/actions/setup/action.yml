@@ -1,0 +1,36 @@
+name: Build setup
+description: Install the JVM, sbt, and optional Native build dependencies
+inputs:
+  native:
+    description: Install Native build dependencies
+    default: 'false'
+runs:
+  using: composite
+  steps:
+    - uses: coursier/setup-action@v3
+      with:
+        jvm: temurin:25
+        apps: sbt
+    - uses: coursier/cache-action@v8
+    
+    - name: Install Native build dependencies
+      if: inputs.native == 'true' && runner.os == 'Linux'
+      shell: bash
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y clang llvm libstdc++-12-dev libunwind-dev python3
+    
+    - name: Configure MSVC and Windows SDK
+      if: inputs.native == 'true' && runner.os == 'Windows'
+      uses: ilammy/msvc-dev-cmd@v1
+    
+    - name: Install Windows LLVM
+      if: inputs.native == 'true' && runner.os == 'Windows'
+      shell: pwsh
+      run: |
+        choco install llvm --version=20.1.4 --allow-downgrade --force --yes --no-progress
+        if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+        $llvmBin = Join-Path $env:ProgramFiles 'LLVM\bin'
+        "LLVM_BIN=$llvmBin" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
+        $llvmBin | Out-File -FilePath $env:GITHUB_PATH -Append -Encoding utf8
+        "SBT_OPTS=-Dsbt.server.autostart=false $env:SBT_OPTS" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8

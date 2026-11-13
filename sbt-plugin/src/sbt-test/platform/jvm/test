@@ -1,0 +1,40 @@
+> verifyDependencies
+> benchmarks/Jmh/run FacadeBenchmark.execute -wi 0 -i 1 -f 1 -foe true
+> benchmarks/Jmh/run LifecycleBenchmark.sum -p size=16 -wi 0 -i 1 -r 10ms -f 1 -foe true
+
+# Shared inventory: aggregate and regex skip incompatible definitions.
+> benchmarks/Jmh/run PlatformBenchmarks -wi 0 -i 1 -f 0 -rf json -rff eligibility.json
+> verifyEligibility
+> benchmarks/Jmh/run scala.scalanative.jmh.examples.PlatformBenchmarks.jvmOnly -wi 0 -i 1 -f 0
+-> benchmarks/Jmh/run scala.scalanative.jmh.examples.PlatformBenchmarks.jsOnly
+> benchmarks/Jmh/run scala.scalanative.jmh.examples.PlatformBenchmarks.jsOnly -l
+> benchmarks/Jmh/run PlatformBenchmarks.everywhere scala.scalanative.jmh.examples.PlatformBenchmarks.jsOnly -e jsOnly -wi 0 -i 1 -f 0
+> benchmarks/Jmh/run PlatformBenchmarks.jsOnly.*
+> benchmarks/Jmh/run NonJvmBenchmark
+-> benchmarks/Jmh/run scala.scalanative.jmh.examples.PlatformBenchmarks.everywhere scala.scalanative.jmh.examples.PlatformBenchmarks.jsOnly -rf json -rff preflight.json
+> verifyPreflight
+> benchmarks/Jmh/run InfrastructureBenchmark -opi 13 -si false -foe true
+> benchmarks/Jmh/run -lrf
+> benchmarks/Jmh/run SingleWorkerGroupBenchmark
+> benchmarks/Jmh/run MultiWorkerGroupBenchmark
+> benchmarks/Jmh/run MultiWorkerGroupBenchmark -tg 0,1 -t 1
+> benchmarks/Jmh/run GroupBenchmark.exchange -rf json -rff groups.json
+> verifyGroupResults
+> benchmarks/Jmh/run PlatformBenchmarks.everywhere -gc true -wi 0 -i 1 -f 1
+> benchmarks/Jmh/run CounterBenchmark -rf json -rff counters.json
+> benchmarks/Jmh/run CounterBenchmark -bm all -wi 0 -i 1 -r 5ms -rf json -rff counter-modes.json
+> verifyCounterResults
+> benchmarks/Jmh/run literal.bench.CanonicalBenchmark.execute -rf json -rff exact.json
+> verifyExactSelection
+> benchmarks/Jmh/run ProgrammaticApiBenchmark -foe true
+> benchmarks/Jmh/run scala.scalanative.jmh.examples.BulkWarmupBenchmark.execute -wmb scala.scalanative.jmh.examples.WarmupOnlyBenchmark.execute -wm INDI -rf json -rff bulk-INDI.json -foe true
+> benchmarks/Jmh/run scala.scalanative.jmh.examples.BulkWarmupBenchmark.execute -wmb scala.scalanative.jmh.examples.WarmupOnlyBenchmark.execute -wm BULK -rf json -rff bulk-BULK.json -foe true
+> benchmarks/Jmh/run scala.scalanative.jmh.examples.BulkWarmupBenchmark.execute -wmb scala.scalanative.jmh.examples.WarmupOnlyBenchmark.execute -wm BULK_INDI -rf json -rff bulk-BULK_INDI.json -foe true
+> benchmarks/Jmh/run PlatformBenchmarks.everywhere -v EXTRA -o human.log -f 1
+> benchmarks/Jmh/run PlatformBenchmarks.everywhere -v SILENT -o quiet.log -f 0
+> verifyWarmupAndOutput
+> benchmarks/Jmh/run ControlPollingBenchmark -foe true
+
+> benchmarks/Jmh/run GenericBenchmark -foe true
+> benchmarks/Jmh/run StateInjectionBenchmark -foe true
+> benchmarks/Jmh/run ParameterOverridesBenchmark -p flag=TRUE -p character=abc -foe true

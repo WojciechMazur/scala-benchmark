@@ -1,0 +1,5 @@
+> set LocalProject("benchmarksJS") / benchmarkNodeOptions := Nil
+> benchmarksJS/Jmh/run IntegrityBenchmark -gc true -to 5s -foe true -rf json -rff integrity-unobserved.json
+> set LocalProject("benchmarksJS") / benchmarkNodeOptions := Seq("--import", (file(sys.props("benchmark.scripted.support")).getParentFile / "test/integrity/observe-host.mjs").getAbsolutePath)
+> benchmarksJS/Jmh/run IntegrityBenchmark -gc true -to 5s -foe true -rf json -rff integrity.json
+> verifyIntegrity

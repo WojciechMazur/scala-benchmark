@@ -1,0 +1,7 @@
+> benchmarksJS/Jmh/run TrialObserverBenchmark -foe true
+> benchmarksJS/Jmh/run OutputFormatApiBenchmark -foe true
+> benchmarksJS/Jmh/run OutputFormatEdgeApiBenchmark -foe true
+> benchmarksJS/Jmh/run OutputFormatListingApiBenchmark -foe true
+> benchmarksJS/Jmh/run OutputFormatCrashApiBenchmark -foe true
+> benchmarksJS/Jmh/run OutputFormatMutationApiBenchmark -foe true
+> benchmarksJS/Jmh/run OutputFormatReportApiBenchmark -foe true

@@ -14,18 +14,47 @@ final case class Options(
     list: Boolean = false,
     listParameters: Boolean = false,
     help: Boolean = false,
-    format: String = "json",
+    format: String = "csv",
     output: Option[String] = None,
-    failOnError: Boolean = false
+    failOnError: Boolean = false,
+    listFormats: Boolean = false,
+    consoleOutput: Option[String] = None,
+    verbosity: String = "NORMAL",
+    warmupMode: String = "INDI",
+    warmupIncludes: Vector[String] = Vector.empty
 ) {
   def configuration(default: Configuration): Configuration = {
     def int(key: String, fallback: Int): Int =
       overrides.get(key).fold(fallback)(_.toInt)
     def time(key: String, fallback: Long): Long =
       overrides.get(key).fold(fallback)(Options.duration)
-    val threads = int("-t", default.threads) match {
-      case -1 => Runtime.getRuntime().availableProcessors()
-      case -2 => math.max(1, Runtime.getRuntime().availableProcessors() / 2)
+    def originalTime(
+        key: String,
+        fallback: org.openjdk.jmh.runner.options.TimeValue
+    ): org.openjdk.jmh.runner.options.TimeValue = {
+      if (overrides.contains(key + ".time"))
+        new org.openjdk.jmh.runner.options.TimeValue(
+          overrides(key + ".time").toLong,
+          TimeUnit.valueOf(overrides(key + ".unit"))
+        )
+      else
+        overrides
+          .get(key)
+          .map { value =>
+            try org.openjdk.jmh.runner.options.TimeValue.fromString(value)
+            catch {
+              case _: NumberFormatException =>
+                org.openjdk.jmh.runner.options.TimeValue.nanoseconds(Options.duration(value))
+            }
+          }
+          .getOrElse(fallback)
+    }
+    val threads = overrides.get("-t").fold(default.threads) {
+      case value if value.equalsIgnoreCase("max") => -1
+      case value                                  => value.toInt
+    } match {
+      case -1 => Platform.processorCount
+      case -2 => math.max(1, Platform.processorCount / 2)
       case n  => n
     }
     val c = default.copy(
@@ -33,25 +62,40 @@ final case class Options(
       measurementIterations = int("-i", default.measurementIterations),
       warmupNanos = time("-w", default.warmupNanos),
       measurementNanos = time("-r", default.measurementNanos),
+      warmupTime = originalTime("-w", default.warmupTime),
+      measurementTime = originalTime("-r", default.measurementTime),
       warmupBatchSize = int("-wbs", default.warmupBatchSize),
       measurementBatchSize = int("-bs", default.measurementBatchSize),
       forks = int("-f", default.forks),
       warmupForks = int("-wf", default.warmupForks),
       threads = threads,
       timeoutNanos = time("-to", default.timeoutNanos),
-      unit = overrides.get("-tu").fold(default.unit)(Options.unit)
+      timeoutTime = originalTime("-to", default.timeoutTime),
+      operationsPerInvocation = int("-opi", default.operationsPerInvocation),
+      synchIterations = overrides.get("-si").fold(default.synchIterations)(Values.boolean),
+      doGC = overrides.get("-gc").fold(default.doGC)(Values.boolean),
+      threadGroups = overrides.get("-tg").fold(default.threadGroups)(_.split(",", -1).toVector.map(_.toInt)),
+      unit = overrides.get("-tu").fold(default.unit)(Options.unit),
+      parameterOrder = default.parameterOrder ++ overrides.collect {
+        case (key, value) if key.startsWith("-parameterOrder.") => key.stripPrefix("-parameterOrder.") -> value.toInt
+      }
+    )
+    require(c.parameterOrder.values.forall(_ >= 0), "Invalid parameter ordinal")
+    require(
+      c.threadGroups.isEmpty || (c.threadGroups.forall(_ >= 0) && c.threadGroups.exists(_ > 0)),
+      "Thread groups must be nonnegative with at least one worker"
     )
     require(
       c.warmupIterations >= 0 && c.measurementIterations > 0 && c.forks >= 0 && c.warmupForks >= 0,
       "Invalid iteration or fork count"
     )
     require(
-      c.warmupBatchSize > 0 && c.measurementBatchSize > 0 && c.threads > 0,
-      "Batch sizes and thread count must be positive"
+      c.warmupBatchSize > 0 && c.measurementBatchSize > 0 && c.threads > 0 && c.operationsPerInvocation > 0,
+      "Batch sizes, thread count and operations per invocation must be positive"
     )
     require(
-      c.timeoutNanos > 0 && c.warmupNanos > 0 && c.measurementNanos > 0,
-      "Durations must be positive"
+      c.timeoutNanos >= 0 && c.warmupNanos >= 0 && c.measurementNanos >= 0,
+      "Durations must be nonnegative"
     )
     c
   }
@@ -59,7 +103,7 @@ final case class Options(
 
 object Options {
   val help =
-    """Native JMH (JMH 1.37 source compatibility)
+    s"""Scala Benchmark (JMH 1.37 source compatibility)
       |Usage: benchmark [regex] [options]
       | -l / -lp          List benchmarks / parameters
       | -bm <modes>       thrpt,avgt,sample,ss,all
@@ -71,22 +115,23 @@ object Options {
       | -p name=v1,v2     Override parameter values
       | -tu ns|us|ms|s    Output time unit
       | -to <time>        Iteration timeout
+      | -opi <n>          Operations represented by each invocation
+      | -si true|false    Synchronize worker measurement boundaries
+      | -tg n1,n2,...     Workers per group member; zero disables a member
+      | -gc true|false    Request host collection between iterations
+      | -wm INDI|BULK|BULK_INDI  Warmup policy
+      | -wmb <regex>       Additional warmup-only benchmark filters
+      | -v SILENT|NORMAL|EXTRA  Human-readable output detail
+      | -o <path>          Human-readable output file
+      | -lrf              List result formats
       | -e <regex>        Exclude benchmarks
-      | -rf json|csv      Result file format
+      | -rf <format>      Result format: ${Reports.formats.mkString(", ")}
       | -rff <path>       Result file
       | -foe true|false   Stop after a failed benchmark
       | --suite <module>  Explicit generated suite
       | -h                Show this help
       |""".stripMargin
-  def mode(value: String): Mode = value match {
-    case "thrpt" | "Throughput"  => Mode.Throughput
-    case "avgt" | "AverageTime"  => Mode.AverageTime
-    case "sample" | "SampleTime" => Mode.SampleTime
-    case "ss" | "SingleShotTime" => Mode.SingleShotTime
-    case "all" | "All"           => Mode.All
-    case _                       =>
-      throw new IllegalArgumentException(s"Unknown benchmark mode: $value")
-  }
+  def mode(value: String): Mode = Mode.deepValueOf(value)
   def unit(value: String): String = value match {
     case "ns" => "NANOSECONDS"
     case "us" => "MICROSECONDS"
@@ -97,34 +142,51 @@ object Options {
     case "d"  => "DAYS"
     case v    => TimeUnit.valueOf(v).name()
   }
+  private def cliUnit(value: String): String = {
+    val normalized = scala.benchmark.internal.Ascii.lower(value)
+    require(Set("ns", "us", "ms", "s", "m", "h")(normalized), s"Unknown time unit: $value")
+    unit(normalized)
+  }
   def duration(value: String): Long = {
     val split = value.indexWhere(c => !c.isDigit && c != '.')
     val (number, suffix) = if (split < 0) (value, "s") else value.splitAt(split)
-    val result = number.toDouble * TimeUnit.valueOf(unit(suffix)).toNanos(1)
-    require(
-      result > 0 && result <= Long.MaxValue.toDouble && result.isFinite,
-      s"Invalid duration: $value"
-    )
-    result.toLong
+    val count = number.toLong
+    require(count >= 0, s"Invalid duration: $value")
+    TimeUnit.valueOf(unit(suffix)).toNanos(count)
   }
   def parse(args: Array[String]): Options = {
     var options = Options()
+    val scalars = scala.collection.mutable.Set.empty[String]
+    var formatRequested = false
     var i = 0
     while (i < args.length) {
       val key = args(i)
       def argument(): String = {
         i += 1; require(i < args.length, s"Missing argument for $key"); args(i)
       }
+      if (key.startsWith("-") && !Set("-e", "-p", "-bm", "-wmb", "--suite", "-l", "-lp", "-lrf", "-h", "--help")(key))
+        require(scalars.add(key), s"Repeated option: $key")
       key match {
         case "-h" | "--help" => options = options.copy(help = true)
-        case "-l"            => options = options.copy(list = true)
-        case "-lp"           => options = options.copy(list = true, listParameters = true)
-        case "--suite"       =>
+        case "-wm"           =>
+          val value = argument()
+          require(Set("INDI", "BULK", "BULK_INDI")(value), "Expected INDI, BULK or BULK_INDI warmup mode")
+          options = options.copy(warmupMode = value)
+        case "-wmb" => options = options.copy(warmupIncludes = options.warmupIncludes ++ argument().split(",").toVector)
+        case "-o"   => options = options.copy(consoleOutput = Some(argument()))
+        case "-v"   =>
+          val value = argument()
+          require(Set("SILENT", "NORMAL", "EXTRA")(value), "Expected SILENT, NORMAL or EXTRA verbosity")
+          options = options.copy(verbosity = value)
+        case "-lrf"    => options = options.copy(listFormats = true)
+        case "-l"      => options = options.copy(list = true)
+        case "-lp"     => options = options.copy(list = true, listParameters = true)
+        case "--suite" =>
           options = options.copy(suites = options.suites :+ argument())
         case "-e" =>
-          options = options.copy(excludes = options.excludes :+ argument())
+          options = options.copy(excludes = options.excludes ++ argument().split(",").toVector)
         case "-bm" =>
-          options = options.copy(modes = argument().split(",").toVector.map(mode))
+          options = options.copy(modes = (options.modes ++ argument().split(",").toVector.map(mode)).distinct)
         case "-p" =>
           val parameter = argument().split("=", 2)
           require(
@@ -133,31 +195,52 @@ object Options {
           )
           options = options.copy(parameters =
             options.parameters
-              .updated(parameter(0), parameter(1).split(",", -1).toVector)
+              .updated(
+                parameter(0),
+                options.parameters.getOrElse(parameter(0), Vector.empty) ++ parameter(1).split(",", -1).toVector
+              )
           )
         case "-rf" =>
-          val format = argument();
+          formatRequested = true
+          val format = argument().toLowerCase();
           require(
-            Set("json", "csv")(format),
-            "Supported formats are json and csv"
+            Reports.formats.contains(format),
+            "Supported formats are " + Reports.formats.mkString(", ")
           )
           options = options.copy(format = format)
-        case "-rff" => options = options.copy(output = Some(argument()))
-        case "-foe" =>
-          val value = argument();
-          require(value == "true" || value == "false", "Expected true or false")
-          options = options.copy(failOnError = value.toBoolean)
-        case "-wi" | "-i" | "-w" | "-r" | "-wbs" | "-bs" | "-f" | "-wf" | "-t" | "-to" | "-tu" =>
+        case "-rff"        => options = options.copy(output = Some(argument()))
+        case "-foe"        => options = options.copy(failOnError = java.lang.Boolean.parseBoolean(argument()))
+        case "-si" | "-gc" =>
+          options = options.copy(overrides =
+            options.overrides.updated(key, java.lang.Boolean.parseBoolean(argument()).toString)
+          )
+        case "-w" | "-r" | "-to" =>
+          val raw = argument()
+          val value = org.openjdk.jmh.runner.options.TimeValue.fromString(raw)
+          options = options.copy(overrides =
+            options.overrides
+              .updated(key, value.convertTo(TimeUnit.NANOSECONDS).toString + "ns")
+              .updated(key + ".time", value.getTime().toString)
+              .updated(key + ".unit", value.getTimeUnit().name())
+          )
+        case "-t" =>
+          val value = argument()
+          require(value.equalsIgnoreCase("max") || value.toInt > 0, "Thread count must be positive or max")
+          options = options.copy(overrides = options.overrides.updated(key, value))
+        case "-tu" => options = options.copy(overrides = options.overrides.updated(key, cliUnit(argument())))
+        case "-wi" | "-i" | "-wbs" | "-bs" | "-f" | "-wf" | "-opi" | "-tg" =>
           options = options.copy(overrides = options.overrides.updated(key, argument()))
         case v if v.startsWith("-") =>
           throw new IllegalArgumentException(
-            s"Unsupported Native JMH option: $v"
+            s"Unsupported benchmark option: $v"
           )
         case regex =>
           options = options.copy(includes = options.includes :+ regex)
       }
       i += 1
     }
-    options
+    options.configuration(Configuration())
+    if (formatRequested && options.output.isEmpty) options.copy(output = Some("jmh-result." + options.format))
+    else options
   }
 }

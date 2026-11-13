@@ -1,1 +1,0 @@
-The org.openjdk.jmh compatibility API and measurement semantics are ported from OpenJDK JMH 1.37 (2effa2c8310e1d3ad03c8ee02024edca9252b46a). Original source files retain their GPLv2 with Classpath Exception notices. Native implementation additions are part of Scala Native.

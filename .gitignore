@@ -7,3 +7,4 @@ target/
 __pycache__/
 results.json
 results.csv
+.sbt/matrix/

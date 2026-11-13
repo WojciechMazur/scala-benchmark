@@ -8,7 +8,7 @@ import org.openjdk.jmh.annotations.Mode
 
 class HarnessTest {
   @Test def symmetricWorkersHaveIndividualGroups(): Unit = {
-    val params = new org.openjdk.jmh.infra.ThreadParams(3, 8)
+    val params = Execution.workerParams(3, 8)
     assertEquals(3, params.getGroupIndex())
     assertEquals(8, params.getGroupCount())
     assertEquals(0, params.getGroupThreadIndex())
@@ -132,11 +132,11 @@ class HarnessTest {
         "-bm",
         "ss",
         "-t",
-        "-2",
+        "max",
         "-p",
         "size=1,2",
         "-r",
-        "0.5ms",
+        "500us",
         "-tu",
         "ns"
       )
@@ -149,7 +149,8 @@ class HarnessTest {
     for (
       arguments <- Vector(
         Array("-i", "0"),
-        Array("-r", "0s"),
+        Array("-r", "0.5ms"),
+        Array("-t", "-2"),
         Array("-t", "-3")
       )
     ) {
@@ -158,6 +159,133 @@ class HarnessTest {
         fail("Invalid option accepted")
       } catch { case _: IllegalArgumentException => () }
     }
+  }
+
+  @Test def portableParsingAgreesWithUpstream(): Unit = {
+    import scala.jdk.CollectionConverters.*
+    val arguments = Array(
+      "bench.*",
+      "-bm",
+      "thr",
+      "-bm",
+      "ss",
+      "-p",
+      "size=1,2",
+      "-p",
+      "size=3",
+      "-tu",
+      "US",
+      "-w",
+      "0s",
+      "-r",
+      "7us",
+      "-to",
+      "5s",
+      "-t",
+      "max",
+      "-si",
+      "unknown",
+      "-gc",
+      "true"
+    )
+    val upstream = new org.openjdk.jmh.runner.options.CommandLineOptions(arguments*)
+    val portable = Options.parse(arguments)
+    val config = portable.configuration(Configuration())
+    assertEquals(upstream.getBenchModes().asScala.toSet, portable.modes.toSet)
+    assertEquals(upstream.getParameter("size").get().asScala.toVector, portable.parameters("size"))
+    assertEquals(upstream.getTimeUnit().get().name(), config.unit)
+    assertEquals(upstream.getWarmupTime().get(), Configuration.time(config, true))
+    assertEquals(upstream.getMeasurementTime().get(), Configuration.time(config, false))
+    assertEquals(upstream.getTimeout().get(), Configuration.timeout(config))
+    assertEquals(upstream.shouldSyncIterations().get().booleanValue(), config.synchIterations)
+    assertEquals(upstream.shouldDoGC().get().booleanValue(), config.doGC)
+    for (
+      invalid <- Vector(Array("-i", "1", "-i", "2"), Array("-tu", "d"), Array("-tu", "SECONDS"), Array("-r", "0.5ms"))
+    ) {
+      assertTrue(scala.util.Try(new org.openjdk.jmh.runner.options.CommandLineOptions(invalid*)).isFailure)
+      assertTrue(scala.util.Try(Options.parse(invalid)).isFailure)
+    }
+  }
+
+  @Test def originalTimeUnitsSurviveForkConfiguration(): Unit = {
+    val configured = Options.parse(Array("-w", "2ms", "-r", "7us", "-to", "5s")).configuration(Configuration())
+    val transported = Options(overrides = Configuration.overrides(configured)).configuration(Configuration())
+    assertEquals(org.openjdk.jmh.runner.options.TimeValue.milliseconds(2), Configuration.time(transported, true))
+    assertEquals(org.openjdk.jmh.runner.options.TimeValue.microseconds(7), Configuration.time(transported, false))
+    assertEquals(org.openjdk.jmh.runner.options.TimeValue.seconds(5), Configuration.timeout(transported))
+    assertEquals(org.openjdk.jmh.runner.options.TimeValue.minutes(10), Configuration.timeout(Configuration()))
+    val annotated = Descriptor.parse(
+      0,
+      "name=timeout.test\nmodes=SingleShotTime\ntimeoutNanos=3000000\ntimeoutTimeValue=3\ntimeoutTimeUnit=MILLISECONDS\n"
+    )
+    assertEquals(
+      org.openjdk.jmh.runner.options.TimeValue.milliseconds(3),
+      Configuration.timeout(annotated.configuration)
+    )
+  }
+
+  @Test def reportFormatsPreserveAndEscapeParameters(): Unit = {
+    val descriptor =
+      Descriptor.parse(0, "name=bench.Example_test.run\nmodes=AverageTime\nstates=0\nstate.0.scope=Thread\n")
+    val value = "a;b,\"c\"\n\\{}%&#$_~^"
+    val run = RunResult(
+      descriptor,
+      Mode.AverageTime,
+      Configuration(unit = "NANOSECONDS"),
+      Map("input_name" -> value),
+      Vector(Vector(2.0, 4.0, 6.0).map(score => IterationResult(score, Vector.empty))),
+      ClockCalibration(1, 1.0)
+    )
+    val results = Vector(run)
+    val scsv = Reports.render(results, "scsv")
+    assertTrue(scsv.startsWith("\"Benchmark\";\"Mode\";"))
+    assertTrue(scsv.contains("\"a;b,\"\"c\"\"\n\\{}%&#$_~^\""))
+    assertTrue(Reports.render(results, "csv").startsWith("\"Benchmark\",\"Mode\","))
+    val latex = Reports.render(results, "latex")
+    assertTrue(latex.startsWith("\\begin{tabular}{llrrrrll}\n"))
+    assertTrue(latex.contains("Example\\_test.run"))
+    assertTrue(latex.contains("input\\_name"))
+    assertTrue(latex.contains("Score Error (99.9\\%)"))
+    assertTrue(
+      latex.contains("""a;b,"c"\textbackslash{}n\textbackslash{}\{\}\%\&\#\$\_\textasciitilde{}\textasciicircum{}""")
+    )
+    assertTrue(latex.linesIterator.filter(_.contains(" & ")).forall(_.endsWith(" \\\\")))
+    assertTrue(latex.endsWith("\\end{tabular}\n"))
+    val text = Reports.render(results, "text")
+    assertTrue(text.contains("Example_test.run") && text.contains("Param: input_name"))
+    assertTrue(text.endsWith("\n"))
+    for (format <- Vector("text", "scsv", "latex"))
+      assertEquals(format, Options.parse(Array("-rf", format.toUpperCase)).format)
+    try { Options.parse(Array("-rf", "xml")); fail("Unknown report format accepted") }
+    catch { case _: IllegalArgumentException => () }
+  }
+
+  @Test def htmlReportEscapesUntrustedContent(): Unit = {
+    import scala.benchmark.internal.reporting.HtmlReport
+    val unsafe = """</pre><script>alert("x")</script><img src=x onerror='bad'>&東京"""
+    val entry = HtmlReport.Entry(
+      unsafe,
+      "avgt",
+      4.0,
+      2.0,
+      Vector(2.0, 6.0),
+      "ns/op",
+      3,
+      Vector(unsafe -> unsafe),
+      Vector("50.0" -> 4.0),
+      Vector(unsafe -> unsafe),
+      unsafe
+    )
+    val html = HtmlReport.render(Vector(entry))
+    val factory = javax.xml.parsers.DocumentBuilderFactory.newInstance()
+    factory.setFeature("http://apache.org/xml/features/nonvalidating/load-external-dtd", false)
+    val document = factory.newDocumentBuilder().parse(new org.xml.sax.InputSource(new java.io.StringReader(html)))
+    assertEquals(0, document.getElementsByTagName("script").getLength)
+    assertEquals(0, document.getElementsByTagName("img").getLength)
+    assertEquals(unsafe, document.getElementsByTagName("pre").item(0).getTextContent)
+    assertTrue(document.getDocumentElement.getTextContent.contains(unsafe))
+    assertTrue(html.contains("4.0") && html.contains("[2.0, 6.0]"))
+    assertEquals("html", Options.parse(Array("-rf", "HTML")).format)
   }
 
   @Test def resultProtocolRoundTrip(): Unit = {

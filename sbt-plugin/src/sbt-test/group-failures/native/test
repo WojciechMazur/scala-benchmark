@@ -1,0 +1,3 @@
+> benchmarksNative/Jmh/run GroupFailureBenchmark -to 3s -foe true -rf json -rff smoke.json
+> verifyGroupFailures
+> benchmarksNative/Jmh/run FailureRecoveryApiBenchmark -foe true
