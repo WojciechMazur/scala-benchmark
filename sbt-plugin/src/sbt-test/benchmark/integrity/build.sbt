@@ -11,8 +11,8 @@ val thinLtoRoots =
   else Nil
 
 lazy val benchmarks = FixtureBuild.matrix("native", "js", "wasm") { platform =>
-  val optimized =
-    if (platform == "native")
+  val optimized = platform match {
+    case "native" =>
       Seq(
         nativeConfig ~=
           (_.withDump(true)
@@ -20,10 +20,12 @@ lazy val benchmarks = FixtureBuild.matrix("native", "js", "wasm") { platform =>
             .withCppOptions(_ ++ Seq("-include", "cstdlib"))
             .withLinkingOptions(_ ++ thinLtoRoots))
       )
-    else
+    case "wasm" =>
       // The Wasm inspector reads the text format, which the linker only emits when pretty-printing.
-      val readable = if platform == "wasm" then Seq(scalaJSLinkerConfig ~= (_.withPrettyPrint(true))) else Nil
-      FixtureBuild.nodeImport(IntegrityChecks.observeHost) ++ readable
+      FixtureBuild.nodeImport(IntegrityChecks.observeHost) :+ (scalaJSLinkerConfig ~= (_.withPrettyPrint(true)))
+    case _ =>
+      FixtureBuild.nodeImport(IntegrityChecks.observeHost)
+  }
   optimized ++ FixtureBuild.only("IntegrityBenchmark.scala") ++ IntegrityChecks.settings(platform)
 }
 
