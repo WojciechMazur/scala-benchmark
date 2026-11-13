@@ -49,10 +49,6 @@ object NativeBenchmarkPlugin extends AutoPlugin {
     libraryDependencies ++= {
       if (!benchmarkUsePublishedArtifacts.value) Nil
       else {
-        require(
-          BuildInfo.supportedScalaVersions.contains(scalaVersion.value),
-          "Unsupported Scala version for Native JMH: " + scalaVersion.value
-        )
         Seq(
           crossScalaNative("org.scala-native" %% "benchmark-runtime" % BuildInfo.version),
           crossJVM(

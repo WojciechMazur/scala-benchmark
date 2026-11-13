@@ -7,9 +7,9 @@ import sbtbuildinfo.BuildInfoKeys.*
 object BuildSettings {
   val scalaTagsVersion = "0.13.1"
   val projectVersion = "0.1.0-SNAPSHOT"
-  val supportedScalaVersions = (3 to 9).map(patch => s"3.3.$patch") ++ Seq("3.9.0", "3.10.0")
-  val minimumScalaVersion = supportedScalaVersions.head
-  val defaultScalaVersion = "3.3.9"
+  /** Libraries and macros are built once with the LTS compiler; consumers may use any later Scala 3. */
+  val libraryScalaVersion = "3.3.9"
+  val javaRelease = "17"
   val sbtScalaVersion = "3.8.4"
 
   def reportingSources(root: File): Seq[File] =
@@ -17,9 +17,23 @@ object BuildSettings {
 
   val pluginBuildInfoSettings = Seq(
     buildInfoPackage := "scala.benchmark.sbtplugin",
-    buildInfoKeys := Seq(BuildInfoKey(version), BuildInfoKey("supportedScalaVersions" -> supportedScalaVersions)),
+    buildInfoKeys := Seq(BuildInfoKey(version), BuildInfoKey("minimumScalaVersion" -> libraryScalaVersion)),
     buildInfoOptions += BuildInfoOption.PackagePrivate
   )
+
+  val compilerSettings = Seq(
+    scalacOptions ++= Seq(
+      "-deprecation",
+      "-feature",
+      "-unchecked",
+      "-java-output-version",
+      javaRelease
+    ),
+    javacOptions ++= Seq("--release", javaRelease)
+  )
+
+  /** Unsafe-free lazy vals; the Scala Native compiler plugin does not support this encoding yet. */
+  val futureLazyVals = Seq(scalacOptions += "-Yfuture-lazy-vals")
 
   val junitSettings = Seq(
     libraryDependencies ++= Seq(
@@ -43,12 +57,9 @@ object BuildSettings {
   def librarySettings(module: String) = Seq(
     name := s"benchmark-$module",
     exportJars := true,
-    scalaVersion := minimumScalaVersion,
-    crossScalaVersions := supportedScalaVersions,
-    // Publish the binary-compatible API with the oldest supported compiler.
-    publish / skip := scalaVersion.value != minimumScalaVersion,
-    publishLocal / skip := (publish / skip).value
-  ) ++ legalSettings
+    scalaVersion := libraryScalaVersion,
+    crossScalaVersions := Seq(libraryScalaVersion)
+  ) ++ compilerSettings ++ legalSettings
 
   def sourceLayout(directory: String) = Seq(Compile, Test).flatMap { configuration =>
     inConfig(configuration)(
@@ -62,7 +73,7 @@ object BuildSettings {
   }
 
   val exampleSettings = Seq(
-    scalaVersion := defaultScalaVersion,
+    scalaVersion := libraryScalaVersion,
     publish / skip := true,
     Compile / unmanagedSourceDirectories += (LocalRootProject / baseDirectory).value / "examples/shared/src/main/scala"
   )

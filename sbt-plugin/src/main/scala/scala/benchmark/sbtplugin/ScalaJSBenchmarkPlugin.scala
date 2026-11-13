@@ -28,10 +28,6 @@ object ScalaJSBenchmarkPlugin extends AutoPlugin {
     libraryDependencies ++= {
       if (!benchmarkUsePublishedArtifacts.value) Nil
       else {
-        require(
-          BuildInfo.supportedScalaVersions.contains(scalaVersion.value),
-          "Unsupported benchmark compiler: " + scalaVersion.value
-        )
         Seq(
           ("org.scala-native" %% "benchmark-runtime" % BuildInfo.version).platform(platform.value),
           compilerPlugin("org.scala-native" % "benchmark-plugin" % BuildInfo.version)

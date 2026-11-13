@@ -10,11 +10,9 @@ import sbtbuildinfo.BuildInfoPlugin
 
 organization := "org.scala-native"
 version := projectVersion
-scalaVersion := defaultScalaVersion
-crossScalaVersions := supportedScalaVersions
+scalaVersion := libraryScalaVersion
 homepage := Some(uri("https://github.com/scala-native/scala-benchmark"))
 licenses := Seq("GPLv2 with Classpath Exception" -> uri("https://openjdk.org/legal/gplv2+ce.html"))
-scalacOptions ++= Seq("-deprecation", "-feature", "-unchecked")
 
 lazy val root = project
   .in(file("."))
@@ -62,8 +60,7 @@ lazy val compilerPlugin = project
     legalSettings,
     junitSettings,
     name := "benchmark-plugin",
-    scalaVersion := defaultScalaVersion,
-    crossScalaVersions := supportedScalaVersions,
+    scalaVersion := libraryScalaVersion,
     crossVersion := CrossVersion.full,
     exportJars := true,
     libraryDependencies += "org.scala-lang" %% "scala3-compiler" % scalaVersion.value % Provided,
@@ -120,13 +117,6 @@ lazy val sbtPlugin = project
       "-Dbenchmark.test.sources=" + ((LocalRootProject / baseDirectory).value / "sbt-plugin/src/sbt-test-sources/scala").getAbsolutePath
     ),
     scriptedDependencies := {
-      require(
-        (interface.jvm(true) / scalaVersion).value == minimumScalaVersion &&
-          (interface.native(true) / scalaVersion).value == minimumScalaVersion &&
-          (interface.js(true) / scalaVersion).value == minimumScalaVersion,
-        "Scripted checks require library publication with Scala " + minimumScalaVersion +
-          "; run reload after ++ before invoking sbtPlugin/scripted."
-      )
       publishLocal.value
       (compilerPlugin / publishLocal).value
       (interface.jvm(true) / publishLocal).value

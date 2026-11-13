@@ -12,16 +12,12 @@ object BuildPlatforms {
         jsSettings: Seq[Setting[?]] = Nil
     ): ProjectMatrix = matrix
       .defaultAxes()
-      .settings(
-        autoScalaLibrary := true,
-        crossPaths := true,
-        crossScalaVersions := supportedScalaVersions
-      )
-      .customRow(true, Seq(VirtualAxis.jvm), (p: Project) => p.settings(jvmSettings))
+      .settings(autoScalaLibrary := true, crossPaths := true)
+      .customRow(true, Seq(VirtualAxis.jvm), (p: Project) => p.settings(futureLazyVals ++ jvmSettings))
       .customRow(
         true,
         Seq(VirtualAxis.native),
         (p: Project) => p.enablePlugins(ScalaNativePlugin).settings(nativeSettings)
       )
-      .customRow(true, Seq(VirtualAxis.js), (p: Project) => p.enablePlugins(ScalaJSPlugin).settings(jsSettings))
+      .customRow(true, Seq(VirtualAxis.js), (p: Project) => p.enablePlugins(ScalaJSPlugin).settings(futureLazyVals ++ jsSettings))
 }
