@@ -129,7 +129,7 @@ object Options:
       | -rf <format>      Result format: ${Reports.formats.mkString(", ")}
       | -rff <path>       Result file
       | -foe true|false   Stop after a failed benchmark
-      | --suite <module>  Explicit generated suite
+      | --suite <object>  Also run a hand-written suite object
       | -h                Show this help
       |""".stripMargin
 

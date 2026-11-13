@@ -41,22 +41,15 @@
 # Shared inventory: aggregate and regex skip incompatible definitions.
 > bench Jmh/run PlatformBenchmarks -wi 0 -i 1 -f 0 -rf json -rff eligibility.json
 > bench verifyEligibility
-> on jvm Jmh/run scala.benchmark.examples.PlatformBenchmarks.jvmOnly -wi 0 -i 1 -f 0
-> on native Jmh/run scala.benchmark.examples.PlatformBenchmarks.nativeOnly -wi 0 -i 1 -f 0
-> on wasm Jmh/run scala.benchmark.examples.PlatformBenchmarks.wasmOnly -wi 0 -i 1 -f 0
-> failing jvm,native,wasm Jmh/run scala.benchmark.examples.PlatformBenchmarks.jsOnly
-> on jvm,native,wasm Jmh/run scala.benchmark.examples.PlatformBenchmarks.jsOnly -l
-> on jvm,native,wasm Jmh/run PlatformBenchmarks.everywhere scala.benchmark.examples.PlatformBenchmarks.jsOnly -e jsOnly -wi 0 -i 1 -f 0
-> on jvm,native,wasm Jmh/run PlatformBenchmarks.jsOnly.*
+# {platform} is the platform of the row, {other} one it is not: its benchmarks exist but must not run.
+> bench Jmh/run scala.benchmark.examples.PlatformBenchmarks.{platform}Only -wi 0 -i 1 -f 0
+> failing all Jmh/run scala.benchmark.examples.PlatformBenchmarks.{other}Only
+> bench Jmh/run scala.benchmark.examples.PlatformBenchmarks.{other}Only -l
+> bench Jmh/run PlatformBenchmarks.everywhere scala.benchmark.examples.PlatformBenchmarks.{other}Only -e {other}Only -wi 0 -i 1 -f 0
+> bench Jmh/run PlatformBenchmarks.{other}Only.*
 > on jvm Jmh/run NonJvmBenchmark
-> on js Jmh/run scala.benchmark.examples.PlatformBenchmarks.jsOnly -wi 0 -i 1 -f 0
-> failing js Jmh/run scala.benchmark.examples.PlatformBenchmarks.wasmOnly
-> on js Jmh/run scala.benchmark.examples.PlatformBenchmarks.wasmOnly -l
-> on js Jmh/run PlatformBenchmarks.everywhere scala.benchmark.examples.PlatformBenchmarks.wasmOnly -e wasmOnly -wi 0 -i 1 -f 0
-> on js Jmh/run PlatformBenchmarks.wasmOnly.*
 > on native,js,wasm Jmh/run JvmGroupBenchmark
-> failing jvm,native,wasm Jmh/run scala.benchmark.examples.PlatformBenchmarks.everywhere scala.benchmark.examples.PlatformBenchmarks.jsOnly -rf json -rff preflight.json
-> failing js Jmh/run scala.benchmark.examples.PlatformBenchmarks.everywhere scala.benchmark.examples.PlatformBenchmarks.wasmOnly -rf json -rff preflight.json
+> failing all Jmh/run scala.benchmark.examples.PlatformBenchmarks.everywhere scala.benchmark.examples.PlatformBenchmarks.{other}Only -rf json -rff preflight.json
 > bench verifyPreflight
 > bench Jmh/run InfrastructureBenchmark -opi 13 -si false -foe true
 > bench Jmh/run -lrf

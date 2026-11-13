@@ -176,16 +176,22 @@ object FixtureBuild:
     val succeeded = result.remainingCommands.headOption.exists(_.commandLine == SucceededMarker)
     (result.copy(remainingCommands = state.remainingCommands, onFailure = state.onFailure), succeeded)
 
-  /** `@` in a command stands for the project id; otherwise the command is a key of the project. */
-  private def scoped(project: String, command: String): String =
-    if command.contains("@") then command.replace("@", project) else s"$project/$command"
+  /** Expands the placeholders of a script command for one row:
+    *   - `@` is the project id; a command without it is a key of the project
+    *   - `{platform}` is the row's platform
+    *   - `{other}` is a platform the row does not run on
+    */
+  private def scoped(platform: String, project: String, command: String): String =
+    val other = if platform == "js" then "wasm" else "js"
+    val expanded = command.replace("{platform}", platform).replace("{other}", other)
+    if expanded.contains("@") then expanded.replace("@", project) else s"$project/$expanded"
 
   private def runOn(state: State, platforms: Option[Set[String]], command: String, expectSuccess: Boolean): State =
     rows(state)
       .filter { case (platform, _) => platforms.forall(_.contains(platform)) }
       .foldLeft(Option(state)) {
         case (Some(current), (platform, project)) =>
-          val (next, succeeded) = succeeds(current, scoped(project, command))
+          val (next, succeeded) = succeeds(current, scoped(platform, project, command))
           if succeeded == expectSuccess then Some(next)
           else
             val outcome = if succeeded then "succeeded" else "failed"

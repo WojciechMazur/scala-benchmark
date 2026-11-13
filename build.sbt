@@ -13,6 +13,21 @@ scalaVersion := libraryScalaVersion
 homepage := Some(uri("https://github.com/scala-native/scala-benchmark"))
 licenses := Seq("GPLv2 with Classpath Exception" -> uri("https://openjdk.org/legal/gplv2+ce.html"))
 
+/** `scriptedOn <platforms> [scala=<version>] <tests>` runs scripted tests on the given platforms, optionally with a
+  * newer compiler in the benchmark projects.
+  *
+  * The selection is a launch option of the scripted builds. It is set here rather than read from a system property:
+  * the build usually runs in a server that outlives the command line that started it.
+  */
+commands += Command.args("scriptedOn", "<platforms> [scala=<version>] <tests>") { (state, arguments) =>
+  val platforms = arguments.headOption.getOrElse(sys.error("scriptedOn expects platforms, such as jvm,native"))
+  val (versions, tests) = arguments.tail.partition(_.startsWith("scala="))
+  val options =
+    ("-Dbenchmark.platforms=" + platforms) +: versions.map("-Dbenchmark.scala.version=" + _.stripPrefix("scala="))
+  val launchOptions = options.map("\"" + _ + "\"").mkString("Seq(", ", ", ")")
+  s"set sbtPlugin / scriptedLaunchOpts ++= $launchOptions" :: s"sbtPlugin/scripted ${tests.mkString(" ")}" :: state
+}
+
 lazy val root = project
   .in(file("."))
   .aggregate(
@@ -84,7 +99,7 @@ lazy val sbtPlugin = project
         ((LocalRootProject / baseDirectory).value / "sbt-plugin/src/sbt-test-common").getAbsolutePath,
       "-Dbenchmark.test.sources=" +
         ((LocalRootProject / baseDirectory).value / "sbt-plugin/src/sbt-test-sources/scala").getAbsolutePath
-    ) ++ sys.props.get("benchmark.platforms").map("-Dbenchmark.platforms=" + _),
+    ),
     scriptedDependencies := {
       publishLocal.value
       (interface.jvm(true) / publishLocal).value

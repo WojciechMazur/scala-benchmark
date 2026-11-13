@@ -595,7 +595,15 @@ final private class HarnessMacro[Q <: Quotes](q: Q) extends BenchmarkSymbols[Q](
         if returnsUnit(benchmark) then invocation.asExprOf[Unit]
         else Select.overloaded('{ $environment.blackhole }.asTerm, "consume", Nil, List(invocation)).asExprOf[Unit]
       compilerControl(benchmark) match
-        case None | Some("INLINE") => consumed
+        case None           => consumed
+        case Some("INLINE") =>
+          if annotation[inline](benchmark).isEmpty then
+            report.warning(
+              s"CompilerControl.INLINE on ${benchmark.name} only takes effect on the JVM; " +
+                "add @inline for Scala Native and Scala.js",
+              benchmark.pos.getOrElse(Position.ofMacroExpansion)
+            )
+          consumed
         // Already a call boundary of its own.
         case Some("DONT_INLINE") if annotation[noinline](benchmark).nonEmpty => consumed
         // The benchmark body may be inlined into this boundary, but the boundary stays out of the measured loop.

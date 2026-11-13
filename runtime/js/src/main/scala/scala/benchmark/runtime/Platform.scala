@@ -70,8 +70,8 @@ object Platform:
   def loadSuite(name: String): Suite = Registry.suite(name).getOrElse(throw new ClassNotFoundException(name))
   def inventory: Vector[String] = Registry.names
 
-  /** Build information from the benchmark project, completed with what only the host knows. */
-  def buildMetadata: Vector[(String, String)] = (Registry.buildInfo ++ Host.metadata.toVector).sortBy(_._1)
+  /** What the host knows about itself, together with the build information published to it at startup. */
+  def buildMetadata: Vector[(String, String)] = Host.metadata.toVector.sortBy(_._1)
   def description: String = if isWasm then "Scala.js Wasm (Node.js)" else "Scala.js (Node.js)"
   def metadataSection: String = "javascript"
   def runtimeVersion: String = Host.runtimeVersion

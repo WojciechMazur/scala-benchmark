@@ -33,6 +33,8 @@ jobs:
           examplesNative/Jmh/compile;
           examplesJS/Jmh/compile;
           sbtPlugin/compile"
+      - name: Use the libraries from a newer compiler
+        run: sbt --batch "scriptedOn jvm,native,js scala=3.8.4 benchmark/api"
       - name: Check host process supervision
         run: node --test sbt-plugin/src/test/node/*.test.mjs
 
@@ -70,7 +72,7 @@ jobs:
         shell: bash
         env:
           SCALANATIVE_LTO: ${{ matrix.lto || 'none' }}
-        run: sbt --batch -Dbenchmark.platforms=jvm,${{ matrix.platform }} "sbtPlugin/scripted $COMPATIBILITY"
+        run: sbt --batch "scriptedOn jvm,${{ matrix.platform }} $COMPATIBILITY"
 
   execution:
     name: Execution and failure parity (${{ matrix.platform }})
@@ -90,8 +92,7 @@ jobs:
           node-version: '25'
       - name: Compare failures and execution with the JVM
         run: >-
-          sbt --batch -Dbenchmark.platforms=jvm,${{ matrix.platform }}
-          "sbtPlugin/scripted $EXECUTION benchmark/containment benchmark/group-failures"
+          sbt --batch "scriptedOn jvm,${{ matrix.platform }} $EXECUTION benchmark/containment benchmark/group-failures"
       - uses: actions/upload-artifact@v7
         if: always()
         with:
@@ -126,10 +127,10 @@ jobs:
       - name: Inspect optimized workloads with collection enabled
         env:
           SCALANATIVE_LTO: ${{ matrix.lto || 'none' }}
-        run: sbt --batch -Dbenchmark.platforms=${{ matrix.platform }} "sbtPlugin/scripted benchmark/integrity"
+        run: sbt --batch "scriptedOn ${{ matrix.platform }} benchmark/integrity"
       - name: Check platform selection on Wasm
         if: matrix.platform == 'wasm'
-        run: sbt --batch -Dbenchmark.platforms=wasm "sbtPlugin/scripted benchmark/platform"
+        run: sbt --batch "scriptedOn wasm benchmark/platform"
       - uses: actions/upload-artifact@v7
         if: always()
         with:

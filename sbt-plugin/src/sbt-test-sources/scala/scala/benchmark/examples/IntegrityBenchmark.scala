@@ -6,6 +6,7 @@ class IntegrityValue(val value: Long)
 
 // `@noinline` keeps every workload inspectable as a function of its own in the optimized output.
 // `@CompilerControl` only keeps the benchmark call out of the measured loop.
+// Likewise `@inline` asks for a workload to be part of the measured loop.
 
 /** Return values have no side effects: consuming them must retain the computation/allocation. */
 @State(Scope.Thread)
@@ -38,7 +39,7 @@ class IntegrityBenchmark:
   @Benchmark @CompilerControl(CompilerControl.Mode.DONT_INLINE) @noinline
   def primitiveInt(): Int = (seed * seed + 17).toInt
 
-  @Benchmark @CompilerControl(CompilerControl.Mode.INLINE)
+  @Benchmark @CompilerControl(CompilerControl.Mode.INLINE) @inline
   def inlinedInt(): Int = (seed * seed + 37).toInt
 
   @Benchmark @CompilerControl(CompilerControl.Mode.DONT_INLINE) @noinline
