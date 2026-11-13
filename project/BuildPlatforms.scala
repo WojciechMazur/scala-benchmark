@@ -19,5 +19,5 @@ object BuildPlatforms {
         Seq(VirtualAxis.native),
         (p: Project) => p.enablePlugins(ScalaNativePlugin).settings(nativeSettings)
       )
-      .customRow(true, Seq(VirtualAxis.js), (p: Project) => p.enablePlugins(ScalaJSPlugin).settings(futureLazyVals ++ jsSettings))
+      .customRow(true, Seq(VirtualAxis.js), (p: Project) => p.enablePlugins(ScalaJSPlugin).settings(jsSettings))
 }

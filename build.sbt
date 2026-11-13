@@ -45,7 +45,7 @@ lazy val runtime = projectMatrix
     libraryDependencies += "com.lihaoyi" %% "scalatags" % scalaTagsVersion
   )
   .libraryPlatforms(
-    jvmSettings = sourceLayout("jvm-native") ++ sourceLayout("jvm") ++ junitSettings ++ Seq(
+    jvmSettings = sourceLayout("jvm-native") ++ sourceLayout("jvm") ++ junitSettings ++ harnessTestSettings ++ Seq(
       publish / skip := true,
       libraryDependencies += "org.apache.commons" % "commons-math3" % "3.6.1" % Test
     ),

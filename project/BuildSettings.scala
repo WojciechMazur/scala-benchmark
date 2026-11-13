@@ -32,7 +32,7 @@ object BuildSettings {
     javacOptions ++= Seq("--release", javaRelease)
   )
 
-  /** Unsafe-free lazy vals; the Scala Native compiler plugin does not support this encoding yet. */
+  /** Unsafe-free lazy vals. Only the JVM artifacts need this encoding. */
   val futureLazyVals = Seq(scalacOptions += "-Yfuture-lazy-vals")
 
   val junitSettings = Seq(
@@ -40,6 +40,18 @@ object BuildSettings {
       "com.github.sbt" % "junit-interface" % "0.13.3" % Test,
       "junit" % "junit" % "4.13.2" % Test
     )
+  )
+
+  /** Harness tests compile benchmark sources in-process, against the classpath of the runtime under test. */
+  val harnessTestSettings = Seq(
+    libraryDependencies += "org.scala-lang" %% "scala3-compiler" % scalaVersion.value % Test,
+    Test / resourceGenerators += Def.task {
+      val converter = fileConverter.value
+      val classpath = (Compile / fullClasspath).value.map(entry => converter.toPath(entry.data).toAbsolutePath)
+      val file = (Test / resourceManaged).value / "harness-test.classpath"
+      IO.write(file, classpath.mkString(java.io.File.pathSeparator))
+      Seq(file)
+    }.taskValue
   )
 
   private def legalMappings(root: File, converter: FileConverter) =
