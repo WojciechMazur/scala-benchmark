@@ -1,0 +1,1 @@
+> bench Jmh/run ResultExtensionBenchmark -foe true

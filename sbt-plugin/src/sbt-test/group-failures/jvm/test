@@ -1,3 +1,0 @@
-> benchmarks/Jmh/run GroupFailureBenchmark -to 3s -foe true -rf json -rff smoke.json
-> verifyGroupFailures
-> benchmarks/Jmh/run FailureRecoveryApiBenchmark -foe true

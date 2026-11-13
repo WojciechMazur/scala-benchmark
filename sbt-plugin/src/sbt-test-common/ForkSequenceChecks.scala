@@ -6,14 +6,14 @@ import scala.jdk.CollectionConverters.*
 
 object ForkSequenceChecks {
   val verifyForkSequence = taskKey[Unit]("Compare warmup/later-fork failure retention with JMH")
-  def settings(benchmark: Project, backend: String): Seq[Setting[?]] = Seq(
+  def settings(backend: String): Seq[Setting[?]] = Seq(
     verifyForkSequence := Def.uncached {
-      val directory = (benchmark / baseDirectory).value
-      val targetDirectory = (benchmark / target).value
+      val directory = baseDirectory.value
+      val targetDirectory = (target).value
       val files = (targetDirectory ** "*").get().filter(_.isFile)
       def artifact(name: String): File = files.find(_.getName == name).getOrElse(sys.error("Missing " + name))
       val converter = fileConverter.value
-      val classpath = (benchmark / Jmh / fullClasspath).value.map(e => converter.toPath(e.data).toString)
+      val classpath = (Jmh / fullClasspath).value.map(e => converter.toPath(e.data).toString)
       val support = file(sys.props("benchmark.scripted.support"))
       val repository = support.getParentFile.getParentFile.getParentFile
       val hook = support.getParentFile / "test/fixtures/fork-sequence/journal-host.mjs"
@@ -40,8 +40,7 @@ object ForkSequenceChecks {
             "--import",
             hook.getAbsolutePath,
             artifact("node-host.mjs").getAbsolutePath,
-            files.find(f => f.getName == "main.js" && f.getPath.contains("-opt/")).get.getAbsolutePath,
-            artifact("manifest.json").getAbsolutePath
+            files.find(f => f.getName == "main.js" && f.getPath.contains("-opt/")).get.getAbsolutePath
           )
       val evidence = repository / "target/execution-parity/fork-sequence" / backend
       IO.delete(evidence); IO.createDirectory(evidence)
@@ -224,16 +223,16 @@ object ForkSequenceChecks {
             probe.destroyForcibly(); probe.waitFor(2, TimeUnit.SECONDS)
           }
       }
-      val fixtureSources = (benchmark / Compile / sources).value ++ Vector(
+      val fixtureSources = (Compile / sources).value ++ Vector(
         support / "ForkSequenceChecks.scala",
-        baseDirectory.value / "build.sbt"
+        (LocalRootProject / baseDirectory).value / "build.sbt"
       )
       IO.write(
         evidence / "provenance.json",
         ujson.write(
           ujson.Obj(
             "backend" -> backend,
-            "scala" -> (benchmark / scalaVersion).value,
+            "scala" -> (scalaVersion).value,
             "os" -> sys.props("os.name"),
             "jdk" -> sys.props("java.runtime.version"),
             "files" -> ujson.Arr.from(

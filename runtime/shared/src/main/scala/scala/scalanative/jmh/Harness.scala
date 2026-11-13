@@ -497,7 +497,9 @@ private final class HarnessMacro[Q <: Quotes](q: Q) extends BenchmarkSymbols[Q](
       val cases = instances.toList.map { instance =>
         instance.id -> sequence(parameterFields(instance.cls).map { field =>
           if !field.flags.is(Flags.Mutable) then fail("@Param requires a mutable var", field)
-          if isRestricted(field) then fail("@Param fields must be non-private vars on Native and Scala.js", field)
+          // A macro cannot reach a private member of a class compiled earlier; JMH itself uses reflection here.
+          if field.flags.is(Flags.Private) then
+            fail("@Param fields must not be private on Native and Scala.js; use a qualified private[...] instead", field)
           val tpe = fieldType(field)
           val parsed = parameterType(field) match
             case Some(parameter) => parameter.parse(text).asTerm

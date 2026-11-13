@@ -1,5 +1,0 @@
-> benchmarksNative/Jmh/run ExecutionReadinessBenchmark -si false -to 3s -foe true -rf json -rff readiness.json
-> benchmarksNative/Jmh/run ExecutionFailureProbe -to 5s -foe true -rf json -rff lifecycle.json
-> benchmarksNative/Jmh/run SharedLifecycleBenchmark -to 5s -foe true -rf json -rff shared-lifecycle.json
-> benchmarksNative/Jmh/run SharedGroupLifecycleBenchmark -to 5s -foe true -rf json -rff shared-group.json
-> verifyExecution

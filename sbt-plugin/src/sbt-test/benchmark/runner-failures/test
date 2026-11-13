@@ -1,0 +1,2 @@
+> bench Jmh/run ZEmbeddedRecoveryBenchmark -foe true
+> bench verifyRunnerFailures

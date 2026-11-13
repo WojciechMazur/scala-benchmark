@@ -6,13 +6,13 @@ import scala.jdk.CollectionConverters.*
 
 object RunnerFailureChecks {
   val verifyRunnerFailures = taskKey[Unit]("Compare embedded and bulk warmup failures with upstream")
-  def settings(benchmark: Project, backend: String): Seq[Setting[?]] = Seq(
+  def settings(backend: String): Seq[Setting[?]] = Seq(
     verifyRunnerFailures := Def.uncached {
-      val directory = (benchmark / baseDirectory).value
-      val files = ((benchmark / target).value ** "*").get().filter(_.isFile)
+      val directory = baseDirectory.value
+      val files = ((target).value ** "*").get().filter(_.isFile)
       def artifact(name: String): File = files.find(_.getName == name).getOrElse(sys.error("Missing " + name))
       val converter = fileConverter.value
-      val cp = (benchmark / Jmh / fullClasspath).value.map(e => converter.toPath(e.data).toString)
+      val cp = (Jmh / fullClasspath).value.map(e => converter.toPath(e.data).toString)
       val command =
         if (backend == "jvm")
           Vector(
@@ -28,8 +28,7 @@ object RunnerFailureChecks {
           Vector(
             "node",
             artifact("node-host.mjs").getAbsolutePath,
-            files.find(f => f.getName == "main.js" && f.getPath.contains("-opt/")).get.getAbsolutePath,
-            artifact("manifest.json").getAbsolutePath
+            files.find(f => f.getName == "main.js" && f.getPath.contains("-opt/")).get.getAbsolutePath
           )
       val repository = file(sys.props("benchmark.scripted.support")).getParentFile.getParentFile.getParentFile
       val evidence = repository / "target/execution-parity/runner-failures" / backend

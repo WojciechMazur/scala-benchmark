@@ -19,7 +19,7 @@ class SharedState {
 
 @State(Scope.Thread)
 class InputState {
-  @Param(Array("16", "64")) private var size: Int = 0
+  @Param(Array("16", "64")) var size: Int = 0
   var input: Array[Int] = null
   @Setup(Level.Trial) def setup(shared: SharedState): Unit = {
     assert(shared.initialized.get() == 1)

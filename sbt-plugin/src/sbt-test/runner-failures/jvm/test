@@ -1,2 +1,0 @@
-> benchmarks/Jmh/run ZEmbeddedRecoveryBenchmark -foe true
-> verifyRunnerFailures

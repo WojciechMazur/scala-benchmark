@@ -6,7 +6,7 @@ object ResultFormatChecks {
   def settings(backend: String): Seq[Def.Setting[?]] = Seq(
     verifyFactoryFiles := Def.uncached {
       val repository = file(sys.props("benchmark.scripted.support")).getParentFile.getParentFile.getParentFile
-      val directory = if (backend == "jvm") (LocalRootProject / baseDirectory).value else baseDirectory.value
+      val directory = baseDirectory.value
       val deferred = ujson.read(IO.read(directory / "factory-json-deferred.json"))(0)
       assert(deferred("primaryMetric")("rawData").arr.map(_.arr.map(_.num).toSeq).toSeq == Seq(Seq(10)))
       val disabled = ujson.read(IO.read(directory / "factory-raw-disabled.json"))(0)

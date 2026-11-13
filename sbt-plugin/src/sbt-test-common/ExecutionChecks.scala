@@ -3,22 +3,22 @@ import sbt.Keys.*
 
 object ExecutionChecks {
   val verifyExecution = taskKey[Unit]("Validate execution-semantic fixture results")
-  def settings(benchmark: Project, backend: String): Seq[Setting[?]] = Seq(
+  def settings(backend: String): Seq[Setting[?]] = Seq(
     verifyExecution := Def.uncached {
-      val directory = if (backend == "jvm") baseDirectory.value else (benchmark / baseDirectory).value
+      val directory = baseDirectory.value
       val repository = file(sys.props("benchmark.scripted.support")).getParentFile.getParentFile.getParentFile
       val evidence = repository / "target/execution-parity/platforms" / backend
       IO.createDirectory(evidence)
       val converter = fileConverter.value
-      val dependencies = (benchmark / Compile / dependencyClasspath).value
+      val dependencies = (Compile / dependencyClasspath).value
         .map(entry => converter.toPath(entry.data).toFile)
         .filter(path => path.isFile && (path.getName.startsWith("benchmark-") || path.getName.startsWith("jmh-")))
-      val plugins = (benchmark / Compile / scalacOptions).value
+      val plugins = (Compile / scalacOptions).value
         .filter(_.startsWith("-Xplugin:"))
         .flatMap(_.stripPrefix("-Xplugin:").split(java.util.regex.Pattern.quote(java.io.File.pathSeparator)))
         .map(file)
         .filter(_.isFile)
-      val fixtureSources = (benchmark / Compile / sources).value
+      val fixtureSources = (Compile / sources).value
       def fingerprint(path: File): ujson.Value = {
         val hash = java.security.MessageDigest
           .getInstance("SHA-256")
@@ -32,7 +32,7 @@ object ExecutionChecks {
         ujson.write(
           ujson.Obj(
             "backend" -> backend,
-            "scala" -> (benchmark / scalaVersion).value,
+            "scala" -> (scalaVersion).value,
             "jdk" -> sys.props("java.runtime.version"),
             "os" -> sys.props("os.name"),
             "arch" -> sys.props("os.arch"),

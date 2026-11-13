@@ -1,2 +1,0 @@
-> benchmarksNative/Jmh/run IntegrityBenchmark -gc true -to 5s -foe true -rf json -rff integrity.json
-> verifyIntegrity

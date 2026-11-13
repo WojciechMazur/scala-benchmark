@@ -1,0 +1,3 @@
+> bench Jmh/run OutputFactoryBenchmark -foe true
+> bench Jmh/run OutputFactoryRunnerBenchmark -foe true
+> bench verifyOutputFactory

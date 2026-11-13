@@ -1,3 +1,0 @@
-> benchmarksJS/Jmh/run OutputFactoryBenchmark -foe true
-> benchmarksJS/Jmh/run OutputFactoryRunnerBenchmark -foe true
-> benchmarksJS/verifyOutputFactory

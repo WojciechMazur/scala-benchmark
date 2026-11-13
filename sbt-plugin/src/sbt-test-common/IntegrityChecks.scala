@@ -3,10 +3,14 @@ import sbt.Keys.*
 import scala.sys.process.*
 
 object IntegrityChecks {
+
+  /** Node.js preload that records what the host observes of the optimized workload. */
+  val observeHost: File = file(sys.props("benchmark.scripted.support")).getParentFile / "test/integrity/observe-host.mjs"
+
   val verifyIntegrity = taskKey[Unit]("Retain and inspect optimized measurement artifacts")
-  def settings(benchmark: Project, backend: String): Seq[Setting[?]] = Seq(
+  def settings(backend: String): Seq[Setting[?]] = Seq(
     verifyIntegrity := Def.uncached {
-      val directory = (benchmark / baseDirectory).value
+      val directory = baseDirectory.value
       val repository = file(sys.props("benchmark.scripted.support")).getParentFile.getParentFile.getParentFile
       val rows = ujson.read(IO.read(directory / "integrity.json")).arr
       val variant = if (backend == "native") backend + "-" + rows.head("native")("lto").str else backend
@@ -35,13 +39,13 @@ object IntegrityChecks {
         assert(row("primaryMetric")("rawData").arr.head.arr.size == 1)
       }
       IO.copyFile(directory / "integrity.json", evidence / "results.json")
-      val targetDirectory = (benchmark / target).value
+      val targetDirectory = (target).value
       val converter = fileConverter.value
-      val dependencies = (benchmark / Compile / dependencyClasspath).value
+      val dependencies = (Compile / dependencyClasspath).value
         .map(e => converter.toPath(e.data).toFile)
         .filter(file => file.isFile && file.getName.startsWith("benchmark-"))
-      val fixtureSources = (benchmark / Compile / sources).value
-      val options = (benchmark / Compile / scalacOptions).value
+      val fixtureSources = (Compile / sources).value
+      val options = (Compile / scalacOptions).value
       val plugins = options
         .filter(_.startsWith("-Xplugin:"))
         .flatMap(_.stripPrefix("-Xplugin:").split(java.io.File.pathSeparator))
@@ -116,8 +120,7 @@ object IntegrityChecks {
         linked.foreach(path => IO.copyFile(path, evidence / path.getName))
         artifacts
           .filter(path =>
-            path.getName == "manifest.json" ||
-              (path.getParentFile.getName == "scala-benchmark" && Set(
+            (path.getParentFile.getName == "scala-benchmark" && Set(
                 "node-host.mjs",
                 "progress-deadline.mjs",
                 "worker-lifeline.mjs",
@@ -130,8 +133,8 @@ object IntegrityChecks {
           )
           .foreach(path => IO.copyFile(path, evidence / path.getName))
         assert(
-          (evidence / "manifest.json").isFile && (evidence / "node-host.mjs").isFile,
-          "Missing runnable host/inventory evidence"
+          (evidence / "node-host.mjs").isFile,
+          "Missing runnable host evidence"
         )
         assert(linked.exists(_.getName.endsWith(".wasm")) == (backend == "wasm"))
         if (backend == "wasm") {
@@ -149,13 +152,13 @@ object IntegrityChecks {
         ujson.write(
           ujson.Obj(
             "backend" -> backend,
-            "scala" -> (benchmark / scalaVersion).value,
+            "scala" -> (scalaVersion).value,
             "configuration" -> rows.head(if (backend == "native") "native" else "javascript"),
             "jdk" -> sys.props("java.runtime.version"),
             "os" -> sys.props("os.name"),
             "arch" -> sys.props("os.arch"),
             "artifacts" -> ujson.Arr.from(
-              (fixtureSources ++ dependencies ++ plugins ++ retained ++ Seq(baseDirectory.value / "build.sbt") ++
+              (fixtureSources ++ dependencies ++ plugins ++ retained ++ Seq((LocalRootProject / baseDirectory).value / "build.sbt") ++
                 Seq("IntegrityChecks.scala", "FixtureBuild.scala").map(name =>
                   file(sys.props("benchmark.scripted.support")) / name
                 ) ++

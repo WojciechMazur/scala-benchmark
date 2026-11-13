@@ -69,14 +69,30 @@ class BenchmarkSymbols[Q <: Quotes](using val quotes: Q):
   def isRestricted(symbol: Symbol): Boolean =
     symbol.flags.is(Flags.Private) || symbol.flags.is(Flags.Protected) || symbol.privateWithin.nonEmpty
 
+  /** Arguments of an annotation by parameter name.
+    *
+    * Scala-defined annotations applied with named arguments are typed as a block that first binds the arguments to
+    * synthetic values; those references are resolved back to the written expressions.
+    */
   def arguments(annotation: Term): Map[String, Term] =
-    val names = annotation.tpe.typeSymbol.primaryConstructor.paramSymss.flatten.filter(_.isTerm).map(_.name)
+    def unwrap(term: Term): (Map[Symbol, Term], Term) = term match
+      case Block(statements, expression) =>
+        val (lifted, call) = unwrap(expression)
+        (statements.collect { case value @ ValDef(_, _, Some(rhs)) => value.symbol -> rhs }.toMap ++ lifted, call)
+      case Inlined(_, _, expression) => unwrap(expression)
+      case Typed(expression, _)      => unwrap(expression)
+      case call                      => (Map.empty, call)
+    val (lifted, call) = unwrap(annotation)
+    def resolve(term: Term): Term = term match
+      case reference: Ident => lifted.getOrElse(reference.symbol, reference)
+      case other            => other
     def applied(term: Term): List[Term] = term match
       case Apply(function, values) => applied(function) ::: values
       case _                       => Nil
-    applied(annotation).zipWithIndex.map {
-      case (NamedArg(name, value), _) => name -> value
-      case (value, index)             => names.lift(index).getOrElse(index.toString) -> value
+    val names = annotation.tpe.typeSymbol.primaryConstructor.paramSymss.flatten.filter(_.isTerm).map(_.name)
+    applied(call).zipWithIndex.map {
+      case (NamedArg(name, value), _) => name -> resolve(value)
+      case (value, index)             => names.lift(index).getOrElse(index.toString) -> resolve(value)
     }.toMap
 
   private def isDefault(term: Term): Boolean = term.symbol.name.contains("default$")

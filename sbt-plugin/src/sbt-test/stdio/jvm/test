@@ -1,2 +1,0 @@
-> benchmarks/Jmh/run StdioBenchmark -foe true
-> benchmarks/verifyStdio

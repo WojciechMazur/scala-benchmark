@@ -12,9 +12,9 @@ object ReportChecks {
   private val payload = "a;b,\"quoted\"\n<script>alert('x')</script>&_%#$price{}^~\\東京"
   private val benchmarkName = "scala.scalanative.jmh.examples.ReportFormatsBenchmark.execute"
 
-  def settings(benchmark: Project, backend: String): Seq[Setting[?]] = Seq(
+  def settings(backend: String): Seq[Setting[?]] = Seq(
     verifyAllFormats := Def.uncached {
-      val directory = if (backend == "jvm") baseDirectory.value else (benchmark / baseDirectory).value
+      val directory = baseDirectory.value
       val report = ujson.read(IO.read(directory / "report.json")).arr
       assert(report.size == 1)
       checkJson(report.head, backend)
@@ -101,7 +101,7 @@ object ReportChecks {
       assert(metadata("backend").nonEmpty)
     },
     verifyAllModes := Def.uncached {
-      val directory = if (backend == "jvm") baseDirectory.value else (benchmark / baseDirectory).value
+      val directory = baseDirectory.value
       val modes = Set("thrpt", "avgt", "sample", "ss")
       val json = ujson.read(IO.read(directory / "modes.json")).arr
       assert(json.map(_("mode").str).toSet == modes)

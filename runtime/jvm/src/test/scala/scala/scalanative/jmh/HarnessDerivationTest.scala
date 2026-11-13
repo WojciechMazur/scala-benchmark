@@ -3,6 +3,7 @@ package scala.scalanative.jmh
 import java.net.URLClassLoader
 import java.nio.charset.StandardCharsets
 import java.nio.file.{Files, Path}
+import java.util.concurrent.TimeUnit
 
 import org.junit.Assert._
 import org.junit.Test
@@ -522,6 +523,34 @@ class HarnessDerivationTest {
       val descriptor = Descriptor.parse(0, suite.metadata()(0))
       assertTrue(descriptor.warnings.exists(_.contains("Fork.jvmArgs=-Xmx2g")))
     } finally loader.close()
+  }
+
+  @Test def methodConfigurationOverridesInheritedConfiguration(): Unit = compile(
+    """package bench
+      |import scala.benchmark.*
+      |import java.util.concurrent.TimeUnit
+      |@BenchmarkMode(Array(Mode.SingleShotTime))
+      |@Warmup(iterations = 2, batchSize = 7, time = 2, timeUnit = TimeUnit.MILLISECONDS)
+      |@Measurement(iterations = 2, batchSize = 3, time = 9, timeUnit = TimeUnit.MILLISECONDS)
+      |@Fork(0)
+      |abstract class Base
+      |@Warmup(iterations = 1, timeUnit = TimeUnit.MICROSECONDS)
+      |class Example extends Base {
+      |  @Benchmark @Measurement(iterations = 1, timeUnit = TimeUnit.NANOSECONDS) def run(): Int = 1
+      |}
+      |""".stripMargin
+  ) { (success, output) =>
+    assertTrue(success)
+    inventory(output, "Example") { metadata =>
+      val configuration = Descriptor.parse(0, metadata.head).configuration
+      assertEquals(1, configuration.warmupIterations)
+      assertEquals(7, configuration.warmupBatchSize)
+      assertEquals(TimeUnit.MILLISECONDS.toNanos(2), configuration.warmupNanos)
+      assertEquals(1, configuration.measurementIterations)
+      assertEquals(3, configuration.measurementBatchSize)
+      assertEquals(TimeUnit.MILLISECONDS.toNanos(9), configuration.measurementNanos)
+      assertEquals(0, configuration.forks)
+    }
   }
 
   @Test def statesFromAnEarlierCompilationAreAssigned(): Unit = compile(

@@ -1,0 +1,5 @@
+> bench Jmh/run ExecutionReadinessBenchmark -si false -to 3s -foe true -rf json -rff readiness.json
+> bench Jmh/run ExecutionFailureProbe -to 5s -foe true -rf json -rff lifecycle.json
+> bench Jmh/run SharedLifecycleBenchmark -to 5s -foe true -rf json -rff shared-lifecycle.json
+> on jvm,native Jmh/run SharedGroupLifecycleBenchmark -to 5s -foe true -rf json -rff shared-group.json
+> bench verifyExecution

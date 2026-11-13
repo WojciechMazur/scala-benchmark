@@ -1,7 +1,0 @@
-> benchmarks/Jmh/run OutputFormatApiBenchmark -foe true
-> benchmarks/Jmh/run OutputFormatEdgeApiBenchmark -foe true
-> benchmarks/Jmh/run OutputGroupApiBenchmark -foe true
-> benchmarks/Jmh/run OutputFormatListingApiBenchmark -foe true
-> benchmarks/Jmh/run OutputFormatCrashApiBenchmark -foe true
-> benchmarks/Jmh/run OutputFormatMutationApiBenchmark -foe true
-> benchmarks/Jmh/run OutputFormatReportApiBenchmark -foe true

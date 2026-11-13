@@ -1,0 +1,3 @@
+> bench Jmh/run StatisticsApiBenchmark -foe true
+> bench Jmh/run ProgrammaticApiBenchmark -foe true
+> bench Jmh/run OverloadedApiBenchmark -foe true

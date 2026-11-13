@@ -1,3 +1,0 @@
-> benchmarksNative/Jmh/run ForkContainmentBenchmark -to 3s -foe true -rf json -rff smoke.json
-> verifyForkContainment
-> benchmarksNative/Jmh/run FailureRecoveryApiBenchmark -foe true

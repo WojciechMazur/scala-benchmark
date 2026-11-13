@@ -1,3 +1,0 @@
-> benchmarksNative/Jmh/run OutputFactoryBenchmark -foe true
-> benchmarksNative/Jmh/run OutputFactoryRunnerBenchmark -foe true
-> benchmarksNative/verifyOutputFactory

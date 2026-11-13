@@ -5,10 +5,10 @@ import scala.jdk.CollectionConverters.*
 
 object ForkContainmentChecks {
   val verifyForkContainment = taskKey[Unit]("Inject fork faults under an independent outer watchdog")
-  def settings(benchmark: Project, backend: String): Seq[Setting[?]] = Seq(
+  def settings(backend: String): Seq[Setting[?]] = Seq(
     verifyForkContainment := Def.uncached {
-      val directory = (benchmark / baseDirectory).value
-      val artifacts = ((benchmark / target).value ** "*").get().filter(_.isFile)
+      val directory = baseDirectory.value
+      val artifacts = ((target).value ** "*").get().filter(_.isFile)
       def artifact(predicate: File => Boolean): File =
         artifacts.find(predicate).getOrElse(sys.error("Missing linked artifact"))
       val command =
@@ -24,8 +24,7 @@ object ForkContainmentChecks {
               sys.props("benchmark.scripted.support")
             ).getParentFile / "test/fixtures/containment/tree-host.mjs").getAbsolutePath,
             artifact(_.getName == "node-host.mjs").getAbsolutePath,
-            artifact(f => f.getName == "main.js" && f.getPath.contains("-opt/")).getAbsolutePath,
-            artifact(_.getName == "manifest.json").getAbsolutePath
+            artifact(f => f.getName == "main.js" && f.getPath.contains("-opt/")).getAbsolutePath
           )
       val repository = file(sys.props("benchmark.scripted.support")).getParentFile.getParentFile.getParentFile
       val evidence = repository / "target/execution-parity/containment" / backend
@@ -150,12 +149,12 @@ object ForkContainmentChecks {
             "backend" -> backend,
             "os" -> sys.props("os.name"),
             "jdk" -> sys.props("java.runtime.version"),
-            "scala" -> (benchmark / scalaVersion).value,
+            "scala" -> (scalaVersion).value,
             "artifacts" -> ujson.Arr.from(
               (artifacts.filter(f =>
                 command.contains(f.getAbsolutePath) ||
                   Set("worker-lifeline.mjs", "progress-deadline.mjs")(f.getName) || f.getName.endsWith(".wasm")
-              ) ++ (benchmark / Compile / sources).value).map(f =>
+              ) ++ (Compile / sources).value).map(f =>
                 ujson.Obj(
                   "file" -> f.getName,
                   "sha256" -> java.security.MessageDigest

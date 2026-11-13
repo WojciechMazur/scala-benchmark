@@ -26,7 +26,7 @@ class ContainmentTest {
       classOf[org.openjdk.jmh.annotations.Mode],
       classOf[org.junit.Assert],
       classOf[org.hamcrest.Matcher[?]],
-      classOf[scala.benchmark.internal.BenchmarkInventory]
+      classOf[scala.benchmark.internal.InventoryEntry]
     )
       .map(_.getProtectionDomain.getCodeSource.getLocation.toURI)
       .map(java.nio.file.Paths.get(_).toString)

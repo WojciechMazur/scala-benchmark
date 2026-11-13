@@ -8,7 +8,7 @@ object StdioChecks {
   def settings(backend: String): Seq[Def.Setting[?]] = Seq(
     verifyStdio := Def.uncached {
       val root = file(sys.props("benchmark.scripted.support")).getParentFile.getParentFile.getParentFile
-      val directory = if (backend == "jvm") (LocalRootProject / baseDirectory).value else baseDirectory.value
+      val directory = baseDirectory.value
       val evidence = root / "target/execution-parity/stdio" / backend
       IO.createDirectory(evidence)
       val files = (directory * "stdio-*.txt").get().filter(_.isFile)
@@ -42,8 +42,7 @@ object StdioChecks {
         else {
           val host = products.find(_.getName == "node-host.mjs").get
           val module = products.find(f => f.getName == "main.js" && f.getPath.contains("-opt/")).get
-          val manifest = products.find(_.getName == "manifest.json").get
-          Vector("node", host.getAbsolutePath, module.getAbsolutePath, manifest.getAbsolutePath)
+          Vector("node", host.getAbsolutePath, module.getAbsolutePath)
         }
       for (forks <- Seq(0, 1)) {
         val out = evidence / s"cli-$forks-out.bin"

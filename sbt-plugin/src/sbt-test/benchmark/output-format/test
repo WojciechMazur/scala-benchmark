@@ -1,0 +1,9 @@
+> on native,js Jmh/run TrialObserverBenchmark -foe true
+> bench Jmh/run OutputFormatApiBenchmark -foe true
+> bench Jmh/run OutputFormatEdgeApiBenchmark -foe true
+> on jvm,native Jmh/run OutputGroupApiBenchmark -foe true
+> bench Jmh/run OutputFormatListingApiBenchmark -foe true
+> bench Jmh/run OutputFormatCrashApiBenchmark -foe true
+> on native Jmh/run OutputFormatCancellationApiBenchmark -foe true
+> bench Jmh/run OutputFormatMutationApiBenchmark -foe true
+> bench Jmh/run OutputFormatReportApiBenchmark -foe true

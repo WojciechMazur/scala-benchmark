@@ -1,3 +1,0 @@
-> benchmarksNative/Jmh/run StatisticsApiBenchmark -foe true
-> benchmarksNative/Jmh/run ProgrammaticApiBenchmark -foe true
-> benchmarksNative/Jmh/run OverloadedApiBenchmark -foe true

@@ -22,7 +22,7 @@ object OutputFactoryChecks {
   def settings(backend: String): Seq[Def.Setting[?]] = Seq(
     verifyOutputFactory := Def.uncached {
       val repository = file(sys.props("benchmark.scripted.support")).getParentFile.getParentFile.getParentFile
-      val directory = if (backend == "jvm") (LocalRootProject / baseDirectory).value else baseDirectory.value
+      val directory = baseDirectory.value
       val evidence = repository / "target/execution-parity/output-factory" / backend
       IO.createDirectory(evidence)
       val files = (directory * "output-factory-*.txt").get().filter(_.isFile)

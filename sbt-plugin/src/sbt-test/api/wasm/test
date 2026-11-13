@@ -1,3 +1,0 @@
-> benchmarksJS/Jmh/run StatisticsApiBenchmark -foe true
-> benchmarksJS/Jmh/run ProgrammaticApiBenchmark -foe true
-> benchmarksJS/Jmh/run OverloadedApiBenchmark -foe true

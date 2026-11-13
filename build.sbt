@@ -81,7 +81,7 @@ lazy val sbtPlugin = project
       "-Dbenchmark.scala.version=" + libraryScalaVersion,
       "-Dbenchmark.scripted.support=" + ((LocalRootProject / baseDirectory).value / "sbt-plugin/src/sbt-test-common").getAbsolutePath,
       "-Dbenchmark.test.sources=" + ((LocalRootProject / baseDirectory).value / "sbt-plugin/src/sbt-test-sources/scala").getAbsolutePath
-    ),
+    ) ++ sys.props.get("benchmark.platforms").map("-Dbenchmark.platforms=" + _),
     scriptedDependencies := {
       publishLocal.value
       (interface.jvm(true) / publishLocal).value

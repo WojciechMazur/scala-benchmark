@@ -74,7 +74,7 @@ private[sbtplugin] object GeneratedSources {
        |""".stripMargin
   }
 
-  /** Leaves the file untouched when nothing changed, so that incremental compilation is not invalidated. */
+  /** Leaves an unchanged file untouched, so that it does not invalidate incremental compilation. */
   def write(file: File, text: String): Seq[File] = {
     if (!file.exists() || IO.read(file) != text) IO.write(file, text)
     Seq(file)

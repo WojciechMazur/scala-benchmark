@@ -1,0 +1,3 @@
+> bench Jmh/run ForkContainmentBenchmark -to 3s -foe true -rf json -rff smoke.json
+> bench verifyForkContainment
+> bench Jmh/run FailureRecoveryApiBenchmark -foe true

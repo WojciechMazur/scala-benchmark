@@ -6,12 +6,12 @@ import scala.jdk.CollectionConverters.*
 
 object GroupFailureChecks {
   val verifyGroupFailures = taskKey[Unit]("Check grouped failures against upstream JMH behavior")
-  def settings(benchmark: Project, backend: String): Seq[Setting[?]] = Seq(
+  def settings(backend: String): Seq[Setting[?]] = Seq(
     verifyGroupFailures := Def.uncached {
-      val directory = (benchmark / baseDirectory).value
-      val targetDirectory = (benchmark / target).value
+      val directory = baseDirectory.value
+      val targetDirectory = (target).value
       val converter = fileConverter.value
-      val classpath = (benchmark / Jmh / fullClasspath).value.map(e => converter.toPath(e.data).toString)
+      val classpath = (Jmh / fullClasspath).value.map(e => converter.toPath(e.data).toString)
       val executable = java.nio.file.Paths
         .get(sys.props("java.home"), "bin", if (sys.props("os.name").startsWith("Windows")) "java.exe" else "java")
       val command =
@@ -244,8 +244,8 @@ object GroupFailureChecks {
         assert(api.exitValue() == 0 && IO.read(apiLog).contains("GROUP_API_RECOVERY"), IO.read(apiLog))
       } finally if (api.isAlive) { api.destroyForcibly(); api.waitFor(2, TimeUnit.SECONDS) }
       IO.write(evidence / "observations.json", ujson.write(ujson.Arr.from(observations), indent = 2))
-      val files = (benchmark / Compile / sources).value ++
-        (benchmark / Compile / dependencyClasspath).value
+      val files = (Compile / sources).value ++
+        (Compile / dependencyClasspath).value
           .map(e => converter.toPath(e.data).toFile)
           .filter(f => f.getName.startsWith("benchmark-") || f.getName.startsWith("jmh-")) ++
         (if (backend == "native") Vector(file(command.head)) else Vector.empty)
@@ -255,7 +255,7 @@ object GroupFailureChecks {
           ujson.Obj(
             "backend" -> backend,
             "os" -> sys.props("os.name"),
-            "scala" -> (benchmark / scalaVersion).value,
+            "scala" -> (scalaVersion).value,
             "jdk" -> sys.props("java.runtime.version"),
             "artifacts" -> ujson.Arr.from(
               files.map(f =>

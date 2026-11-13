@@ -5,14 +5,14 @@ import pl.project13.scala.sbt.JmhPlugin.JmhKeys.Jmh
 
 object AggregationChecks {
   val verifyAggregation = taskKey[Unit]("Compare public result edge cases against actual upstream JMH")
-  def settings(benchmark: Project, backend: String): Seq[Setting[?]] = Seq(
+  def settings(backend: String): Seq[Setting[?]] = Seq(
     verifyAggregation := Def.uncached {
       val repository = file(sys.props("benchmark.scripted.support")).getParentFile.getParentFile.getParentFile
       val evidence = repository / "target/execution-parity/aggregation" / backend
       IO.createDirectory(evidence)
-      val directory = if (backend == "jvm") baseDirectory.value else (benchmark / baseDirectory).value
+      val directory = baseDirectory.value
       val converter = fileConverter.value
-      val classpath = (benchmark / Jmh / fullClasspath).value
+      val classpath = (Jmh / fullClasspath).value
         .map(e => converter.toPath(e.data).toFile)
         .mkString(java.io.File.pathSeparator)
       val log =
@@ -77,14 +77,14 @@ object AggregationChecks {
       val actual = ujson.Obj.from(observations.map { case (key, values) => key -> ujson.Arr.from(values) })
       IO.write(evidence / "observations.json", ujson.write(actual, indent = 2))
       IO.write(evidence / "execution.log", log)
-      val fixtureSources = (benchmark / Compile / sources).value
-      val dependencies = (benchmark / Compile / dependencyClasspath).value
+      val fixtureSources = (Compile / sources).value
+      val dependencies = (Compile / dependencyClasspath).value
         .map(e => converter.toPath(e.data).toFile)
         .filter(path =>
           path.isFile && (path.getName.startsWith("benchmark-") || path.getName.startsWith("jmh-") || path.getName
             .startsWith("commons-math3"))
         )
-      val plugins = (benchmark / Compile / scalacOptions).value
+      val plugins = (Compile / scalacOptions).value
         .filter(_.startsWith("-Xplugin:"))
         .flatMap(_.stripPrefix("-Xplugin:").split(java.util.regex.Pattern.quote(java.io.File.pathSeparator)))
         .map(file)
@@ -95,7 +95,7 @@ object AggregationChecks {
         ujson.write(
           ujson.Obj(
             "backend" -> backend,
-            "scala" -> (benchmark / scalaVersion).value,
+            "scala" -> (scalaVersion).value,
             "jmh" -> "1.37",
             "jdk" -> sys.props("java.runtime.version"),
             "os" -> sys.props("os.name"),
@@ -103,7 +103,7 @@ object AggregationChecks {
             "artifacts" -> ujson.Arr.from(
               (fixtureSources ++ dependencies ++ plugins ++ Seq(
                 support / "AggregationChecks.scala",
-                baseDirectory.value / "build.sbt"
+                (LocalRootProject / baseDirectory).value / "build.sbt"
               )).map(path =>
                 ujson.Obj(
                   "file" -> path.getName,
