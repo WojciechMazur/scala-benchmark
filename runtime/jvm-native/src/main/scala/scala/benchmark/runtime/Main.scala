@@ -404,7 +404,7 @@ object Main:
 
   end executeWorker
 
-  private[runtime] def writeResults(
+  private[benchmark] def writeResults(
       path: Path,
       results: Vector[IterationResult]
   ): Unit =
@@ -440,7 +440,7 @@ object Main:
 
   end writeResults
 
-  private[runtime] def readResults(path: Path): Vector[IterationResult] =
+  private[benchmark] def readResults(path: Path): Vector[IterationResult] =
     val in = new DataInputStream(
       new BufferedInputStream(new FileInputStream(path.toFile))
     )
