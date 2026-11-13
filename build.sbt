@@ -25,7 +25,11 @@ commands += Command.args("scriptedOn", "<platforms> [scala=<version>] <tests>") 
   val options =
     ("-Dbenchmark.platforms=" + platforms) +: versions.map("-Dbenchmark.scala.version=" + _.stripPrefix("scala="))
   val launchOptions = options.map("\"" + _ + "\"").mkString("Seq(", ", ", ")")
-  s"set sbtPlugin / scriptedLaunchOpts ++= $launchOptions" :: s"sbtPlugin/scripted ${tests.mkString(" ")}" :: state
+  // A selection made earlier in this session must not leak into this run.
+  "session clear" ::
+    s"set sbtPlugin / scriptedLaunchOpts ++= $launchOptions" ::
+    s"sbtPlugin/scripted ${tests.mkString(" ")}" ::
+    state
 }
 
 lazy val root = project

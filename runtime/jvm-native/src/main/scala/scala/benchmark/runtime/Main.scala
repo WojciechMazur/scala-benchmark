@@ -36,6 +36,46 @@ object Main:
 
   def run(options: Options): Vector[RunResult] = BenchmarkRunner.run(options)
 
+  /** Everything a worker process needs to reproduce the trial: the benchmark, its resolved configuration and
+    * parameters, and the bulk warmups that precede it.
+    */
+  private def writeRequest(
+      request: Path,
+      suite: String,
+      descriptor: Descriptor,
+      mode: Mode,
+      config: Configuration,
+      parameters: Map[String, String],
+      warmups: Vector[WarmupRequest],
+      failOnError: Boolean,
+      observer: RunObserver
+  ): Unit =
+    val properties = new Properties
+    def put(prefix: String, configuration: Configuration, parameters: Map[String, String]): Unit =
+      Configuration.overrides(configuration).foreach((key, value) => properties.setProperty(prefix + key, value))
+      parameters.foreach((key, value) => properties.setProperty(prefix + "parameter." + key, value))
+    properties.setProperty("stdio", "true")
+    properties.setProperty("events", (observer ne RunObserver.Disabled).toString)
+    properties.setProperty("supervised", "true")
+    properties.setProperty("failOnError", failOnError.toString)
+    properties.setProperty("suite", suite)
+    properties.setProperty("benchmark", descriptor.index.toString)
+    properties.setProperty("mode", mode.name())
+    put("", config, parameters)
+    properties.setProperty("bulk.count", warmups.size.toString)
+    warmups.zipWithIndex.foreach { (warmup, index) =>
+      val prefix = s"bulk.$index."
+      properties.setProperty(prefix + "suite", warmup.suite)
+      properties.setProperty(prefix + "benchmark", warmup.index.toString)
+      properties.setProperty(prefix + "mode", warmup.mode.name())
+      put(prefix, warmup.configuration, warmup.parameters)
+    }
+    val output = new FileOutputStream(request.toFile)
+    try properties.store(output, "Scala Benchmark worker request")
+    finally output.close()
+
+  end writeRequest
+
   private[runtime] def forked(
       suite: String,
       descriptor: Descriptor,
@@ -59,29 +99,7 @@ object Main:
     Files.write(userOut, Array.emptyByteArray)
     Files.write(userErr, Array.emptyByteArray)
     Files.write(framework, Array.emptyByteArray)
-    val p = new Properties
-    p.setProperty("stdio", "true")
-    p.setProperty("events", (observer ne RunObserver.Disabled).toString)
-    p.setProperty("supervised", "true")
-    p.setProperty("failOnError", failOnError.toString)
-    p.setProperty("suite", suite);
-    p.setProperty("benchmark", descriptor.index.toString);
-    p.setProperty("mode", mode.name())
-    val fields = Configuration.overrides(config)
-    fields.foreach { case (k, v) => p.setProperty(k, v) }
-    parameters.foreach { case (k, v) => p.setProperty("parameter." + k, v) }
-    p.setProperty("bulk.count", warmups.size.toString)
-    warmups.zipWithIndex.foreach { case (warmup, i) =>
-      val prefix = s"bulk.$i."
-      p.setProperty(prefix + "suite", warmup.suite)
-      p.setProperty(prefix + "benchmark", warmup.index.toString)
-      p.setProperty(prefix + "mode", warmup.mode.name())
-      Configuration.overrides(warmup.configuration).foreach { case (key, value) => p.setProperty(prefix + key, value) }
-      warmup.parameters.foreach { case (key, value) => p.setProperty(prefix + "parameter." + key, value) }
-    }
-    val output = new FileOutputStream(request.toFile)
-    try p.store(output, "Scala Benchmark worker request")
-    finally output.close()
+    writeRequest(request, suite, descriptor, mode, config, parameters, warmups, failOnError, observer)
     var process: Process = null
     var outputRelay: ForkOutput = null
     var userRelays = Vector.empty[ForkOutput]
