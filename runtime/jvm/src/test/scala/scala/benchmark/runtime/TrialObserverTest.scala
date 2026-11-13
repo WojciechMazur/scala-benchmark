@@ -11,7 +11,7 @@ class TrialObserverTest:
   @Test def observerTimeDoesNotConsumeWorkerBarrierTimeout(): Unit =
     import org.openjdk.jmh.annotations.Mode
     val suite = new Suite:
-      def metadata(): Array[String] = Array.empty
+      def metadata(): Array[BenchmarkMetadata] = Array.empty
       def instantiate(id: Int): AnyRef = new Object
       def assign(id: Int, target: AnyRef, parameter: String, value: String): Unit = ()
       def setup(id: Int, level: Int, target: AnyRef, env: Environment): Unit = ()
@@ -46,7 +46,7 @@ class TrialObserverTest:
       val failure = new AtomicReference[Throwable]
       val restored = new java.util.concurrent.atomic.AtomicBoolean
       val suite = new Suite:
-        def metadata(): Array[String] = Array.empty
+        def metadata(): Array[BenchmarkMetadata] = Array.empty
         def instantiate(id: Int): AnyRef =
           workers.add(Thread.currentThread()); new Object
         def assign(id: Int, target: AnyRef, parameter: String, value: String): Unit = ()

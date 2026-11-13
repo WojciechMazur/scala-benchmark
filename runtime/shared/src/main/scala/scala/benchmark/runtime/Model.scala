@@ -1,7 +1,5 @@
 package scala.benchmark.runtime
 
-import java.io.StringReader
-import java.util.Properties
 import java.util.concurrent.TimeUnit
 
 import org.openjdk.jmh.annotations.{Mode, Scope}
@@ -10,7 +8,7 @@ import org.openjdk.jmh.runner.options.TimeValue
 
 /** Contract between the derived harness and the runtime. Not an alternative public Runner API. */
 trait Suite:
-  def metadata(): Array[String]
+  def metadata(): Array[BenchmarkMetadata]
   def resetAuxiliary(benchmark: Int, environment: Environment): Unit = ()
   def auxiliary(benchmark: Int, environment: Environment): Array[Double] = Array.emptyDoubleArray
   def instantiate(state: Int): AnyRef
@@ -35,6 +33,37 @@ trait Suite:
       environment: Environment,
       control: IterationControl
   ): RawResult
+
+/** Configuration annotations of a benchmark. `None` leaves the mode-dependent JMH default in place. */
+final case class DeclaredConfiguration(
+    warmupIterations: Option[Int] = None,
+    measurementIterations: Option[Int] = None,
+    warmupBatchSize: Option[Int] = None,
+    measurementBatchSize: Option[Int] = None,
+    warmupTime: Option[TimeValue] = None,
+    measurementTime: Option[TimeValue] = None,
+    timeout: Option[TimeValue] = None,
+    forks: Option[Int] = None,
+    warmupForks: Option[Int] = None,
+    threads: Int = 1,
+    operationsPerInvocation: Option[Int] = None,
+    unit: String = "SECONDS"
+)
+
+/** What one benchmark, or benchmark group, declares. Derived at compile time; [[Descriptor.of]] resolves it for a
+  * run.
+  */
+final case class BenchmarkMetadata(
+    name: String,
+    modes: Vector[Mode],
+    states: Vector[StateDefinition] = Vector.empty,
+    declared: DeclaredConfiguration = DeclaredConfiguration(),
+    eligibility: scala.benchmark.internal.Eligibility = scala.benchmark.internal.Eligibility(),
+    generatedTarget: String = "",
+    members: Vector[GroupMember] = Vector.empty,
+    counters: Vector[CounterDefinition] = Vector.empty,
+    warnings: Vector[String] = Vector.empty
+)
 
 final case class Parameter(name: String, values: Vector[String])
 
@@ -144,7 +173,7 @@ object WarmupRequest:
         println(s"# Bulk warmup ${request.suite} [${request.mode.shortLabel()}]")
         progress(-1, ForkProgress.budget(c.warmupNanos, c.timeoutNanos))
         val suite = Platform.loadSuite(request.suite)
-        val descriptor = Descriptor.parse(request.index, suite.metadata()(request.index), Some(request.mode))
+        val descriptor = Descriptor.of(request.index, suite.metadata()(request.index), Some(request.mode))
         try
           Execution.trial(
             suite,
@@ -245,88 +274,51 @@ end Descriptor
 
 object Descriptor:
 
-  def parse(
-      index: Int,
-      text: String,
-      selectedMode: Option[Mode] = None
-  ): Descriptor =
-    val p = new Properties
-    p.load(new StringReader(text))
-    def str(key: String, default: String = ""): String =
-      p.getProperty(key, default)
-    def int(key: String, default: Int): Int = str(key, default.toString).toInt
-    def long(key: String, default: Long): Long =
-      str(key, default.toString).toLong
-    def list(key: String): Vector[String] =
-      str(key).split(",").iterator.filter(_.nonEmpty).toVector
-    val modes = list("modes").map(Mode.valueOf)
-    val single = selectedMode.fold(modes == Vector(Mode.SingleShotTime))(
-      _ == Mode.SingleShotTime
-    )
-    val ids = list("states").map(_.toInt)
-    val states = ids.map { id =>
-      val prefix = s"state.$id."
-      val parameters = list(prefix + "params").map { name =>
-        val count = int(prefix + s"param.$name.count", 0)
-        Parameter(
-          name,
-          Vector.tabulate(count)(n => str(prefix + s"param.$name.$n"))
-        )
-      }
-      StateDefinition(
-        id,
-        Scope.valueOf(str(prefix + "scope", "Thread")),
-        list(prefix + "dependencies").map(_.toInt),
-        parameters
-      )
-    }
+  /** Resolves what a benchmark declares into the configuration of one run.
+    *
+    * Defaults follow JMH and depend on the mode: single-shot runs have no warmup and one unsynchronized iteration.
+    *
+    * @param selectedMode
+    *   the mode of the run; without it, the benchmark counts as single-shot only when that is its only mode
+    */
+  def of(index: Int, metadata: BenchmarkMetadata, selectedMode: Option[Mode] = None): Descriptor =
+    val declared = metadata.declared
+    val single = selectedMode.fold(metadata.modes == Vector(Mode.SingleShotTime))(_ == Mode.SingleShotTime)
+    val iterationTime = TimeValue.seconds(if single then 0 else 10)
+    val warmupTime = declared.warmupTime.getOrElse(iterationTime)
+    val measurementTime = declared.measurementTime.getOrElse(iterationTime)
+    val timeout = declared.timeout.getOrElse(TimeValue.minutes(10))
     Descriptor(
       index,
-      str("name"),
-      modes,
+      metadata.name,
+      metadata.modes,
       Configuration(
-        int("warmupIterations", if single then 0 else 5),
-        int("measurementIterations", if single then 1 else 5),
-        long("warmupNanos", if single then 0L else 10000000000L),
-        long("measurementNanos", if single then 0L else 10000000000L),
-        int("warmupBatchSize", 1),
-        int("measurementBatchSize", 1),
-        int("forks", 5),
-        int("warmupForks", 0),
-        int("threads", 1),
-        int("operationsPerInvocation", 1),
-        long("timeoutNanos", 600000000000L),
-        str("unit", "SECONDS"),
+        warmupIterations = declared.warmupIterations.getOrElse(if single then 0 else 5),
+        measurementIterations = declared.measurementIterations.getOrElse(if single then 1 else 5),
+        warmupNanos = warmupTime.convertTo(TimeUnit.NANOSECONDS),
+        measurementNanos = measurementTime.convertTo(TimeUnit.NANOSECONDS),
+        warmupBatchSize = declared.warmupBatchSize.getOrElse(1),
+        measurementBatchSize = declared.measurementBatchSize.getOrElse(1),
+        forks = declared.forks.getOrElse(5),
+        warmupForks = declared.warmupForks.getOrElse(0),
+        threads = declared.threads,
+        operationsPerInvocation = declared.operationsPerInvocation.getOrElse(1),
+        timeoutNanos = timeout.convertTo(TimeUnit.NANOSECONDS),
+        unit = declared.unit,
         synchIterations = !single,
-        warmupTime =
-          if p.containsKey("warmupTimeValue") then
-            new TimeValue(long("warmupTimeValue", 0), TimeUnit.valueOf(str("warmupTimeUnit", "SECONDS")))
-          else if p.containsKey("warmupNanos") then TimeValue.nanoseconds(long("warmupNanos", 0))
-          else TimeValue.seconds(if single then 0 else 10),
-        measurementTime =
-          if p.containsKey("measurementTimeValue") then
-            new TimeValue(long("measurementTimeValue", 0), TimeUnit.valueOf(str("measurementTimeUnit", "SECONDS")))
-          else if p.containsKey("measurementNanos") then TimeValue.nanoseconds(long("measurementNanos", 0))
-          else TimeValue.seconds(if single then 0 else 10),
-        timeoutTime =
-          if p.containsKey("timeoutTimeValue") then
-            new TimeValue(long("timeoutTimeValue", 0), TimeUnit.valueOf(str("timeoutTimeUnit", "SECONDS")))
-          else if p.containsKey("timeoutNanos") then TimeValue.nanoseconds(long("timeoutNanos", 0))
-          else TimeValue.minutes(10)
+        warmupTime = warmupTime,
+        measurementTime = measurementTime,
+        timeoutTime = timeout
       ),
-      states,
-      Vector.tabulate(int("warnings", 0))(i => str(s"warning.$i")),
-      scala.benchmark.internal.InventoryEntry.parse(text).eligibility,
-      str("generatedTarget", str("name")),
-      Vector.tabulate(int("members", 0)) { i =>
-        GroupMember(str(s"member.$i.name"), int(s"member.$i.threads", 1), list(s"member.$i.states").map(_.toInt))
-      },
-      Vector.tabulate(int("counters", 0)) { i =>
-        CounterDefinition(str(s"counter.$i.name"), str(s"counter.$i.kind"), int(s"counter.$i.member", 0))
-      }
+      metadata.states,
+      metadata.warnings,
+      metadata.eligibility,
+      if metadata.generatedTarget.isEmpty then metadata.name else metadata.generatedTarget,
+      metadata.members,
+      metadata.counters
     )
 
-  end parse
+  end of
 
   def combinations(
       descriptor: Descriptor,

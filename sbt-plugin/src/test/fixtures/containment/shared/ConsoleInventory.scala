@@ -4,8 +4,15 @@ import scala.benchmark.runtime.*
 
 object ConsoleInventory extends Suite:
 
-  def metadata(): Array[String] =
-    Array.tabulate(2000)(i => s"name=listing.${"x" * 256}$i\nmodes=SingleShotTime\nstates=0\nforks=0\n")
+  def metadata(): Array[BenchmarkMetadata] =
+    Array.tabulate(2000) { i =>
+      BenchmarkMetadata(
+        s"listing.${"x" * 256}$i",
+        Vector(org.openjdk.jmh.annotations.Mode.SingleShotTime),
+        Vector(StateDefinition(0, shared = false, Vector.empty, Vector.empty)),
+        DeclaredConfiguration(forks = Some(0))
+      )
+    }
 
   def instantiate(id: Int): AnyRef = throw new AssertionError("Listing initialized benchmark state")
   def assign(id: Int, target: AnyRef, parameter: String, value: String): Unit = ()

@@ -45,9 +45,14 @@ end RunnerCancellationTest
 
 private[runtime] trait RunnerFailureSuite extends Suite:
 
-  def metadata(): Array[String] = Array("A.cancel", "B.recovery").map(name =>
-    s"name=$name\nmodes=SingleShotTime\nstates=0\nforks=0\ntimeoutNanos=1000000000\n"
-  )
+  def metadata(): Array[BenchmarkMetadata] = Array("A.cancel", "B.recovery").map { name =>
+    BenchmarkMetadata(
+      name,
+      Vector(org.openjdk.jmh.annotations.Mode.SingleShotTime),
+      Vector(StateDefinition(0, shared = false, Vector.empty, Vector.empty)),
+      DeclaredConfiguration(forks = Some(0), timeout = Some(org.openjdk.jmh.runner.options.TimeValue.seconds(1)))
+    )
+  }
 
   def instantiate(id: Int): AnyRef = new Object
   def assign(id: Int, target: AnyRef, parameter: String, value: String): Unit = ()

@@ -129,7 +129,7 @@ private[runtime] object ForkEvents:
             else
               val request = warmups(action)
               val suite = Platform.loadSuite(request.suite)
-              val descriptor = Descriptor.parse(request.index, suite.metadata()(request.index), Some(request.mode))
+              val descriptor = Descriptor.of(request.index, suite.metadata()(request.index), Some(request.mode))
               (descriptor, request.mode, WarmupRequest.configuration(request.configuration), request.parameters)
           active = action; expected = 0; pending = false
           val descriptor = context._1.configured(context._3)

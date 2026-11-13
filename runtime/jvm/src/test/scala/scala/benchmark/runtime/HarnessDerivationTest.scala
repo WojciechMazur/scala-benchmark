@@ -70,7 +70,7 @@ class HarnessDerivationTest:
       try
         val suite =
           HarnessCompiler.suite(loader, "bench.Example")
-        val descriptor = Descriptor.parse(0, suite.metadata()(0), Some(Mode.SingleShotTime))
+        val descriptor = Descriptor.of(0, suite.metadata()(0), Some(Mode.SingleShotTime))
         val config = descriptor.resolve(Configuration(warmupIterations = 0, measurementIterations = 1, forks = 0))
         assertEquals(1, Execution.trial(suite, descriptor, Mode.SingleShotTime, config, Map.empty).size)
       finally loader.close()
@@ -135,7 +135,7 @@ class HarnessDerivationTest:
         new URLClassLoader(Array(output.toUri.toURL), getClass.getClassLoader)
       try
         val suite = HarnessCompiler.suite(loader, "bench.Example")
-        val descriptor = Descriptor.parse(0, suite.metadata()(0))
+        val descriptor = Descriptor.of(0, suite.metadata()(0))
         assertEquals(Vector(Mode.SingleShotTime), descriptor.modes)
         assertEquals(
           Vector("3", "7"),
@@ -174,7 +174,7 @@ class HarnessDerivationTest:
       val suite =
         HarnessCompiler.suite(loader, "bench.Example")
       suite.metadata().zipWithIndex.foreach { case (text, index) =>
-        val descriptor = Descriptor.parse(index, text)
+        val descriptor = Descriptor.of(index, text)
         val config = descriptor.configuration.copy(forks = 0, timeoutNanos = 1000000000L)
         assertEquals(1, Execution.trial(suite, descriptor, Mode.SingleShotTime, config, Map.empty).size)
       }
@@ -193,7 +193,7 @@ class HarnessDerivationTest:
       val loader = new URLClassLoader(Array(output.toUri.toURL), getClass.getClassLoader)
       try
         val suite = HarnessCompiler.suite(loader, "scala.benchmark.examples.StateInjectionBenchmark")
-        val descriptor = Descriptor.parse(0, suite.metadata()(0))
+        val descriptor = Descriptor.of(0, suite.metadata()(0))
         val config = descriptor.resolve(descriptor.configuration.copy(forks = 0, timeoutNanos = 1000000000L))
         assertEquals(1, Execution.trial(suite, descriptor, Mode.SingleShotTime, config, Map.empty).size)
       finally loader.close()
@@ -303,7 +303,7 @@ class HarnessDerivationTest:
     val loader = new URLClassLoader(Array(output.toUri.toURL), getClass.getClassLoader)
     try
       val suite = HarnessCompiler.suite(loader, "bench.Example")
-      val descriptor = Descriptor.parse(0, suite.metadata().head)
+      val descriptor = Descriptor.of(0, suite.metadata().head)
       val results = Execution.trial(
         suite,
         descriptor,
@@ -330,7 +330,7 @@ class HarnessDerivationTest:
         }
       }
 
-  private def inventory(output: Path, cls: String)(check: Array[String] => Unit): Unit =
+  private def inventory(output: Path, cls: String)(check: Array[BenchmarkMetadata] => Unit): Unit =
     HarnessCompiler.withLoader(output)(loader => check(HarnessCompiler.suite(loader, "bench." + cls).metadata()))
 
   @Test def platformRestrictionsPrecedeHarnessValidation(): Unit =
@@ -344,7 +344,7 @@ class HarnessDerivationTest:
     compile(source) { (success, output) =>
       assertTrue(success)
       inventory(output, "Example") { metadata =>
-        val descriptor = Descriptor.parse(0, metadata.head)
+        val descriptor = Descriptor.of(0, metadata.head)
         assertEquals(Vector(scala.benchmark.Platform.JVM), descriptor.eligibility.allowed)
         assertEquals(Vector("Requires grouped workers"), descriptor.eligibility.reasons)
         assertTrue(descriptor.states.isEmpty)
@@ -367,7 +367,7 @@ class HarnessDerivationTest:
   ) { (success, output) =>
     assertTrue(success)
     inventory(output, "Example") { metadata =>
-      assertEquals(Vector(scala.benchmark.Platform.Native), Descriptor.parse(0, metadata.head).eligibility.allowed)
+      assertEquals(Vector(scala.benchmark.Platform.Native), Descriptor.of(0, metadata.head).eligibility.allowed)
     }
   }
 
@@ -423,7 +423,7 @@ class HarnessDerivationTest:
       val loader = new URLClassLoader(Array(output.toUri.toURL), getClass.getClassLoader)
       try
         val suite = HarnessCompiler.suite(loader, "scala.benchmark.examples.CounterBenchmark")
-        val descriptor = Descriptor.parse(0, suite.metadata().head)
+        val descriptor = Descriptor.of(0, suite.metadata().head)
         assertEquals(Set("events", "operations"), descriptor.counters.map(_.name).toSet)
         val config = descriptor.configuration.copy(threads = 2)
         val measured = Execution.trial(suite, descriptor, Mode.SingleShotTime, config, Map.empty)
@@ -459,7 +459,7 @@ class HarnessDerivationTest:
       val loader = new URLClassLoader(Array(output.toUri.toURL), getClass.getClassLoader)
       try
         val suite = HarnessCompiler.suite(loader, "scala.benchmark.examples.GroupBenchmark")
-        val descriptor = Descriptor.parse(0, suite.metadata().head)
+        val descriptor = Descriptor.of(0, suite.metadata().head)
         assertEquals(Vector("read", "write"), descriptor.members.map(_.name))
         val config = descriptor.resolve(descriptor.configuration)
         assertEquals(6, config.threads)
@@ -518,7 +518,7 @@ class HarnessDerivationTest:
       new URLClassLoader(Array(output.toUri.toURL), getClass.getClassLoader)
     try
       val suite = HarnessCompiler.suite(loader, "bench.Example")
-      val descriptor = Descriptor.parse(0, suite.metadata()(0))
+      val descriptor = Descriptor.of(0, suite.metadata()(0))
       assertTrue(descriptor.warnings.exists(_.contains("Fork.jvmArgs=-Xmx2g")))
     finally loader.close()
   }
@@ -540,7 +540,7 @@ class HarnessDerivationTest:
   ) { (success, output) =>
     assertTrue(success)
     inventory(output, "Example") { metadata =>
-      val configuration = Descriptor.parse(0, metadata.head).configuration
+      val configuration = Descriptor.of(0, metadata.head).configuration
       assertEquals(1, configuration.warmupIterations)
       assertEquals(7, configuration.warmupBatchSize)
       assertEquals(TimeUnit.MILLISECONDS.toNanos(2), configuration.warmupNanos)
@@ -571,7 +571,7 @@ class HarnessDerivationTest:
     assertTrue(HarnessCompiler.recompile(output, source) && HarnessCompiler.derive(output, Seq("bench.Example")))
     HarnessCompiler.withLoader(output) { loader =>
       val suite = HarnessCompiler.suite(loader, "bench.Example")
-      val descriptor = Descriptor.parse(0, suite.metadata()(0), Some(Mode.SingleShotTime))
+      val descriptor = Descriptor.of(0, suite.metadata()(0), Some(Mode.SingleShotTime))
       Execution.trial(suite, descriptor, Mode.SingleShotTime, descriptor.configuration, Map("size" -> "7"))
     }
   }

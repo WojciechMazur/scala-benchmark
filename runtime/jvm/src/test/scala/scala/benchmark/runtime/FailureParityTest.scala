@@ -27,7 +27,7 @@ class FailureParityTest:
         def record(event: String): Unit = try reference.record(event)
         catch case error: java.lang.reflect.InvocationTargetException => throw error.getCause
         val suite = new Suite:
-          def metadata(): Array[String] = Array.empty
+          def metadata(): Array[BenchmarkMetadata] = Array.empty
           def instantiate(id: Int): AnyRef =
             record("construct"); new Object
           def assign(id: Int, target: AnyRef, parameter: String, value: String): Unit = ()
@@ -80,7 +80,7 @@ class FailureParityTest:
           require(peer.await(1, TimeUnit.SECONDS), s"Peer did not reach $stage")
           throw new IllegalStateException(stage)
       val suite = new Suite:
-        def metadata(): Array[String] = Array.empty
+        def metadata(): Array[BenchmarkMetadata] = Array.empty
         def instantiate(id: Int): AnyRef =
           val thread = Thread.currentThread()
           threads.add(thread)

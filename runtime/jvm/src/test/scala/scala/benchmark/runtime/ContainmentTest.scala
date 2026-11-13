@@ -10,7 +10,7 @@ import org.openjdk.jmh.annotations.Mode
 class ContainmentTest:
 
   private class EmptySuite extends Suite:
-    def metadata(): Array[String] = Array.empty
+    def metadata(): Array[BenchmarkMetadata] = Array.empty
     def instantiate(id: Int): AnyRef = new Object
     def assign(id: Int, target: AnyRef, parameter: String, value: String): Unit = ()
     def setup(id: Int, level: Int, target: AnyRef, env: Environment): Unit = ()

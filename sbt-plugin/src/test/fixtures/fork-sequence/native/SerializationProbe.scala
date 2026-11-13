@@ -6,8 +6,13 @@ import scala.benchmark.runtime.*
 @scala.scalanative.reflect.annotation.EnableReflectiveInstantiation
 object SerializationProbe extends Suite:
 
-  def metadata(): Array[String] = Array(
-    "name=serialization\nmodes=SingleShotTime\nstates=0\nwarmupIterations=0\nmeasurementIterations=1\nforks=1\n"
+  def metadata(): Array[BenchmarkMetadata] = Array(
+    BenchmarkMetadata(
+      "serialization",
+      Vector(org.openjdk.jmh.annotations.Mode.SingleShotTime),
+      Vector(StateDefinition(0, shared = false, Vector.empty, Vector.empty)),
+      DeclaredConfiguration(warmupIterations = Some(0), measurementIterations = Some(1), forks = Some(1))
+    )
   )
 
   def instantiate(id: Int): AnyRef = new Object

@@ -39,7 +39,7 @@ object Main:
     val suite = BenchmarkOutput.user(Platform.loadSuite(request.suite.asInstanceOf[String]))
     val index = request.index.asInstanceOf[Int]
     val mode = Mode.valueOf(request.mode.asInstanceOf[String])
-    val descriptor = Descriptor.parse(index, suite.metadata()(index), Some(mode))
+    val descriptor = Descriptor.of(index, suite.metadata()(index), Some(mode))
     val options = Options(overrides = request.overrides.asInstanceOf[js.Dictionary[String]].toMap)
     val parameters = request.parameters.asInstanceOf[js.Dictionary[String]].toMap
     var sequence = 0L
@@ -51,7 +51,7 @@ object Main:
       val suite = BenchmarkOutput.user(Platform.loadSuite(name))
       val index = warmup.index.asInstanceOf[Int]
       val mode = Mode.valueOf(warmup.mode.asInstanceOf[String])
-      val descriptor = Descriptor.parse(index, suite.metadata()(index), Some(mode))
+      val descriptor = Descriptor.of(index, suite.metadata()(index), Some(mode))
       val config = Options(overrides = warmup.overrides.asInstanceOf[js.Dictionary[String]].toMap)
         .configuration(descriptor.configuration)
       WarmupRequest(name, index, mode, config, warmup.parameters.asInstanceOf[js.Dictionary[String]].toMap)

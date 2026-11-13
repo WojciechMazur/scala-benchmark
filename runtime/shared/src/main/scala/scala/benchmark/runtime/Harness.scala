@@ -2,12 +2,13 @@ package scala.benchmark.runtime
 
 import java.util.concurrent.TimeUnit
 
-import scala.benchmark.internal.BenchmarkSymbols
+import scala.benchmark.internal.{BenchmarkSymbols, Eligibility}
 import scala.collection.mutable
 import scala.quoted.*
 
-import org.openjdk.jmh.annotations.{Scope as _, *}
+import org.openjdk.jmh.annotations.*
 import org.openjdk.jmh.infra.{BenchmarkParams, Blackhole, Control, IterationParams, ThreadParams}
+import org.openjdk.jmh.runner.options.TimeValue
 
 /** Derives the typed harness of one benchmark class.
   *
@@ -282,25 +283,14 @@ final private class HarnessMacro[Q <: Quotes](q: Q) extends BenchmarkSymbols[Q](
   // Metadata
   // ---------------------------------------------------------------------------------------------------------------
 
-  private def escape(text: String): String = text.flatMap {
-    case '\\'                     => "\\\\"
-    case '\n'                     => "\\n"
-    case '\r'                     => "\\r"
-    case '\t'                     => "\\t"
-    case c if " =:#!".contains(c) => "\\" + c
-    case c                        => c.toString
-  }
-
   /** Annotations whose numeric members use -1 for "not declared". */
   private val blankNumbers = Set(symbol[Warmup], symbol[Measurement], symbol[Fork])
 
   private def isBlank(annotation: Symbol, text: String): Boolean =
     text == blank || (blankNumbers(annotation) && text == "-1")
 
-  private def metadata(model: Model, benchmark: Symbol): String =
+  private def metadata(model: Model, benchmark: Symbol): Expr[BenchmarkMetadata] =
     import model.*
-    val properties = mutable.Map.empty[String, String]
-    def put(key: String, text: String): Unit = properties(key) = text
     val group = groupName(benchmark)
     val members = groups(group)
     val cache = mutable.Map.empty[Symbol, List[Term]]
@@ -335,28 +325,19 @@ final private class HarnessMacro[Q <: Quotes](q: Q) extends BenchmarkSymbols[Q](
         .map(annotation => value(Some(annotation), argument, default))
         .find(!isBlank(symbol[A], _))
         .getOrElse(default)
-    def number[A: Type](argument: String, key: String, allowZero: Boolean = false): Unit =
+    def number[A: Type](argument: String, allowZero: Boolean = false): Expr[Option[Int]] =
       val declared = groupValue[A](argument, "-1").toInt
-      if declared != -1 then
-        if declared < (if allowZero then 0 else 1) then
-          fail(s"Invalid ${symbol[A].name}.$argument: $declared", benchmark)
-        put(key, declared.toString)
-    def duration[A: Type](prefix: String): Unit =
-      groupAnnotations[A].find(annotation => value(Some(annotation), "time", "-1") != "-1").foreach { annotation =>
-        val time = value(Some(annotation), "time", "-1").toLong
-        if time < 0 then fail(s"${symbol[A].name}.time must be nonnegative", benchmark)
-        val unit = TimeUnit.valueOf(value(Some(annotation), "timeUnit", "SECONDS"))
-        put(prefix + "Nanos", unit.toNanos(time).toString)
-        put(prefix + "TimeValue", time.toString)
-        put(prefix + "TimeUnit", unit.name())
-      }
-
-    put("name", benchmarkClass.fullName + "." + group)
-    put("generatedTarget", benchmarkClass.fullName + ".measure")
-    val restriction = restrictions(group)
-    put("platforms", restriction.allowed.mkString(","))
-    put("platformReasons", restriction.reasons.size.toString)
-    restriction.reasons.zipWithIndex.foreach((reason, index) => put(s"platformReason.$index", reason))
+      if declared != -1 && declared < (if allowZero then 0 else 1) then
+        fail(s"Invalid ${symbol[A].name}.$argument: $declared", benchmark)
+      Expr(Option.when(declared != -1)(declared))
+    def duration[A: Type]: Expr[Option[TimeValue]] =
+      groupAnnotations[A].find(annotation => value(Some(annotation), "time", "-1") != "-1") match
+        case None             => '{ None }
+        case Some(annotation) =>
+          val time = value(Some(annotation), "time", "-1").toLong
+          if time < 0 then fail(s"${symbol[A].name}.time must be nonnegative", benchmark)
+          val unit = value(Some(annotation), "timeUnit", "SECONDS")
+          '{ Some(new TimeValue(${ Expr(time) }, TimeUnit.valueOf(${ Expr(unit) }))) }
 
     val declaredModes = members
       .flatMap { member =>
@@ -367,71 +348,74 @@ final private class HarnessMacro[Q <: Quotes](q: Q) extends BenchmarkSymbols[Q](
           .flatMap(modes)
       }
       .distinct
-    val selectedModes = if declaredModes.isEmpty then List("Throughput") else declaredModes
-    put(
-      "modes",
-      (if selectedModes.contains("All") then List("Throughput", "AverageTime", "SampleTime", "SingleShotTime")
-       else selectedModes).mkString(",")
-    )
-    number[Warmup]("iterations", "warmupIterations", allowZero = true)
-    number[Measurement]("iterations", "measurementIterations")
-    number[Warmup]("batchSize", "warmupBatchSize")
-    number[Measurement]("batchSize", "measurementBatchSize")
-    duration[Warmup]("warmup")
-    duration[Measurement]("measurement")
-    duration[Timeout]("timeout")
-    number[Fork]("value", "forks", allowZero = true)
-    number[Fork]("warmups", "warmupForks", allowZero = true)
-    put("threads", groupValue[Threads]("value", "1"))
-    number[OperationsPerInvocation]("value", "operationsPerInvocation")
-    put("unit", groupValue[OutputTimeUnit]("value", "SECONDS"))
+    val selectedModes =
+      if declaredModes.isEmpty then List("Throughput")
+      else if declaredModes.contains("All") then List("Throughput", "AverageTime", "SampleTime", "SingleShotTime")
+      else declaredModes
+
+    val declared = '{
+      DeclaredConfiguration(
+        warmupIterations = ${ number[Warmup]("iterations", allowZero = true) },
+        measurementIterations = ${ number[Measurement]("iterations") },
+        warmupBatchSize = ${ number[Warmup]("batchSize") },
+        measurementBatchSize = ${ number[Measurement]("batchSize") },
+        warmupTime = ${ duration[Warmup] },
+        measurementTime = ${ duration[Measurement] },
+        timeout = ${ duration[Timeout] },
+        forks = ${ number[Fork]("value", allowZero = true) },
+        warmupForks = ${ number[Fork]("warmups", allowZero = true) },
+        threads = ${ Expr(groupValue[Threads]("value", "1").toInt) },
+        operationsPerInvocation = ${ number[OperationsPerInvocation]("value") },
+        unit = ${ Expr(groupValue[OutputTimeUnit]("value", "SECONDS")) }
+      )
+    }
 
     val grouped = members.exists(annotation[Group](_).nonEmpty)
     val generated = eligible.contains(benchmark)
     val used = if generated then members.flatMap(reachable).distinct else Nil
     if generated && !grouped && used.exists(id => scope(instances(id).cls) == "Group") then
       fail("Scope.Group requires a grouped benchmark", benchmark)
-    if grouped then
-      put("members", members.size.toString)
-      members.zipWithIndex.foreach { (member, index) =>
-        val threads = value(annotation[GroupThreads](member), "value", "1").toInt
-        if threads < 0 then fail("GroupThreads must be nonnegative", member)
-        put(s"member.$index.name", member.name)
-        put(s"member.$index.threads", threads.toString)
-        put(s"member.$index.states", (if generated then reachable(member) else Nil).mkString(","))
-      }
-    put("states", used.mkString(","))
-    used.foreach { id =>
+
+    val groupMembers =
+      if !grouped then Nil
+      else
+        members.map { member =>
+          val threads = value(annotation[GroupThreads](member), "value", "1").toInt
+          if threads < 0 then fail("GroupThreads must be nonnegative", member)
+          val states = if generated then reachable(member) else Nil
+          '{ GroupMember(${ Expr(member.name) }, ${ Expr(threads) }, ${ Expr(states) }.toVector) }
+        }
+
+    val states = used.map { id =>
       val cls = instances(id).cls
-      val prefix = s"state.$id."
-      put(prefix + "scope", scope(cls))
-      put(prefix + "dependencies", instances(id).dependencies.mkString(","))
-      val parameters = parameterFields(cls)
-      put(prefix + "params", parameters.map(_.name).distinct.mkString(","))
-      parameters.foreach { field =>
+      // A field shadowed in a subclass is one parameter: the most derived declaration wins.
+      val parameters = parameterFields(cls).groupBy(_.name).toList.sortBy(_._1).map { (name, fields) =>
+        val field = fields.last
         if inherited[State](cls).isEmpty then fail("@Param requires @State", field)
         val values = parameterValues(field)
         values.foreach { text =>
-          if !parameterType(field).forall(_.valid(text)) then
-            fail(s"Invalid @Param value '$text' for ${field.name}", field)
+          if !parameterType(field).forall(_.valid(text)) then fail(s"Invalid @Param value '$text' for $name", field)
         }
-        put(prefix + s"param.${field.name}.count", values.size.toString)
-        values.zipWithIndex.foreach((text, index) => put(prefix + s"param.${field.name}.$index", text))
+        '{ Parameter(${ Expr(name) }, ${ Expr(values) }.toVector) }
+      }
+      '{
+        new StateDefinition(
+          ${ Expr(id) },
+          Scope.valueOf(${ Expr(scope(cls)) }),
+          ${ Expr(instances(id).dependencies) }.toVector,
+          ${ Expr.ofSeq(parameters) }.toVector
+        )
       }
     }
 
-    val counterEntries =
+    val counterDefinitions =
       if !generated then Nil
       else
         members.zipWithIndex.flatMap { (method, member) =>
-          counters(method).map((id, counter) => (counter.name, counterKind(id), member))
+          counters(method).map { (id, counter) =>
+            '{ CounterDefinition(${ Expr(counter.name) }, ${ Expr(counterKind(id)) }, ${ Expr(member) }) }
+          }
         }
-    put("counters", counterEntries.size.toString)
-    counterEntries.zipWithIndex.foreach { case ((name, kind, member), index) =>
-      put(s"counter.$index.name", name)
-      put(s"counter.$index.kind", kind)
-      put(s"counter.$index.member", member.toString)
-    }
 
     val ignored = groupAnnotations[Fork].headOption.toList.flatMap(arguments).filter(_._1.startsWith("jvm")).flatMap {
       (key, term) =>
@@ -439,12 +423,23 @@ final private class HarnessMacro[Q <: Quotes](q: Q) extends BenchmarkSymbols[Q](
         val values = (if literals.nonEmpty then literals else constant(term).toList).filterNot(_ == blank)
         Option.when(values.nonEmpty)(s"Ignored JVM-only Fork.$key=${values.mkString(",")}")
     }
-    put("warnings", ignored.size.toString)
-    ignored.zipWithIndex.foreach { (warning, index) =>
-      put(s"warning.$index", warning)
-      report.warning(warning, benchmark.pos.getOrElse(Position.ofMacroExpansion))
+    ignored.foreach(report.warning(_, benchmark.pos.getOrElse(Position.ofMacroExpansion)))
+
+    val restriction = restrictions(group)
+    val platforms = restriction.allowed.map(name => '{ scala.benchmark.Platform.valueOf(${ Expr(name) }) })
+    '{
+      BenchmarkMetadata(
+        name = ${ Expr(benchmarkClass.fullName + "." + group) },
+        modes = ${ Expr.ofSeq(selectedModes.map(mode => '{ Mode.valueOf(${ Expr(mode) }) })) }.toVector,
+        states = ${ Expr.ofSeq(states) }.toVector,
+        declared = $declared,
+        eligibility = Eligibility(${ Expr.ofSeq(platforms) }.toVector, ${ Expr(restriction.reasons) }.toVector),
+        generatedTarget = ${ Expr(benchmarkClass.fullName + ".measure") },
+        members = ${ Expr.ofSeq(groupMembers) }.toVector,
+        counters = ${ Expr.ofSeq(counterDefinitions) }.toVector,
+        warnings = ${ Expr(ignored) }.toVector
+      )
     }
-    properties.toList.sortBy(_._1).map((key, text) => escape(key) + "=" + escape(text)).mkString("\n")
   end metadata
 
   private def fieldType(field: Symbol): TypeRepr = signature(field).widen
@@ -666,10 +661,10 @@ final private class HarnessMacro[Q <: Quotes](q: Q) extends BenchmarkSymbols[Q](
     validatePlatformTargets(cls)
     val model = new Model(cls)
     val generator = new Generator(model)
-    val descriptors = Expr.ofSeq(model.entries.map(benchmark => Expr(metadata(model, benchmark))))
+    val descriptors = Expr.ofSeq(model.entries.map(metadata(model, _)))
     '{
       new Suite:
-        def metadata(): Array[String] = $descriptors.toArray
+        def metadata(): Array[BenchmarkMetadata] = $descriptors.toArray
         def instantiate(state: Int): AnyRef = ${ generator.instantiate('state) }
         def assign(state: Int, target: AnyRef, parameter: String, value: String): Unit =
           ${ generator.assign('state, 'target, 'parameter, 'value) }

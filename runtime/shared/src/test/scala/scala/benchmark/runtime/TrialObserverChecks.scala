@@ -19,7 +19,7 @@ object TrialObserverChecks:
       record(event)
       if fault == event || (fault == "late" && event == "work:3") then throw new IllegalStateException("user:" + fault)
 
-    def metadata(): Array[String] = Array.empty
+    def metadata(): Array[BenchmarkMetadata] = Array.empty
 
     def instantiate(id: Int): AnyRef =
       user("construct"); new Object

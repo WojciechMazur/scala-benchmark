@@ -101,11 +101,14 @@ class HarnessTest:
         assertEquals(1L, result.samples.entries.map(_._2).sum)
 
   @Test def metadataEscapesAndParameterProduct(): Unit =
-    val descriptor = Descriptor.parse(
+    val parameters = Vector(Parameter("x", Vector("", "a,b\ntext")), Parameter("y", Vector("1", "2")))
+    val descriptor = Descriptor.of(
       0,
-      "name=example.test\nmodes=SingleShotTime\nstates=0\nstate.0.scope=Thread\nstate.0.params=x,y\n" +
-        "state.0.param.x.count=2\nstate.0.param.x.0=\nstate.0.param.x.1=a,b\\ntext\n" +
-        "state.0.param.y.count=2\nstate.0.param.y.0=1\nstate.0.param.y.1=2\n"
+      BenchmarkMetadata(
+        "example.test",
+        Vector(Mode.SingleShotTime),
+        Vector(StateDefinition(0, shared = false, Vector.empty, parameters))
+      )
     )
     assertEquals(0, descriptor.configuration.warmupIterations)
     assertEquals(1, descriptor.configuration.measurementIterations)
@@ -207,9 +210,13 @@ class HarnessTest:
     assertEquals(org.openjdk.jmh.runner.options.TimeValue.microseconds(7), Configuration.time(transported, false))
     assertEquals(org.openjdk.jmh.runner.options.TimeValue.seconds(5), Configuration.timeout(transported))
     assertEquals(org.openjdk.jmh.runner.options.TimeValue.minutes(10), Configuration.timeout(Configuration()))
-    val annotated = Descriptor.parse(
+    val annotated = Descriptor.of(
       0,
-      "name=timeout.test\nmodes=SingleShotTime\ntimeoutNanos=3000000\ntimeoutTimeValue=3\ntimeoutTimeUnit=MILLISECONDS\n"
+      BenchmarkMetadata(
+        "timeout.test",
+        Vector(Mode.SingleShotTime),
+        declared = DeclaredConfiguration(timeout = Some(org.openjdk.jmh.runner.options.TimeValue.milliseconds(3)))
+      )
     )
     assertEquals(
       org.openjdk.jmh.runner.options.TimeValue.milliseconds(3),
@@ -218,7 +225,14 @@ class HarnessTest:
 
   @Test def reportFormatsPreserveAndEscapeParameters(): Unit =
     val descriptor =
-      Descriptor.parse(0, "name=bench.Example_test.run\nmodes=AverageTime\nstates=0\nstate.0.scope=Thread\n")
+      Descriptor.of(
+        0,
+        BenchmarkMetadata(
+          "bench.Example_test.run",
+          Vector(Mode.AverageTime),
+          Vector(StateDefinition(0, shared = false, Vector.empty, Vector.empty))
+        )
+      )
     val value = "a;b,\"c\"\n\\{}%&#$_~^"
     val run = RunResult(
       descriptor,
@@ -301,7 +315,7 @@ class HarnessTest:
     finally java.nio.file.Files.deleteIfExists(path)
 
   private class FailingSuite extends Suite:
-    def metadata(): Array[String] = Array.empty
+    def metadata(): Array[BenchmarkMetadata] = Array.empty
     def instantiate(id: Int): AnyRef = new Object
 
     def assign(

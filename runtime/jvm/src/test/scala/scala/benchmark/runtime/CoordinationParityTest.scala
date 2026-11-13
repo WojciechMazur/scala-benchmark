@@ -13,7 +13,7 @@ class CoordinationParityTest:
     val setupEntered = new CountDownLatch(1)
     val releaseSetup = new CountDownLatch(1)
     val fastWork = new CountDownLatch(1)
-    def metadata(): Array[String] = Array.empty
+    def metadata(): Array[BenchmarkMetadata] = Array.empty
     def instantiate(id: Int): AnyRef = new Object
     def assign(id: Int, target: AnyRef, parameter: String, value: String): Unit = ()
 

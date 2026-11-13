@@ -228,7 +228,7 @@ class StateGraphParityTest:
     )
 
     val suite = HarnessCompiler.suite(loader, "execution.state.BenchmarkGraph")
-    val descriptor = Descriptor.parse(0, suite.metadata()(0))
+    val descriptor = Descriptor.of(0, suite.metadata()(0))
     val journal = loader.loadClass("execution.state.Journal")
 
     def reset(stage: String): Unit =

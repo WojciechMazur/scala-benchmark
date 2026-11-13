@@ -21,7 +21,7 @@ object BenchmarkRunner:
       .flatMap { name =>
         val suite = Platform.loadSuite(name)
         suite.metadata().toVector.zipWithIndex.map { case (metadata, index) =>
-          (name, suite, metadata, Descriptor.parse(index, metadata))
+          (name, suite, metadata, Descriptor.of(index, metadata))
         }
       }
     val discovered = inventory.groupBy(_._4.name).toVector.sortBy(_._1).map { case (_, members) =>
@@ -76,7 +76,7 @@ object BenchmarkRunner:
     val bulkCandidates = (extraWarmups ++ (if options.warmupMode != "INDI" then selected else Vector.empty)).distinct
     val warmups = bulkCandidates.flatMap { case (suiteName, _, text, descriptor) =>
       expandedModes(if options.modes.nonEmpty then options.modes else descriptor.modes).flatMap { mode =>
-        val parsed = Descriptor.parse(descriptor.index, text, Some(mode))
+        val parsed = Descriptor.of(descriptor.index, text, Some(mode))
         val overrides = options.configuration(parsed.configuration)
         val actual = parsed.configured(overrides)
         val config = actual.resolve(overrides)
@@ -113,7 +113,7 @@ object BenchmarkRunner:
             )
           else modes.distinct
         expanded.foreach { mode =>
-          val parsed = Descriptor.parse(descriptor.index, metadata, Some(mode))
+          val parsed = Descriptor.of(descriptor.index, metadata, Some(mode))
           val overrides = options.configuration(parsed.configuration)
           val actual = parsed.configured(overrides)
           val resolved = actual.resolve(overrides)

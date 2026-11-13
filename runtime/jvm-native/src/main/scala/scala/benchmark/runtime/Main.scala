@@ -326,7 +326,7 @@ object Main:
     val index = p.getProperty("benchmark").toInt
     val mode = Mode.valueOf(p.getProperty("mode"))
     val descriptor =
-      Descriptor.parse(index, suite.metadata()(index), Some(mode))
+      Descriptor.of(index, suite.metadata()(index), Some(mode))
     import scala.jdk.CollectionConverters.*
     val pairs =
       p.stringPropertyNames().asScala.toVector.map(k => k -> p.getProperty(k))
@@ -350,7 +350,7 @@ object Main:
       val warmupSuite = BenchmarkOutput.user(Platform.loadSuite(entries("suite")))
       val index = entries("benchmark").toInt
       val mode = Mode.valueOf(entries("mode"))
-      val descriptor = Descriptor.parse(index, warmupSuite.metadata()(index), Some(mode))
+      val descriptor = Descriptor.of(index, warmupSuite.metadata()(index), Some(mode))
       val config = Options(overrides = entries.filter(_._1.startsWith("-"))).configuration(descriptor.configuration)
       WarmupRequest(
         entries("suite"),

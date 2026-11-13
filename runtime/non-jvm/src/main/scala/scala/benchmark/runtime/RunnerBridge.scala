@@ -37,7 +37,7 @@ object RunnerBridge extends RunnerService:
 
   private def inventory: Vector[Descriptor] = Platform.inventory.distinct.sorted.flatMap { name =>
     Platform.loadSuite(name).metadata().toVector.zipWithIndex.map { case (text, index) =>
-      Descriptor.parse(index, text)
+      Descriptor.of(index, text)
     }
   }
 
