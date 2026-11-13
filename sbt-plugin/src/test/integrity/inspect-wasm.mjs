@@ -11,7 +11,7 @@ export function inspectWasm(wat, glue) {
     return body;
   };
   const owner = '$f.scala.scalanative.jmh.examples.IntegrityBenchmark.';
-  const measure = find('IntegrityBenchmark$nativejmh$bootstrapper$.measure_');
+  const measure = find('BenchmarkMain$$anon$1.measure_');
   const names = ['primitiveBoolean', 'primitiveByte', 'primitiveShort', 'primitiveChar', 'primitiveInt',
     'primitiveLong', 'primitiveFloat', 'primitiveDouble', 'returnedAllocation', 'explicitBlackhole', 'observableUnit'];
   for (const name of names) {

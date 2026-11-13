@@ -2,6 +2,8 @@ package scala.scalanative.jmh.examples
 
 import scala.scalanative.jmh.*
 
+/** Loaded by name by the transport driver, without a derived harness. */
+@scala.scalanative.reflect.annotation.EnableReflectiveInstantiation
 object SerializationProbe extends Suite {
   def metadata(): Array[String] = Array(
     "name=serialization\nmodes=SingleShotTime\nstates=0\nwarmupIterations=0\nmeasurementIterations=1\nforks=1\n"

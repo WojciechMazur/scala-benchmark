@@ -40,7 +40,16 @@ object Platform extends ProcessPlatform {
   override def releaseFork(process: Process, token: Long): Unit = Native.releaseFork(process.pid(), token)
   def identity: scala.benchmark.Platform = scala.benchmark.Platform.Native
 
-  def loadSuite(name: String): Suite = Registry.suite(name).getOrElse(throw new ClassNotFoundException(name))
+  /** Derived harnesses are registered. A hand-written suite object can still be named, when it enables reflective
+    * instantiation itself.
+    */
+  def loadSuite(name: String): Suite = Registry.suite(name).getOrElse {
+    scala.scalanative.reflect.Reflect
+      .lookupLoadableModuleClass(name)
+      .getOrElse(throw new ClassNotFoundException(name))
+      .loadModule()
+      .asInstanceOf[Suite]
+  }
 
   def executable: String = Zone {
     @annotation.tailrec

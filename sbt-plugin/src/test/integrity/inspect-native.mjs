@@ -5,12 +5,12 @@ import { fileURLToPath } from 'node:url';
 
 export function inspectNative(ir, assembly) {
   const definitions = [...ir.matchAll(/^define[^\n]*\{[\s\S]*?^\}/gm)].map(match => match[0]);
-  const measure = definitions.find(text => /IntegrityBenchmark\$nativejmh\$bootstrapper\$D7measure/.test(text.split('\n')[0]));
+  const measure = definitions.find(text => /BenchmarkMain\$\$anon\$\d+D7measure/.test(text.split('\n')[0]));
   assert.ok(measure, 'Missing optimized measurement definition');
   const methods = ['primitiveBoolean', 'primitiveByte', 'primitiveShort', 'primitiveChar', 'primitiveInt',
     'primitiveLong', 'primitiveFloat', 'primitiveDouble', 'returnedAllocation', 'explicitBlackhole', 'observableUnit'];
   const blocks = assembly.split(/(?=^[0-9a-f]+ <[^\n]+>:\r?$)/m);
-  const machineMeasure = blocks.find(text => /^\w+ <[^\n]*IntegrityBenchmark\$nativejmh\$bootstrapper\$D7measure/m.test(text));
+  const machineMeasure = blocks.find(text => /^\w+ <[^\n]*BenchmarkMain\$\$anon\$\d+D7measure/m.test(text));
   assert.ok(machineMeasure, 'Missing final measurement machine code');
   const calls = machineMeasure.split('\n').filter(line => /\b(?:bl|callq?)\s/.test(line));
   for (const method of methods) {

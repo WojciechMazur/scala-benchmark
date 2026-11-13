@@ -5,9 +5,15 @@ on:
   workflow_dispatch:
 permissions:
   contents: read
+env:
+  COMPATIBILITY: >-
+    benchmark/platform benchmark/reports benchmark/api benchmark/configuration benchmark/result-extensions
+    benchmark/formatters benchmark/output-factory benchmark/stdio benchmark/aggregation
+  EXECUTION: >-
+    benchmark/runner-failures benchmark/fork-sequence benchmark/execution benchmark/output-format
 jobs:
   unit:
-    name: Compile and unit tests (Scala 3.3.9)
+    name: Formatting, compilation and unit tests
     runs-on: ubuntu-22.04
     timeout-minutes: 20
     steps:
@@ -15,53 +21,39 @@ jobs:
       - uses: ./.github/actions/setup
         with:
           native: 'true'
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '25'
+      - name: Check formatting
+        run: scalafmt --check
       - name: Compile every module and platform; run unit tests
         run: >-
-          sbt --batch "++ 3.3.9; compilerPlugin/testOnly *CompilerTest *StateGraphParityTest;
-          runtimeJVM/testOnly *Test;
+          sbt --batch "runtimeJVM/test;
           examplesJVM/Jmh/compile;
-          examplesNative/compile;
-          examplesJS/compile;
+          examplesNative/Jmh/compile;
+          examplesJS/Jmh/compile;
           sbtPlugin/compile"
+      - name: Check host process supervision
+        run: node --test sbt-plugin/src/test/node/*.test.mjs
 
-  compiler-plugins:
-    name: Compiler plugin (Scala ${{ matrix.scala }})
-    runs-on: ubuntu-22.04
-    timeout-minutes: 15
-    strategy:
-      fail-fast: false
-      matrix:
-        scala: ['3.3.3', '3.3.4', '3.3.5', '3.3.6', '3.3.7', '3.3.8', '3.3.9', '3.9.0', '3.10.0']
-    steps:
-      - uses: actions/checkout@v7
-      - uses: ./.github/actions/setup
-      - name: Compile the plugin and run compiler tests
-        env:
-          BENCHMARK_SCALA_VERSION: ${{ matrix.scala }}
-        run: |
-          sbt --batch "++ $BENCHMARK_SCALA_VERSION; compilerPlugin/testOnly *CompilerTest"
-
-  scripted:
-    name: Platform compatibility (${{ matrix.platform }}, ${{ matrix.os }}, LTO ${{ matrix.lto || 'none' }})
+  # Every scripted test builds one project per platform. The JVM always runs first: upstream JMH is the reference
+  # that the other platforms are compared with.
+  compatibility:
+    name: Compatibility (${{ matrix.platform }}, ${{ matrix.os }}, LTO ${{ matrix.lto || 'none' }})
     runs-on: ${{ matrix.os }}
-    timeout-minutes: 30
+    timeout-minutes: 45
     strategy:
       fail-fast: false
       matrix:
         include:
-          - platform: jvm
+          - platform: native
             os: ubuntu-22.04
           - platform: js
-            os: ubuntu-22.04
-          - platform: wasm
-            os: ubuntu-22.04
-          - platform: native
             os: ubuntu-22.04
           - platform: native
             os: macos-15
           - platform: native
             os: windows-2022
-            lto: none
           - platform: native
             os: windows-2022
             lto: thin
@@ -71,35 +63,23 @@ jobs:
         with:
           native: ${{ matrix.platform == 'native' && 'true' || 'false' }}
       - uses: actions/setup-node@v6
-        if: matrix.platform == 'js' || matrix.platform == 'wasm'
+        if: matrix.platform == 'js'
         with:
           node-version: '25'
-      - name: Check platform compatibility
+      - name: Compare the public behaviour with the JVM
         shell: bash
         env:
-          BENCHMARK_PLATFORM: ${{ matrix.platform }}
           SCALANATIVE_LTO: ${{ matrix.lto || 'none' }}
-        run: sbt --batch "sbtPlugin/scripted platform/$BENCHMARK_PLATFORM reports/$BENCHMARK_PLATFORM api/$BENCHMARK_PLATFORM configuration/$BENCHMARK_PLATFORM result-extensions/$BENCHMARK_PLATFORM formatters/$BENCHMARK_PLATFORM"
+        run: sbt --batch -Dbenchmark.platforms=jvm,${{ matrix.platform }} "sbtPlugin/scripted $COMPATIBILITY"
 
-      - name: Compare standard formatter and user output with the JVM
-        shell: bash
-        env:
-          BENCHMARK_PLATFORM: ${{ matrix.platform }}
-        run: |
-          if [ "$BENCHMARK_PLATFORM" = "jvm" ]; then
-            sbt --batch "sbtPlugin/scripted output-factory/jvm stdio/jvm"
-          else
-            sbt --batch "sbtPlugin/scripted output-factory/jvm stdio/jvm; sbtPlugin/scripted output-factory/$BENCHMARK_PLATFORM stdio/$BENCHMARK_PLATFORM"
-          fi
-
-  execution-parity:
+  execution:
     name: Execution and failure parity (${{ matrix.platform }})
     runs-on: ubuntu-22.04
     timeout-minutes: 90
     strategy:
       fail-fast: false
       matrix:
-        platform: [native, js, wasm]
+        platform: [native, js]
     steps:
       - uses: actions/checkout@v7
       - uses: ./.github/actions/setup
@@ -108,49 +88,50 @@ jobs:
       - uses: actions/setup-node@v6
         with:
           node-version: '25'
-      - name: Check host process supervision
-        run: node --test sbt-plugin/src/test/node/*.test.mjs
-      - name: Compare failures and execution with the JVM reference
-        shell: bash
-        env:
-          BENCHMARK_PLATFORM: ${{ matrix.platform }}
+      - name: Compare failures and execution with the JVM
         run: >-
-          sbt --batch "sbtPlugin/scripted runner-failures/jvm fork-sequence/jvm output-format/jvm;
-          sbtPlugin/scripted runner-failures/$BENCHMARK_PLATFORM fork-sequence/$BENCHMARK_PLATFORM
-          containment/$BENCHMARK_PLATFORM execution/$BENCHMARK_PLATFORM output-format/$BENCHMARK_PLATFORM"
-      - name: Check Native groups
-        if: matrix.platform == 'native'
-        run: sbt --batch "sbtPlugin/scripted group-failures/jvm group-failures/native"
+          sbt --batch -Dbenchmark.platforms=jvm,${{ matrix.platform }}
+          "sbtPlugin/scripted $EXECUTION benchmark/containment benchmark/group-failures"
       - uses: actions/upload-artifact@v7
         if: always()
         with:
           name: execution-parity-${{ matrix.platform }}
           path: target/execution-parity
 
-  optimized-integrity:
-    name: Optimized measurement integrity (${{ matrix.variant }})
+  # Wasm shares the Scala.js runtime and host; only the linked code differs, which the integrity test inspects.
+  integrity:
+    name: Optimized measurement integrity (${{ matrix.platform }}, LTO ${{ matrix.lto || 'none' }})
     runs-on: ubuntu-22.04
     timeout-minutes: 30
     strategy:
       fail-fast: false
       matrix:
-        variant: [native, native-thin, native-full, js, wasm]
+        include:
+          - platform: native
+          - platform: native
+            lto: thin
+          - platform: native
+            lto: full
+          - platform: js
+          - platform: wasm
     steps:
       - uses: actions/checkout@v7
       - uses: ./.github/actions/setup
         with:
-          native: ${{ startsWith(matrix.variant, 'native') && 'true' || 'false' }}
+          native: ${{ matrix.platform == 'native' && 'true' || 'false' }}
       - uses: actions/setup-node@v6
-        if: matrix.variant == 'js' || matrix.variant == 'wasm'
+        if: matrix.platform != 'native'
         with:
           node-version: '25'
       - name: Inspect optimized workloads with collection enabled
-        shell: bash
         env:
-          BENCHMARK_INTEGRITY: ${{ matrix.variant }}
-        run: sbt --batch "sbtPlugin/scripted integrity/$BENCHMARK_INTEGRITY"
+          SCALANATIVE_LTO: ${{ matrix.lto || 'none' }}
+        run: sbt --batch -Dbenchmark.platforms=${{ matrix.platform }} "sbtPlugin/scripted benchmark/integrity"
+      - name: Check platform selection on Wasm
+        if: matrix.platform == 'wasm'
+        run: sbt --batch -Dbenchmark.platforms=wasm "sbtPlugin/scripted benchmark/platform"
       - uses: actions/upload-artifact@v7
         if: always()
         with:
-          name: optimized-integrity-${{ matrix.variant }}
+          name: optimized-integrity-${{ matrix.platform }}-${{ matrix.lto || 'none' }}
           path: target/execution-parity/integrity

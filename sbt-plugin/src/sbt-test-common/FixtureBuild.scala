@@ -98,6 +98,7 @@ object FixtureBuild {
             )
             .settings(platformSettings(platform))
             .settings(settings(platform))
+            .settings(Compile / sources := (Compile / sources).value.filterNot(isOtherHost(platform)))
       )
     }
   }
@@ -111,6 +112,12 @@ object FixtureBuild {
 
   /** Fixture directory with the host services of a platform: processes or the Node.js host. */
   def host(platform: String): String = if (platform == "jvm" || platform == "native") "process" else "js"
+
+  /** Fixture directories are added recursively; sources for the other kind of host must stay out. */
+  private def isOtherHost(platform: String)(source: File): Boolean = {
+    val other = if (host(platform) == "process") "js" else "process"
+    source.getParentFile.getName == other
+  }
 
   /** Preloads a module into every Node.js process of the benchmark. */
   def nodeImport(module: File): Seq[Setting[?]] =

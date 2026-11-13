@@ -74,7 +74,8 @@ object IntegrityChecks {
           blocks
             .filter(block => {
               val header = block.linesIterator.nextOption().getOrElse("")
-              header.contains("IntegrityBenchmark") || header.contains("scalanative_jmh_consume") || header.contains(
+              header.contains("IntegrityBenchmark") || header.contains("BenchmarkMain") ||
+                header.contains("scalanative_jmh_consume") || header.contains(
                 "scalanative_nano_time"
               )
             })
@@ -86,7 +87,7 @@ object IntegrityChecks {
         assert(disassembly.contains("scalanative_jmh_consume"), "Missing primitive consumption barrier")
         assert(disassembly.contains("scalanative_jmh_consume_reference"), "Missing reference consumption barrier")
         val ir = artifacts.filter(_.getName.endsWith(".ll"))
-        val definitions = "(?ms)^define[^\\n]*(?:IntegrityBenchmark|Blackhole)[^\\n]*\\{.*?^\\}".r
+        val definitions = "(?ms)^define[^\\n]*(?:IntegrityBenchmark|BenchmarkMain|Blackhole)[^\\n]*\\{.*?^\\}".r
         val functions = ir.flatMap(path => definitions.findAllIn(IO.read(path)).toVector)
         assert(functions.nonEmpty, "No optimized benchmark LLVM functions retained")
         IO.write(evidence / "optimized-functions.ll", functions.mkString("\n\n"))

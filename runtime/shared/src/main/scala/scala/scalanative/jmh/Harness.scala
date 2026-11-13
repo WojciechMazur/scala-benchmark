@@ -575,6 +575,8 @@ private final class HarnessMacro[Q <: Quotes](q: Q) extends BenchmarkSymbols[Q](
         else Select.overloaded('{ $environment.blackhole }.asTerm, "consume", Nil, List(invocation)).asExprOf[Unit]
       compilerControl(benchmark) match
         case None | Some("INLINE") => consumed
+        // Already a call boundary of its own.
+        case Some("DONT_INLINE") if annotation[noinline](benchmark).nonEmpty => consumed
         // The benchmark body may be inlined into this boundary, but the boundary stays out of the measured loop.
         case Some("DONT_INLINE") => '{ @noinline def boundary(): Unit = $consumed; boundary() }
         case Some(other) => fail(s"CompilerControl.$other has no supported equivalent on this backend", benchmark)
