@@ -1,7 +1,0 @@
-{
-  "mcpServers": {
-    "scala-benchmark-metals": {
-      "url": "http://localhost:63471/mcp"
-    }
-  }
-}

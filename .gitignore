@@ -9,3 +9,5 @@ results.json
 results.csv
 .sbt/matrix/
 **/.scala-build/
+.cursor/
+.vscode/
