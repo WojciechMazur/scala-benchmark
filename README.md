@@ -24,13 +24,14 @@ addSbtPlugin("org.scala-js" % "sbt-scalajs" % "1.22.0")
 Enable `JmhPlugin` on the benchmark project. The plugin adds the right backend for each platform:
 
 ```scala
+val scalaVersions = Seq("3.3.9")
+
 lazy val benchmarks = projectMatrix
   .in(file("benchmarks"))
   .enablePlugins(JmhPlugin)
-  .settings(scalaVersion := "3.3.9")
-  .jvmPlatform(Seq("3.3.9"))
-  .nativePlatform(Seq("3.3.9"))
-  .jsPlatform(Seq("3.3.9"))
+  .jvmPlatform(scalaVersions)
+  .nativePlatform(scalaVersions)
+  .jsPlatform(scalaVersions)
 ```
 
 ## Write benchmarks
