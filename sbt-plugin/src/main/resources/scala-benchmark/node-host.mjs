@@ -185,10 +185,10 @@ if (argv[0] === '--supervise') {
     readUserOutput(channel) {
       if (channel < 1 || channel > 3) throw new Error('Invalid user output channel');
       const descriptor = userOutput[channel - 1];
-      if (descriptor === undefined) return [];
+      if (descriptor === undefined) return new Int8Array(0);
       const bytes = Buffer.allocUnsafe(8192);
       const count = fs.readSync(descriptor, bytes, 0, bytes.length, null);
-      return Array.from(bytes.subarray(0, count));
+      return new Int8Array(bytes.buffer, bytes.byteOffset, count);
     },
     releaseUserOutput,
     takeEvents() { const result = forkEvents; forkEvents = []; return result; },

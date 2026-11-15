@@ -2,6 +2,7 @@ package scala.benchmark.runtime
 
 import java.util.concurrent.TimeUnit
 
+import scala.benchmark.internal.StudentT
 import scala.jdk.CollectionConverters.*
 
 import org.junit.Assert.*
@@ -97,7 +98,7 @@ class AggregationParityTest:
     for df <- Vector(2, 5, 17, 31, 64, 127, 255) do
       val exact = new org.apache.commons.math3.distribution.TDistribution(df.toDouble, 1e-13)
         .inverseCumulativeProbability(0.9995)
-      assertEquals(s"df=$df", exact, StudentT.quantile(0.9995, df), 1e-11)
+      assertEquals(s"df=$df", exact, StudentT.quantile(0.9995, df.toDouble), 1e-11)
 
   @Test def groupAssignmentsMatchUpstreamIncludingDisabledMembers(): Unit =
     for (count, groups) <- Vector(6 -> Array(1, 2), 1 -> Array(0, 1), 8 -> Array(2, 0, 2)) do

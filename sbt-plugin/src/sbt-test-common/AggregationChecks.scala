@@ -9,7 +9,7 @@ object AggregationChecks:
 
   def settings(backend: String): Seq[Setting[?]] = Seq(
     verifyAggregation := Def.uncached {
-      val repository = file(sys.props("benchmark.scripted.support")).getParentFile.getParentFile.getParentFile
+      val repository = FixtureBuild.root
       val evidence = repository / "target/execution-parity/aggregation" / backend
       IO.createDirectory(evidence)
       val directory = baseDirectory.value
@@ -94,11 +94,7 @@ object AggregationChecks:
                 ujson.Obj(
                   "file" -> path.getName,
                   "sha256" ->
-                    java.security.MessageDigest
-                      .getInstance("SHA-256")
-                      .digest(IO.readBytes(path))
-                      .map(b => f"${b & 0xff}%02x")
-                      .mkString
+                    FixtureBuild.sha256(path)
                 )
               )
             )

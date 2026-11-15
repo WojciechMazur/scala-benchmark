@@ -28,7 +28,9 @@ trait ProcessPlatform:
   def prepareWorker(): Unit = ()
   def processId: Long = java.lang.ProcessHandle.current().pid()
   def attachFork(process: Process): Long = 0L
-  def releaseFork(process: Process, token: Long): Unit = ()
+
+  /** `established` tells whether the worker reported its own process id, i.e. set up its containment. */
+  def releaseFork(process: Process, token: Long, established: => Boolean): Unit = ()
   def restoreCallerInterrupt(): Unit = Thread.currentThread().interrupt()
   def isCallerInterrupted: Boolean = Thread.currentThread().isInterrupted
   def ensureMeasurementHealthy(): Unit = WorkerContainment.check()
@@ -62,9 +64,9 @@ trait ProcessPlatform:
       mode: Mode,
       config: Configuration,
       parameters: Map[String, String],
-      warmups: Vector[WarmupRequest] = Vector.empty,
-      failOnError: Boolean = true,
-      observer: RunObserver = RunObserver.Disabled
+      warmups: Vector[WarmupRequest],
+      failOnError: Boolean,
+      observer: RunObserver
   ): Vector[IterationResult] = Main.forked(suite, descriptor, mode, config, parameters, warmups, failOnError, observer)
 
 end ProcessPlatform

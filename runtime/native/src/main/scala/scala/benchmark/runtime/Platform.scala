@@ -57,7 +57,10 @@ object Platform extends ProcessPlatform:
     require(token != -1, "Cannot attach benchmark worker to its process containment job")
     token
 
-  override def releaseFork(process: Process, token: Long): Unit = Native.releaseFork(process.pid(), token)
+  // Never signal a process group that was not established by this worker.
+  override def releaseFork(process: Process, token: Long, established: => Boolean): Unit =
+    if token != 0L || established then Native.releaseFork(process.pid(), token)
+
   def identity: scala.benchmark.Platform = scala.benchmark.Platform.Native
 
   /** Derived harnesses are registered. A hand-written suite object can still be named, when it enables reflective

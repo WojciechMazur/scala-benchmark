@@ -36,14 +36,19 @@ final private[runtime] class ForkOutput(
           if raw then
             val buffer = new Array[Byte](8192)
             var reading = true
+            // An idle file is polled less and less often, so a quiet fork does not keep waking its parent.
+            var idleMillis = 1L
             while reading do
               var count = input.read(buffer)
               if count == -1 && !keepReading() then
                 // The last append may race the first EOF read; re-read after observing worker termination.
                 count = input.read(buffer)
                 if count == -1 then reading = false
-              if count == -1 && reading then Thread.sleep(5)
+              if count == -1 && reading then
+                Thread.sleep(idleMillis)
+                idleMillis = math.min(idleMillis * 2, 100L)
               else if count >= 0 then
+                idleMillis = 1L
                 destination.write(buffer, 0, count)
                 if destination.checkError() then throw new java.io.IOException("Benchmark output destination failed")
           else
@@ -61,6 +66,7 @@ final private[runtime] class ForkOutput(
             case failure: Throwable =>
               error.compareAndSet(null, failure)
               ()
+        end try
       end run
     ,
     "benchmark-fork-output"

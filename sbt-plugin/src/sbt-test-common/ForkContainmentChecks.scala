@@ -29,7 +29,7 @@ object ForkContainmentChecks:
             artifact(_.getName == "node-host.mjs").getAbsolutePath,
             artifact(f => f.getName == "main.js" && f.getPath.contains("-opt/")).getAbsolutePath
           )
-      val repository = file(sys.props("benchmark.scripted.support")).getParentFile.getParentFile.getParentFile
+      val repository = FixtureBuild.root
       val evidence = repository / "target/execution-parity/containment" / backend
       IO.delete(evidence)
       IO.createDirectory(evidence)
@@ -158,11 +158,7 @@ object ForkContainmentChecks:
                 ujson.Obj(
                   "file" -> f.getName,
                   "sha256" ->
-                    java.security.MessageDigest
-                      .getInstance("SHA-256")
-                      .digest(IO.readBytes(f))
-                      .map(b => f"${b & 0xff}%02x")
-                      .mkString
+                    FixtureBuild.sha256(f)
                 )
               )
             )

@@ -85,17 +85,8 @@ object RunnerBridge extends RunnerService:
     add("-gc", options.shouldDoGC())(_.toString)
     add("-tu", options.getTimeUnit())(_.name())
     add("-tg", options.getThreadGroups())(_.mkString(","))
-    add("-to", options.getTimeout())(t => t.convertTo(java.util.concurrent.TimeUnit.NANOSECONDS).toString + "ns")
-    add("-w", options.getWarmupTime())(t => t.convertTo(java.util.concurrent.TimeUnit.NANOSECONDS).toString + "ns")
-    add("-r", options.getMeasurementTime())(t => t.convertTo(java.util.concurrent.TimeUnit.NANOSECONDS).toString + "ns")
     Vector("-w" -> options.getWarmupTime(), "-r" -> options.getMeasurementTime(), "-to" -> options.getTimeout())
-      .foreach {
-        case (key, time) if time.hasValue() =>
-          val value = time.get()
-          overrides += (key + ".time") -> value.getTime().toString
-          overrides += (key + ".unit") -> value.getTimeUnit().name()
-        case _ => ()
-      }
+      .foreach((key, time) => if time.hasValue() then overrides ++= Options.timeOverrides(key, time.get()))
     val known = discovered.flatMap(_.states.flatMap(_.parameters.map(_.name))) ++
       (options match
         case builder: OptionsBuilder => builder.parameterNames()
@@ -131,11 +122,9 @@ object RunnerBridge extends RunnerService:
 
   private def checked[A](body: => A): A = try body
   catch
-    case error: RunnerException => throw error
-    case error: IllegalArgumentException
-        if Option(error.getMessage).exists(_.contains("No benchmarks match the selection")) =>
-      throw new NoBenchmarksException
-    case error: Throwable => throw new RunnerException(error.getMessage, error)
+    case error: RunnerException               => throw error
+    case _: Selection.EmptySelectionException => throw new NoBenchmarksException
+    case error: Throwable                     => throw new RunnerException(error.getMessage, error)
 
   def run(
       options: PublicOptions,
@@ -143,8 +132,7 @@ object RunnerBridge extends RunnerService:
   ): java.util.Collection[org.openjdk.jmh.results.RunResult] = checked {
     val resolved = try translated(options)
     catch
-      case error: IllegalArgumentException
-          if Option(error.getMessage).exists(_.contains("No benchmarks match the selection")) =>
+      case error: Selection.EmptySelectionException =>
         if format != null then
           TrialObserver.invoke(format.flush()); TrialObserver.invoke(format.close())
         throw error

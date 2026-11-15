@@ -6,6 +6,7 @@ import xsbti.FileConverter
 
 object BuildSettings:
   val scalaTagsVersion = "0.13.1"
+  val jmhVersion = "1.37"
   val projectOrganization = "io.github.wojciechmazur"
   val projectRepository = "WojciechMazur/scala-benchmark"
   val projectVersion = "0.1.0-SNAPSHOT"
@@ -24,7 +25,8 @@ object BuildSettings:
     buildInfoKeys := Seq(
       BuildInfoKey(version),
       BuildInfoKey("organization" -> projectOrganization),
-      BuildInfoKey("minimumScalaVersion" -> libraryScalaVersion)
+      BuildInfoKey("minimumScalaVersion" -> libraryScalaVersion),
+      BuildInfoKey("jmhVersion" -> jmhVersion)
     ),
     buildInfoOptions += BuildInfoOption.PackagePrivate
   )

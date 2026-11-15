@@ -110,8 +110,6 @@ class MultisetStatistics extends AbstractStatistics:
   def getSum(): Double =
     if observations.isEmpty then Double.NaN else observations.iterator.map { case (value, count) => value * count }.sum
 
-  override def getMean(): Double = if getN() == 0 then Double.NaN else getSum() / getN()
-
   def getMin(): Double = if observations.isEmpty then Double.NaN
   else observations.keysIterator.foldLeft(Double.PositiveInfinity)(scala.benchmark.internal.StatisticsNumbers.minimum)
 

@@ -118,18 +118,7 @@ object BenchmarkRunner:
     var primary: Throwable = null
     try
       selected.foreach { case (suiteName, suite, metadata, descriptor) =>
-        val modes =
-          if options.modes.nonEmpty then options.modes else descriptor.modes
-        val expanded =
-          if modes.contains(Mode.All) then
-            Vector(
-              Mode.Throughput,
-              Mode.AverageTime,
-              Mode.SampleTime,
-              Mode.SingleShotTime
-            )
-          else modes.distinct
-        expanded.foreach { mode =>
+        expandedModes(if options.modes.nonEmpty then options.modes else descriptor.modes).foreach { mode =>
           val parsed = Descriptor.of(descriptor.index, metadata, Some(mode))
           val overrides = options.configuration(parsed.configuration)
           val actual = parsed.configured(overrides)
@@ -215,13 +204,7 @@ object BenchmarkRunner:
                   Console.err.println(
                     s"# FAILED ${actual.name}: ${t.getMessage}"
                   )
-                if
-                  options.failOnError || t.isInstanceOf[TrialObserverFailure] ||
-                  t.isInstanceOf[
-                    UnfinishedWorkersException
-                  ] || ForkOutputFailure.failed || Platform.isCallerInterrupted
-                then
-                  throw t
+                if mustPropagate(t, options.failOnError) then throw t
                 if config.forks == 0 && BenchmarkForkFailure.completed(t).nonEmpty then
                   throw new IncompleteEmbeddedTrialException(t)
             end try
@@ -248,5 +231,10 @@ object BenchmarkRunner:
     completed
 
   end execute
+
+  /** Failures that end the run even when the run continues past failing benchmarks. */
+  private[runtime] def mustPropagate(error: Throwable, failOnError: Boolean): Boolean =
+    failOnError || error.isInstanceOf[TrialObserverFailure] || error.isInstanceOf[UnfinishedWorkersException] ||
+      ForkOutputFailure.failed || Platform.isCallerInterrupted
 
 end BenchmarkRunner

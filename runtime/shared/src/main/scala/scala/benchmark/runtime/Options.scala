@@ -19,6 +19,8 @@ package scala.benchmark.runtime
 
 import java.util.concurrent.TimeUnit
 
+import scala.benchmark.internal.Ascii
+
 import org.openjdk.jmh.annotations.Mode
 
 final case class Options(
@@ -120,6 +122,17 @@ end Options
 
 object Options:
 
+  /** A time override: nanoseconds for the configuration, with the given value and unit kept for reports. */
+  private[runtime] def timeOverrides(
+      key: String,
+      value: org.openjdk.jmh.runner.options.TimeValue
+  ): Map[String, String] =
+    Map(
+      key -> (value.convertTo(TimeUnit.NANOSECONDS).toString + "ns"),
+      (key + ".time") -> value.getTime().toString,
+      (key + ".unit") -> value.getTimeUnit().name()
+    )
+
   val help =
     s"""Scala Benchmark (JMH 1.37 source compatibility)
       |Usage: benchmark [regex] [options]
@@ -163,7 +176,7 @@ object Options:
     case v    => TimeUnit.valueOf(v).name()
 
   private def cliUnit(value: String): String =
-    val normalized = scala.benchmark.internal.Ascii.lower(value)
+    val normalized = Ascii.lower(value)
     require(Set("ns", "us", "ms", "s", "m", "h")(normalized), s"Unknown time unit: $value")
     unit(normalized)
 
@@ -222,7 +235,7 @@ object Options:
           )
         case "-rf" =>
           formatRequested = true
-          val format = argument().toLowerCase();
+          val format = Ascii.lower(argument())
           require(
             Reports.formats.contains(format),
             "Supported formats are " + Reports.formats.mkString(", ")
@@ -235,14 +248,8 @@ object Options:
             options.overrides.updated(key, java.lang.Boolean.parseBoolean(argument()).toString)
           )
         case "-w" | "-r" | "-to" =>
-          val raw = argument()
-          val value = org.openjdk.jmh.runner.options.TimeValue.fromString(raw)
-          options = options.copy(overrides =
-            options.overrides
-              .updated(key, value.convertTo(TimeUnit.NANOSECONDS).toString + "ns")
-              .updated(key + ".time", value.getTime().toString)
-              .updated(key + ".unit", value.getTimeUnit().name())
-          )
+          val value = org.openjdk.jmh.runner.options.TimeValue.fromString(argument())
+          options = options.copy(overrides = options.overrides ++ timeOverrides(key, value))
         case "-t" =>
           val value = argument()
           require(value.equalsIgnoreCase("max") || value.toInt > 0, "Thread count must be positive or max")

@@ -21,7 +21,9 @@ import scala.scalanative.runtime.Intrinsics
 import scala.scalanative.unsafe.*
 
 object BlackholeSink:
+  def consume(value: Int): Unit = Native.consume(value.toLong)
   def consume(value: Long): Unit = Native.consume(value)
+  def consume(value: Double): Unit = Native.consume(java.lang.Double.doubleToRawLongBits(value))
   def consumeReference(value: AnyRef): Unit = Native.consumeReference(Intrinsics.castObjectToRawPtr(value))
 
   @extern private object Native:

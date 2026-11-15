@@ -24,7 +24,10 @@ import scala.scalajs.js.annotation.JSGlobal
   * consumes a value, on JS and Wasm alike.
   */
 object BlackholeSink:
-  def consume(value: Long): Unit = Sink.consume(value.asInstanceOf[js.Any])
+  // Ints and Doubles cross as plain JS numbers. A Long would be boxed, so its halves are folded into an Int.
+  def consume(value: Int): Unit = Sink.consume(value)
+  def consume(value: Long): Unit = Sink.consume((value ^ (value >>> 32)).toInt)
+  def consume(value: Double): Unit = Sink.consume(value)
   def consumeReference(value: AnyRef): Unit = Sink.consume(value.asInstanceOf[js.Any])
 
   @js.native @JSGlobal("__scalaBenchmarkHost")

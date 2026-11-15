@@ -84,24 +84,10 @@ object Execution extends MeasurementMath:
       if observing then
         Vector.fill(iterations)(new java.util.concurrent.CountDownLatch(1))
       else Vector.empty
-    def before(iteration: Int): Unit = if observing then
-      val warmup = iteration < c.warmupIterations
-      interruptible(
-        TrialObserver.invoke(
-          observer.iteration(warmup, if warmup then iteration + 1 else iteration - c.warmupIterations + 1)
-        )
-      )
-    def after(iteration: Int, raw: Vector[RawResult]): Unit = if observing then
-      val warmup = iteration < c.warmupIterations
-      interruptible(
-        TrialObserver.invoke(
-          observer.iterationResult(
-            warmup,
-            if warmup then iteration + 1 else iteration - c.warmupIterations + 1,
-            TrialObserver.result(mode, c, warmup, raw)
-          )
-        )
-      )
+    def before(iteration: Int): Unit =
+      if observing then interruptible(TrialObserver.before(observer, c, iteration))
+    def after(iteration: Int, raw: Vector[RawResult]): Unit =
+      if observing then interruptible(TrialObserver.after(observer, mode, c, iteration, raw))
     def abort(t: Throwable): Unit =
       error.compareAndSet(null, t)
       val control = current.get()

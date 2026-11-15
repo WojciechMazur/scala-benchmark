@@ -45,20 +45,44 @@ object BenchmarkPlugin extends AutoPlugin:
 
   private val organization = BuildInfo.organization
   private val jmhOrganization = "org.openjdk.jmh"
-  private val supportedJmh = "1.37"
 
-  /** Non-JVM backends implement the JMH API themselves. */
-  private[sbtplugin] def withoutJmh(platform: Def.Initialize[String]): Seq[Setting[?]] = Seq(
+  /** Native and Scala.js backends implement the JMH API themselves. Their `Jmh` configuration only compiles the
+    * generated entry point, which hosts the harnesses derived for the benchmarks of the main sources.
+    */
+  private[sbtplugin] def harnessSettings(
+      backend: String,
+      platform: Def.Initialize[String],
+      buildInfo: Def.Initialize[Task[Seq[(String, String)]]]
+  ): Seq[Setting[?]] = Seq(
     libraryDependencies ~= (_.filterNot(_.organization == jmhOrganization)),
     libraryDependencies ++= {
       if benchmarkUsePublishedArtifacts.value then
         Seq((organization %% "benchmark-runtime" % BuildInfo.version).platform(platform.value))
       else Nil
+    },
+    // Benchmarks may live in the Jmh source directories; they are compiled with the main sources so that the
+    // generated entry point can refer to them.
+    Compile / unmanagedSourceDirectories ++= (Jmh / unmanagedSourceDirectories).value,
+    Jmh / unmanagedSources := Nil,
+    Jmh / classDirectory := crossTarget.value / "jmh-classes",
+    Jmh / dependencyClasspath := Def.uncached((Compile / fullClasspath).value),
+    Jmh / mainClass := Some(GeneratedSources.mainClass),
+    Jmh / run / mainClass := (Jmh / mainClass).value,
+    Jmh / JmhPlugin.generateJmhSourcesAndResources := Def.uncached {
+      val supported = BuildInfo.jmhVersion
+      require((Jmh / version).value == supported, s"The $backend backend supports JMH API $supported")
+      val main = GeneratedSources.write(
+        (Jmh / sourceManaged).value / "BenchmarkMain.scala",
+        GeneratedSources.harnessMain(benchmarkClasses.value, buildInfo.value)
+      )
+      (main, Seq.empty[File])
     }
   )
 
-  private[sbtplugin] def requireSupportedJmh(backend: String, version: String): Unit =
-    require(version == supportedJmh, s"The $backend backend supports JMH API $supportedJmh")
+  /** Runs a benchmark launcher in the project directory, failing the task when it fails. */
+  private[sbtplugin] def launch(command: Seq[String], directory: File, environment: Map[String, String]): Unit =
+    val exit = scala.sys.process.Process(command, directory, environment.toSeq*).!
+    if exit != 0 then sys.error(s"Benchmark process exited with $exit")
 
   private val inventorySettings: Seq[Setting[?]] = inConfig(Inventory)(
     Defaults.configSettings ++ Seq(

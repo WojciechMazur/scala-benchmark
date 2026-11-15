@@ -14,7 +14,7 @@ object IntegrityChecks:
   def settings(backend: String): Seq[Setting[?]] = Seq(
     verifyIntegrity := Def.uncached {
       val directory = baseDirectory.value
-      val repository = file(sys.props("benchmark.scripted.support")).getParentFile.getParentFile.getParentFile
+      val repository = FixtureBuild.root
       val rows = ujson.read(IO.read(directory / "integrity.json")).arr
       val variant = if backend == "native" then backend + "-" + rows.head("native")("lto").str else backend
       val evidence = repository / "target/execution-parity/integrity" / variant
@@ -57,11 +57,7 @@ object IntegrityChecks:
       def hash(path: File): ujson.Value = ujson.Obj(
         "file" -> path.getName,
         "sha256" ->
-          java.security.MessageDigest
-            .getInstance("SHA-256")
-            .digest(IO.readBytes(path))
-            .map(b => f"${b & 0xff}%02x")
-            .mkString
+          FixtureBuild.sha256(path)
       )
       val artifacts = (targetDirectory ** "*").get().filter(_.isFile)
       if backend == "native" then

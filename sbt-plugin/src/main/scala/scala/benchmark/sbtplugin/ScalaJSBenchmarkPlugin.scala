@@ -17,12 +17,8 @@
  */
 package scala.benchmark.sbtplugin
 
-import scala.sys.process.Process
-
-import BenchmarkPlugin.autoImport.*
 import org.scalajs.sbtplugin.ScalaJSPlugin
 import org.scalajs.sbtplugin.ScalaJSPlugin.autoImport.*
-import pl.project13.scala.sbt.JmhPlugin
 import pl.project13.scala.sbt.JmhPlugin.JmhKeys.*
 import sbt.{*, given}
 import sbt.Keys.*
@@ -56,47 +52,35 @@ object ScalaJSBenchmarkPlugin extends AutoPlugin:
     directory / host
 
   override def projectSettings: Seq[Setting[?]] =
-    inConfig(Jmh)(ScalaJSPlugin.compileConfigSettings) ++ BenchmarkPlugin.withoutJmh(platform) ++ Seq(
-      benchmarkNode := "node",
-      benchmarkNodeOptions := Nil,
-      // See NativeBenchmarkPlugin: the Jmh configuration only compiles the generated entry point.
-      Compile / unmanagedSourceDirectories ++= (Jmh / unmanagedSourceDirectories).value,
-      Jmh / unmanagedSources := Nil,
-      Jmh / classDirectory := crossTarget.value / "jmh-classes",
-      Jmh / dependencyClasspath := Def.uncached((Compile / fullClasspath).value),
-      Jmh / mainClass := Some(GeneratedSources.mainClass),
-      Jmh / run / mainClass := (Jmh / mainClass).value,
-      Jmh / scalaJSUseMainModuleInitializer := true,
-      Jmh / scalaJSLinkerConfig ~= (_.withModuleKind(ModuleKind.ESModule)),
-      Jmh / JmhPlugin.generateJmhSourcesAndResources := Def.uncached {
-        BenchmarkPlugin.requireSupportedJmh("Scala.js", (Jmh / version).value)
-        val wasm = (Jmh / scalaJSLinkerConfig).value.esFeatures.useWebAssembly
-        val buildInfo = Seq(
-          "scalaVersion" -> scalaVersion.value,
-          "scalaJSVersion" -> scalaJSVersion,
-          "backend" -> (if wasm then "wasm" else "js"),
-          "optimization" -> "full"
-        )
-        val main = GeneratedSources.write(
-          (Jmh / sourceManaged).value / "BenchmarkMain.scala",
-          GeneratedSources.harnessMain(benchmarkClasses.value, buildInfo)
-        )
-        (main, Seq.empty[File])
-      },
-      Jmh / run := {
-        val arguments = spaceDelimited("<JMH option>").parsed
-        val modules = (Jmh / fullLinkJS).value.data.publicModules.toVector
-        require(modules.size == 1, "Benchmark linking must produce one public module")
-        val module = (Jmh / fullLinkJS / scalaJSLinkerOutputDirectory).value / modules.head.jsFileName
-        val launcher = installHost(target.value / hostDirectory)
-        val nodeOptions = benchmarkNodeOptions.value
-        val collects = arguments.sliding(2).exists(_ == Seq("-gc", "true"))
-        val exposeGC = if collects && !nodeOptions.contains("--expose-gc") then Seq("--expose-gc") else Nil
-        val command = Seq(benchmarkNode.value) ++ nodeOptions ++ exposeGC ++
-          Seq(launcher.getAbsolutePath, module.getAbsolutePath) ++ arguments
-        val exit = Process(command, baseDirectory.value, (Jmh / run / envVars).value.toSeq*).!
-        if exit != 0 then sys.error(s"Scala.js benchmark exited with $exit")
-      }
+    inConfig(Jmh)(ScalaJSPlugin.compileConfigSettings) ++
+      BenchmarkPlugin.harnessSettings("Scala.js", platform, buildInfo) ++ Seq(
+        benchmarkNode := "node",
+        benchmarkNodeOptions := Nil,
+        Jmh / scalaJSUseMainModuleInitializer := true,
+        Jmh / scalaJSLinkerConfig ~= (_.withModuleKind(ModuleKind.ESModule)),
+        Jmh / run := {
+          val arguments = spaceDelimited("<JMH option>").parsed
+          val modules = (Jmh / fullLinkJS).value.data.publicModules.toVector
+          require(modules.size == 1, "Benchmark linking must produce one public module")
+          val module = (Jmh / fullLinkJS / scalaJSLinkerOutputDirectory).value / modules.head.jsFileName
+          val launcher = installHost(target.value / hostDirectory)
+          val nodeOptions = benchmarkNodeOptions.value
+          val collects = arguments.sliding(2).exists(_ == Seq("-gc", "true"))
+          val exposeGC = if collects && !nodeOptions.contains("--expose-gc") then Seq("--expose-gc") else Nil
+          val command = Seq(benchmarkNode.value) ++ nodeOptions ++ exposeGC ++
+            Seq(launcher.getAbsolutePath, module.getAbsolutePath) ++ arguments
+          BenchmarkPlugin.launch(command, baseDirectory.value, (Jmh / run / envVars).value)
+        }
+      )
+
+  private def buildInfo = Def.task {
+    val wasm = (Jmh / scalaJSLinkerConfig).value.esFeatures.useWebAssembly
+    Seq(
+      "scalaVersion" -> scalaVersion.value,
+      "scalaJSVersion" -> scalaJSVersion,
+      "backend" -> (if wasm then "wasm" else "js"),
+      "optimization" -> "full"
     )
+  }
 
 end ScalaJSBenchmarkPlugin

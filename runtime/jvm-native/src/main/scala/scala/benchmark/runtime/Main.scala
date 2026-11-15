@@ -33,7 +33,6 @@ import java.util.concurrent.TimeUnit
 import org.openjdk.jmh.annotations.Mode
 
 object Main:
-  private val WorkerFlag = "--benchmark-worker-v3"
 
   /** Entry point of a benchmark project, called by its generated main class. */
   def run(args: Array[String], suites: Seq[(String, Suite)], buildInfo: Seq[(String, String)]): Unit =
@@ -42,16 +41,14 @@ object Main:
 
   def main(args: Array[String]): Unit =
     try
-      if args.headOption.contains(WorkerFlag) then worker(args)
-      else run(Options.parse(args))
+      if args.headOption.contains(ForkProgress.WorkerFlag) then worker(args)
+      else BenchmarkRunner.run(Options.parse(args))
     catch
       case t: Throwable =>
         if ForkOutputFailure.failed then Platform.haltWorker()
         System.err.println(s"Scala Native benchmark failed: ${t.getMessage}")
         t.printStackTrace(System.err)
         System.exit(1)
-
-  def run(options: Options): Vector[RunResult] = BenchmarkRunner.run(options)
 
   /** Everything a worker process needs to reproduce the trial: the benchmark, its resolved configuration and
     * parameters, and the bulk warmups that precede it.
@@ -99,20 +96,12 @@ object Main:
       mode: Mode,
       config: Configuration,
       parameters: Map[String, String],
-      warmups: Vector[WarmupRequest] = Vector.empty,
-      failOnError: Boolean = true,
-      observer: RunObserver = RunObserver.Disabled
+      warmups: Vector[WarmupRequest],
+      failOnError: Boolean,
+      observer: RunObserver
   ): Vector[IterationResult] =
-    val directory = Files.createTempDirectory("scala-benchmark-")
-    val request = directory.resolve("request.properties")
-    val result = directory.resolve("result.bin")
-    val progress = directory.resolve("deadline")
-    val failurePath = directory.resolve("failure.properties")
-    val workerReady = directory.resolve("worker.ready")
-    val parentReady = directory.resolve("parent.ready")
-    val userOut = directory.resolve("user-stdout.bin")
-    val userErr = directory.resolve("user-stderr.bin")
-    val framework = directory.resolve("framework.bin")
+    val files = ForkDirectory(Files.createTempDirectory("scala-benchmark-"))
+    import files.*
     Files.write(userOut, Array.emptyByteArray)
     Files.write(userErr, Array.emptyByteArray)
     Files.write(framework, Array.emptyByteArray)
@@ -144,19 +133,9 @@ object Main:
     var cancelled = false
     def replay(): Unit = if !replayed && (observer ne RunObserver.Disabled) then
       replayed = true
-      val listing = Files.list(directory)
-      import scala.jdk.CollectionConverters.*
-      val files = try
-        listing
-          .iterator()
-          .asScala
-          .filter(_.getFileName.toString.matches("event-[0-9]{10}"))
-          .toVector
-          .sortBy(_.getFileName.toString)
-      finally listing.close()
-      val records = files.zipWithIndex.map { case (path, i) =>
+      val records = events().zipWithIndex.map { case (path, i) =>
         require(
-          path.getFileName.toString == f"event-$i%010d" && Files.isRegularFile(path),
+          path == event(i) && Files.isRegularFile(path),
           "Invalid fork event sequence"
         )
         require(Files.size(path) <= 64 * 1024 * 1024, "Oversized fork event")
@@ -173,18 +152,19 @@ object Main:
         requireClosed = !process.isAlive && process.exitValue() == 0
       )
     def releaseTree(): Unit = if attached && !released then
-      // The worker publishes this before loading benchmark code. Never signal
-      // a process group that was not established by this worker.
-      val native = Platform.identity == scala.benchmark.Platform.Native
-      val established = Files.exists(workerReady) &&
-        new String(Files.readAllBytes(workerReady), StandardCharsets.UTF_8).trim.toLongOption.contains(process.pid())
-      if !native || established || token != 0L then Platform.releaseFork(process, token)
+      // The worker publishes its process id before loading benchmark code.
+      Platform.releaseFork(
+        process,
+        token,
+        Files.exists(workerReady) &&
+          new String(Files.readAllBytes(workerReady), StandardCharsets.UTF_8).trim.toLongOption.contains(process.pid())
+      )
       released = true
     try
       val command = new java.util.ArrayList[String]
       Vector(
         Platform.executable,
-        WorkerFlag,
+        ForkProgress.WorkerFlag,
         request.toString,
         result.toString,
         progress.toString
@@ -265,20 +245,7 @@ object Main:
                 if replayFailure != null then error.addSuppressed(replayFailure)
                 throw error
       }
-    finally
-      Vector(request, result, progress, failurePath, workerReady, parentReady, userOut, userErr, framework).foreach(
-        Files.deleteIfExists
-      )
-      val entries = Files.list(directory)
-      import scala.jdk.CollectionConverters.*
-      try
-        entries
-          .iterator()
-          .asScala
-          .filter(p => p.getFileName.toString.matches("event-[0-9]{10}|event.pending"))
-          .foreach(Files.deleteIfExists)
-      finally entries.close()
-      Files.deleteIfExists(directory)
+    finally files.delete()
     end try
 
   end forked
@@ -291,85 +258,57 @@ object Main:
       System.in,
       () =>
         if p.getProperty("supervised", "false").toBoolean then
-          val directory = Paths.get(args(1)).getParent
-          Vector(
-            "request.properties",
-            "result.bin",
-            "deadline",
-            "failure.properties",
-            "worker.ready",
-            "parent.ready",
-            "user-stdout.bin",
-            "user-stderr.bin",
-            "framework.bin"
-          )
-            .foreach(name => scala.util.Try(Files.deleteIfExists(directory.resolve(name))))
-          scala.util.Try {
-            val files = Files.list(directory)
-            import scala.jdk.CollectionConverters.*
-            try
-              files
-                .iterator()
-                .asScala
-                .filter(p => p.getFileName.toString.matches("event-[0-9]{10}|event.pending"))
-                .foreach(p => scala.util.Try(Files.deleteIfExists(p)))
-            finally files.close()
-          }
-          scala.util.Try(Files.deleteIfExists(directory))
+          scala.util.Try(ForkDirectory(Paths.get(args(1)).getParent).delete())
         Platform.haltWorker()
     )
     val input = new FileInputStream(args(1))
     try p.load(input)
     finally input.close()
-    val requestDirectory = Paths.get(args(1)).getParent
-    Files.write(requestDirectory.resolve("worker.ready"), Platform.processId.toString.getBytes(StandardCharsets.UTF_8))
+    val files = ForkDirectory(Paths.get(args(1)).getParent)
+    Files.write(files.workerReady, Platform.processId.toString.getBytes(StandardCharsets.UTF_8))
     if p.getProperty("supervised", "false").toBoolean then
       val started = System.nanoTime()
-      while !Files.exists(requestDirectory.resolve("parent.ready")) do
+      while !Files.exists(files.parentReady) do
         require(
           System.nanoTime() - started < ForkProgress.startupNanos,
           "Coordinator did not establish process containment"
         )
         Thread.sleep(1)
     if p.getProperty("stdio", "false").toBoolean then
-      val out = new java.io.PrintStream(
-        new FileOutputStream(requestDirectory.resolve("user-stdout.bin").toFile, true),
-        true,
-        "UTF-8"
-      )
-      val err = new java.io.PrintStream(
-        new FileOutputStream(requestDirectory.resolve("user-stderr.bin").toFile, true),
-        true,
-        "UTF-8"
-      )
-      val framework = new java.io.PrintStream(
-        new FileOutputStream(requestDirectory.resolve("framework.bin").toFile, true),
-        true,
-        "UTF-8"
-      )
+      def append(path: Path) = new java.io.PrintStream(new FileOutputStream(path.toFile, true), true, "UTF-8")
+      val framework = append(files.framework)
       try
-        BenchmarkOutput.worker(out, err, BenchmarkOutput.Streams(framework, framework))(
-          executeWorker(args, p, requestDirectory)
+        BenchmarkOutput.worker(
+          append(files.userOut),
+          append(files.userErr),
+          BenchmarkOutput.Streams(framework, framework)
+        )(
+          executeWorker(args, p, files)
         )
       finally framework.close()
-    else executeWorker(args, p, requestDirectory)
+    else executeWorker(args, p, files)
 
   end worker
 
-  private def executeWorker(args: Array[String], p: Properties, requestDirectory: Path): Unit =
-    val suite = BenchmarkOutput.user(Platform.loadSuite(p.getProperty("suite")))
-    val index = p.getProperty("benchmark").toInt
-    val mode = Mode.valueOf(p.getProperty("mode"))
-    val descriptor =
-      Descriptor.of(index, suite.metadata()(index), Some(mode))
+  /** Reads back what `writeRequest` stored under `prefix`. */
+  private def readEntry(p: Properties, prefix: String): (Suite, WarmupRequest, Descriptor) =
     import scala.jdk.CollectionConverters.*
-    val pairs =
-      p.stringPropertyNames().asScala.toVector.map(k => k -> p.getProperty(k))
-    val options = Options(overrides = pairs.filter(_._1.startsWith("-")).toMap)
-    val parameters = pairs.collect {
-      case (key, value) if key.startsWith("parameter.") =>
-        key.stripPrefix("parameter.") -> value
+    val entries = p.stringPropertyNames().asScala.collect {
+      case key if key.startsWith(prefix) => key.stripPrefix(prefix) -> p.getProperty(key)
     }.toMap
+    val suite = BenchmarkOutput.user(Platform.loadSuite(entries("suite")))
+    val index = entries("benchmark").toInt
+    val mode = Mode.valueOf(entries("mode"))
+    val descriptor = Descriptor.of(index, suite.metadata()(index), Some(mode))
+    val config = Options(overrides = entries.filter(_._1.startsWith("-"))).configuration(descriptor.configuration)
+    val parameters =
+      entries.collect { case (key, value) if key.startsWith("parameter.") => key.stripPrefix("parameter.") -> value }
+    (suite, WarmupRequest(entries("suite"), index, mode, config, parameters), descriptor)
+
+  private def executeWorker(args: Array[String], p: Properties, files: ForkDirectory): Unit =
+    val (suite, trial, descriptor) = readEntry(p, "")
+    val mode = trial.mode
+    val parameters = trial.parameters
     var sequence = 0L
     val progress: (Int, Long) => Unit = (_, budget) =>
       Files.write(
@@ -377,36 +316,18 @@ object Main:
         ForkProgress.message(sequence, math.max(1L, budget)).getBytes(StandardCharsets.UTF_8)
       )
       sequence += 1
-    val warmups = Vector.tabulate(p.getProperty("bulk.count", "0").toInt) { i =>
-      val prefix = s"bulk.$i."
-      val entries = pairs.collect {
-        case (key, value) if key.startsWith(prefix) => key.stripPrefix(prefix) -> value
-      }.toMap
-      val warmupSuite = BenchmarkOutput.user(Platform.loadSuite(entries("suite")))
-      val index = entries("benchmark").toInt
-      val mode = Mode.valueOf(entries("mode"))
-      val descriptor = Descriptor.of(index, warmupSuite.metadata()(index), Some(mode))
-      val config = Options(overrides = entries.filter(_._1.startsWith("-"))).configuration(descriptor.configuration)
-      WarmupRequest(
-        entries("suite"),
-        index,
-        mode,
-        config,
-        entries.collect { case (key, value) if key.startsWith("parameter.") => key.stripPrefix("parameter.") -> value }
-      )
-    }
+    val warmups = Vector.tabulate(p.getProperty("bulk.count", "0").toInt)(i => readEntry(p, s"bulk.$i.")._2)
     val observer: RunObserver =
       if !p.getProperty("events", "false").toBoolean then RunObserver.Disabled
       else
         new ForkEvents.Recorder((sequence, text) =>
-          val pending = requestDirectory.resolve("event.pending")
-          Files.write(pending, text.getBytes(StandardCharsets.UTF_8))
-          Files.move(pending, requestDirectory.resolve(f"event-$sequence%010d"))
+          Files.write(files.pendingEvent, text.getBytes(StandardCharsets.UTF_8))
+          Files.move(files.pendingEvent, files.event(sequence))
           ()
         )
     try
       WarmupRequest.execute(warmups, progress, p.getProperty("failOnError", "true").toBoolean, observer)
-      val config = options.configuration(descriptor.configuration)
+      val config = trial.configuration
       progress(-1, ForkProgress.budget(math.max(config.warmupNanos, config.measurementNanos), config.timeoutNanos))
       val results = try
         Execution.trial(

@@ -493,30 +493,42 @@ final private class HarnessMacro[Q <: Quotes](q: Q) extends BenchmarkSymbols[Q](
   final private class Generator(model: Model):
     import model.*
 
-    def state(environment: Expr[Environment], id: Int): Term =
-      cast('{ $environment.state(${ Expr(id) }) }, instances(id).cls)
+    /** Where generated code reads states and infrastructure: through the environment, or from locals bound once
+      * before a measured loop.
+      */
+    final class Access(
+        val environment: Expr[Environment],
+        locals: Map[Int, Term] = Map.empty,
+        injectedLocals: Map[Symbol, Term] = Map.empty
+    ):
 
-    private def injected(environment: Expr[Environment], tpe: TypeRepr, states: Iterator[Int]): Term =
-      tpe.classSymbol.flatMap(infrastructure.get) match
-        case Some(inject) => inject(environment).asTerm
-        case None         => state(environment, states.next())
+      def state(id: Int): Term =
+        locals.getOrElse(id, cast('{ $environment.state(${ Expr(id) }) }, instances(id).cls))
+
+      def infrastructure(cls: Symbol): Option[Term] =
+        injectedLocals.get(cls).orElse(HarnessMacro.this.infrastructure.get(cls).map(_(environment).asTerm))
+
+      def blackhole: Term = infrastructure(symbol[Blackhole]).get
+
+    private def injected(access: Access, tpe: TypeRepr, states: Iterator[Int]): Term =
+      tpe.classSymbol.flatMap(access.infrastructure).getOrElse(access.state(states.next()))
 
     /** Applies every parameter list; type parameters are instantiated to their upper bounds, as after erasure. */
-    def invoke(target: Term, method: Symbol, environment: Expr[Environment], states: List[Int] = Nil): Term =
+    def invoke(target: Term, method: Symbol, access: Access, states: List[Int] = Nil): Term =
       val remaining = states.iterator
       def applyLists(function: Term): Term = function.tpe.widen match
         case poly: PolyType     => applyLists(function.appliedToTypes(poly.paramBounds.map(_.hi)))
         case method: MethodType =>
-          applyLists(function.appliedToArgs(method.paramTypes.map(injected(environment, _, remaining))))
+          applyLists(function.appliedToArgs(method.paramTypes.map(injected(access, _, remaining))))
         case _ => function
       applyLists(target.select(method))
 
-    def helpers(id: Int, setup: Boolean, level: Int, target: Term, environment: Expr[Environment]): Expr[Unit] =
+    def helpers(id: Int, setup: Boolean, level: Int, target: Term, access: Access): Expr[Unit] =
       val instance = instances(id)
       sequence(
         fixtures(instance.cls, setup)
           .filter(HarnessMacro.this.level(_, setup) == level)
-          .map(method => invoke(target, method, environment, instance.arguments(method)))
+          .map(method => invoke(target, method, access, instance.arguments(method)))
       )
 
     def instantiate(state: Expr[Int]): Expr[AnyRef] =
@@ -555,9 +567,10 @@ final private class HarnessMacro[Q <: Quotes](q: Q) extends BenchmarkSymbols[Q](
         target: Expr[AnyRef],
         environment: Expr[Environment]
     ): Expr[Unit] =
+      val access = Access(environment)
       val cases = instances.toList.map { instance =>
         val levels = (trial to invocation).toList.map { n =>
-          n -> helpers(instance.id, setup, n, cast(target, instance.cls), environment)
+          n -> helpers(instance.id, setup, n, cast(target, instance.cls), access)
         }
         instance.id -> choose(level, levels, '{ () })
       }
@@ -569,11 +582,12 @@ final private class HarnessMacro[Q <: Quotes](q: Q) extends BenchmarkSymbols[Q](
       entries.zipWithIndex.filter((head, _) => eligible.contains(head))
 
     def auxiliary(benchmark: Expr[Int], environment: Expr[Environment]): Expr[Array[Double]] =
+      val access = Access(environment)
       val empty = '{ Array.emptyDoubleArray }
       val cases = generatedEntries.map { (head, index) =>
         val alternatives = groups(groupName(head)).zipWithIndex.map { (member, subgroup) =>
           val observed = counters(member).map { (id, counter) =>
-            val accessor = invoke(state(environment, id), counter, environment).asExpr
+            val accessor = invoke(access.state(id), counter, access).asExpr
             '{ if $environment.counterEnabled(${ Expr(counterKind(id)) }) then Values.counter($accessor) else 0.0 }
           }
           subgroup -> '{ Array[Double](${ Varargs(observed) }*) }
@@ -592,7 +606,7 @@ final private class HarnessMacro[Q <: Quotes](q: Q) extends BenchmarkSymbols[Q](
             if counter.isDefDef || !instances(id).cls.flags.is(Flags.JavaDefined) then Nil
             else
               val zero = counterZeros(fieldType(counter).classSymbol.get)
-              List(Assign(state(environment, id).select(counter), zero.asTerm))
+              List(Assign(Access(environment).state(id).select(counter), zero.asTerm))
           })
         }
         index -> choose(subgroup(environment), alternatives, '{ () })
@@ -605,12 +619,11 @@ final private class HarnessMacro[Q <: Quotes](q: Q) extends BenchmarkSymbols[Q](
         .map(control => value(Some(control), "value", ""))
 
     /** The benchmark call, with its result consumed by the injected Blackhole. */
-    private def call(benchmark: Symbol, environment: Expr[Environment]): Expr[Unit] =
-      val invocation =
-        invoke(state(environment, holders(benchmark)), benchmark, environment, benchmarkArguments(benchmark))
+    private def call(benchmark: Symbol, access: Access): Expr[Unit] =
+      val invocation = invoke(access.state(holders(benchmark)), benchmark, access, benchmarkArguments(benchmark))
       val consumed =
         if returnsUnit(benchmark) then invocation.asExprOf[Unit]
-        else Select.overloaded('{ $environment.blackhole }.asTerm, "consume", Nil, List(invocation)).asExprOf[Unit]
+        else Select.overloaded(access.blackhole, "consume", Nil, List(invocation)).asExprOf[Unit]
       compilerControl(benchmark) match
         case None           => consumed
         case Some("INLINE") =>
@@ -630,15 +643,15 @@ final private class HarnessMacro[Q <: Quotes](q: Q) extends BenchmarkSymbols[Q](
     private def invocationFixtures(
         benchmark: Symbol,
         setup: Boolean,
-        environment: Expr[Environment]
+        access: Access
     ): (Boolean, Expr[Unit]) =
       val used = reachable(benchmark)
       val annotated = (if setup then used else used.reverse).filter { id =>
         fixtures(instances(id).cls, setup).exists(level(_, setup) == invocation)
       }
       val guarded = annotated.map { id =>
-        val body = helpers(id, setup, invocation, state(environment, id), environment)
-        '{ $environment.guarded(${ Expr(id) }, 2, ${ Expr(setup) })($body) }.asTerm
+        val body = helpers(id, setup, invocation, access.state(id), access)
+        '{ ${ access.environment }.guarded(${ Expr(id) }, 2, ${ Expr(setup) })($body) }.asTerm
       }
       (annotated.nonEmpty, sequence(guarded))
 
@@ -648,32 +661,36 @@ final private class HarnessMacro[Q <: Quotes](q: Q) extends BenchmarkSymbols[Q](
         control: Expr[IterationControl]
     ): Expr[RawResult] =
       val unknown = '{ throw new IllegalArgumentException }
-      val loops = eligible.map { method =>
-        val (hasSetup, setup) = invocationFixtures(method, true, environment)
-        val (hasTeardown, teardown) = invocationFixtures(method, false, environment)
-        val hasInvocationFixtures = Expr(hasSetup || hasTeardown)
-        method -> '{
-          Loops.run(
-            $control,
-            $environment.sampling,
-            $hasInvocationFixtures,
-            ${ call(method, environment) },
-            $setup,
-            $teardown,
-            $environment.notifyControl
+      val injectedClasses = HarnessMacro.this.infrastructure.keys.toList
+      // States and infrastructure are read once per iteration, not on every invocation of the measured loop.
+      def loop(method: Symbol): Expr[RawResult] =
+        val ids = reachable(method)
+        val direct = Access(environment)
+        val bound = ids.map(direct.state) ++ injectedClasses.map(direct.infrastructure(_).get)
+        ValDef.let(Symbol.spliceOwner, bound) { refs =>
+          val access = Access(
+            environment,
+            ids.zip(refs).toMap,
+            injectedClasses.zip(refs.drop(ids.size)).toMap
           )
-        }
-      }.toMap
-      val cases = groups.toList.sortBy(_._1).flatMap { (_, members) =>
-        val generated = members.filter(eligible.contains)
-        generated.headOption.map { head =>
-          entries.indexOf(head) ->
-            choose(
-              subgroup(environment),
-              generated.zipWithIndex.map((member, index) => index -> loops(member)),
-              unknown
+          val (hasSetup, setup) = invocationFixtures(method, true, access)
+          val (hasTeardown, teardown) = invocationFixtures(method, false, access)
+          val hasInvocationFixtures = Expr(hasSetup || hasTeardown)
+          '{
+            Loops.run(
+              $control,
+              $environment.sampling,
+              $hasInvocationFixtures,
+              ${ call(method, access) },
+              $setup,
+              $teardown,
+              $environment.notifyControl
             )
-        }
+          }.asTerm
+        }.asExprOf[RawResult]
+      val cases = generatedEntries.map { (head, index) =>
+        val alternatives = groups(groupName(head)).zipWithIndex.map((member, subgroup) => subgroup -> loop(member))
+        index -> choose(subgroup(environment), alternatives, unknown)
       }
       choose(benchmark, cases, unknown)
 
@@ -689,7 +706,8 @@ final private class HarnessMacro[Q <: Quotes](q: Q) extends BenchmarkSymbols[Q](
     val descriptors = Expr.ofSeq(model.entries.map(metadata(model, _)))
     '{
       new Suite:
-        def metadata(): Array[BenchmarkMetadata] = $descriptors.toArray
+        private lazy val cached: Array[BenchmarkMetadata] = $descriptors.toArray
+        def metadata(): Array[BenchmarkMetadata] = cached.clone()
         def instantiate(state: Int): AnyRef = ${ generator.instantiate('state) }
         def assign(state: Int, target: AnyRef, parameter: String, value: String): Unit =
           ${ generator.assign('state, 'target, 'parameter, 'value) }

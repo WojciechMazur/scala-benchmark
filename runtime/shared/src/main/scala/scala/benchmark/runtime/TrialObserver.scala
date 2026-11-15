@@ -38,6 +38,26 @@ object TrialObserver:
     case error: TrialObserverFailure => throw error
     case error: Throwable            => throw new TrialObserverFailure(error)
 
+  /** One-based index within the warmup or the measurement phase, as JMH reports it. */
+  private[runtime] def index(configuration: Configuration, iteration: Int): Int =
+    if iteration < configuration.warmupIterations then iteration + 1
+    else iteration - configuration.warmupIterations + 1
+
+  private[runtime] def before(observer: TrialObserver, configuration: Configuration, iteration: Int): Unit =
+    invoke(observer.iteration(iteration < configuration.warmupIterations, index(configuration, iteration)))
+
+  private[runtime] def after(
+      observer: TrialObserver,
+      mode: org.openjdk.jmh.annotations.Mode,
+      configuration: Configuration,
+      iteration: Int,
+      workers: Vector[RawResult]
+  ): Unit =
+    val warmup = iteration < configuration.warmupIterations
+    invoke(
+      observer.iterationResult(warmup, index(configuration, iteration), result(mode, configuration, warmup, workers))
+    )
+
   private[runtime] def result(
       mode: org.openjdk.jmh.annotations.Mode,
       configuration: Configuration,
@@ -47,6 +67,8 @@ object TrialObserver:
     val scoring =
       if warmup then configuration.copy(measurementBatchSize = configuration.warmupBatchSize) else configuration
     IterationResult(Execution.aggregate(mode, scoring, workers), workers)
+
+end TrialObserver
 
 /** Callback failures are infrastructure failures, independently of benchmark fail-on-error policy. */
 final class TrialObserverFailure(cause: Throwable)

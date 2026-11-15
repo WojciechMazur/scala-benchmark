@@ -7,7 +7,7 @@ object ExecutionChecks:
   def settings(backend: String): Seq[Setting[?]] = Seq(
     verifyExecution := Def.uncached {
       val directory = baseDirectory.value
-      val repository = file(sys.props("benchmark.scripted.support")).getParentFile.getParentFile.getParentFile
+      val repository = FixtureBuild.root
       val evidence = repository / "target/execution-parity/platforms" / backend
       IO.createDirectory(evidence)
       val converter = fileConverter.value
@@ -21,11 +21,7 @@ object ExecutionChecks:
         .filter(_.isFile)
       val fixtureSources = (Compile / sources).value
       def fingerprint(path: File): ujson.Value =
-        val hash = java.security.MessageDigest
-          .getInstance("SHA-256")
-          .digest(IO.readBytes(path))
-          .map(value => f"${value & 0xff}%02x")
-          .mkString
+        val hash = FixtureBuild.sha256(path)
         ujson.Obj("name" -> path.getName, "sha256" -> hash)
       IO.write(
         evidence / "provenance.json",

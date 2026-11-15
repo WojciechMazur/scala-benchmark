@@ -50,7 +50,7 @@ private[runtime] object UpstreamHarness:
     references.getOrElseUpdate(fixtures, new Reference(fixtures))
   }
 
-  private def digest(bytes: Array[Byte]): String =
+  private[runtime] def digest(bytes: Array[Byte]): String =
     MessageDigest.getInstance("SHA-256").digest(bytes).map(b => f"${b & 0xff}%02x").mkString
 
   final class Reference(fixtures: Fixtures):

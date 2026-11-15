@@ -33,7 +33,7 @@ object Main:
   def main(args: Array[String]): Unit =
     try
       val arguments = Host.arguments.toArray
-      if arguments.headOption.contains("--benchmark-worker-v3") then
+      if arguments.headOption.contains(ForkProgress.WorkerFlag) then
         require(arguments.length == 2, "Invalid JS worker request")
         val request = Host.parse(arguments(1))
         if request.stdio.asInstanceOf[js.UndefOr[Boolean]].getOrElse(false) then

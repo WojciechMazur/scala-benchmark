@@ -50,6 +50,9 @@ final case class Eligibility(
 object Selection:
   final case class Result[A](selected: Vector[A], skipped: Vector[A])
 
+  /** Mapped to JMH's `NoBenchmarksException` by the programmatic runners. */
+  final class EmptySelectionException extends IllegalArgumentException("No benchmarks match the selection")
+
   def apply[A](
       inventory: Vector[A],
       includes: Vector[String],
@@ -66,7 +69,7 @@ object Selection:
       (includes.isEmpty || exact(n) || patterns.exists(_.findFirstIn(n).nonEmpty)) &&
       !excluded.exists(_.findFirstIn(n).nonEmpty)
     }
-    require(matches.nonEmpty || listing, "No benchmarks match the selection")
+    if matches.isEmpty && !listing then throw new EmptySelectionException
     if listing then Result(matches, Vector.empty)
     else
       val (supported, unsupported) = matches.partition(e => eligibility(e).supports(platform))

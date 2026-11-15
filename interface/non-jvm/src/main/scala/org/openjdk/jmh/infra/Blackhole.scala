@@ -36,18 +36,14 @@ final class Blackhole(challengeResponse: String):
     "Blackholes must be injected by the harness"
   )
 
-  def consume(value: Boolean): Unit = BlackholeSink.consume(if value then 1L else 0L)
-  def consume(value: Byte): Unit = BlackholeSink.consume(value.toLong)
-  def consume(value: Short): Unit = BlackholeSink.consume(value.toLong)
-  def consume(value: Char): Unit = BlackholeSink.consume(value.toLong)
-  def consume(value: Int): Unit = BlackholeSink.consume(value.toLong)
+  def consume(value: Boolean): Unit = BlackholeSink.consume(if value then 1 else 0)
+  def consume(value: Byte): Unit = BlackholeSink.consume(value.toInt)
+  def consume(value: Short): Unit = BlackholeSink.consume(value.toInt)
+  def consume(value: Char): Unit = BlackholeSink.consume(value.toInt)
+  def consume(value: Int): Unit = BlackholeSink.consume(value)
   def consume(value: Long): Unit = BlackholeSink.consume(value)
-
-  def consume(value: Float): Unit =
-    BlackholeSink.consume(java.lang.Float.floatToRawIntBits(value).toLong)
-
-  def consume(value: Double): Unit =
-    BlackholeSink.consume(java.lang.Double.doubleToRawLongBits(value))
+  def consume(value: Float): Unit = BlackholeSink.consume(value.toDouble)
+  def consume(value: Double): Unit = BlackholeSink.consume(value)
 
   def consume(value: AnyRef): Unit = BlackholeSink.consumeReference(value)
 

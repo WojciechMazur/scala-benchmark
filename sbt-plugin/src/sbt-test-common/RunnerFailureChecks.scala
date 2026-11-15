@@ -13,7 +13,7 @@ object RunnerFailureChecks:
     verifyRunnerFailures := Def.uncached {
       val directory = baseDirectory.value
       val command = FixtureBuild.benchmarkCommand(backend).value
-      val repository = file(sys.props("benchmark.scripted.support")).getParentFile.getParentFile.getParentFile
+      val repository = FixtureBuild.root
       val evidence = repository / "target/execution-parity/runner-failures" / backend
       IO.delete(evidence); IO.createDirectory(evidence)
       var observations = Vector.empty[ujson.Value]

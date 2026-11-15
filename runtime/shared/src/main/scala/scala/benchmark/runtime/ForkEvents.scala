@@ -157,10 +157,9 @@ private[runtime] object ForkEvents:
           case "false" => false
           case _       => throw new IllegalArgumentException("Invalid event iteration type")
         val index = fields(4).toInt
-        val w = expected < config.warmupIterations
-        val i = if w then expected + 1 else expected - config.warmupIterations + 1
         require(
-          expected < config.warmupIterations + config.measurementIterations && warmup == w && index == i,
+          expected < config.warmupIterations + config.measurementIterations &&
+            warmup == (expected < config.warmupIterations) && index == TrialObserver.index(config, expected),
           "Out-of-order fork iteration"
         )
         if kind == "start" then

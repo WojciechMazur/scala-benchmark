@@ -17,6 +17,8 @@
  */
 package scala.benchmark.sbtplugin
 
+import scala.benchmark.internal.reporting.JsonString
+
 import sbt.*
 import sbt.testing.AnnotatedFingerprint
 import xsbti.compile.CompileAnalysis
@@ -41,16 +43,6 @@ private[sbtplugin] object GeneratedSources:
     unnamed.foreach(name => log.warn(s"Benchmark class $name is ignored: benchmarks need a named package"))
     named
 
-  private def literal(text: String): String = "\"" + text.flatMap {
-    case '"'          => "\\\""
-    case '\\'         => "\\\\"
-    case '\n'         => "\\n"
-    case '\r'         => "\\r"
-    case '\t'         => "\\t"
-    case c if c < ' ' => f"\\u${c.toInt}%04x"
-    case c            => c.toString
-  } + "\""
-
   private def typeName(name: String): String =
     name
       .split('.')
@@ -62,8 +54,8 @@ private[sbtplugin] object GeneratedSources:
   /** Entry point of a Native or Scala.js benchmark executable. */
   def harnessMain(classes: Seq[String], buildInfo: Seq[(String, String)]): String =
     val runtime = "scala.benchmark.runtime"
-    val suites = classes.map(name => s"${literal(name)} -> $runtime.Harness.derive[${typeName(name)}]")
-    val info = buildInfo.sorted.map { case (key, value) => s"${literal(key)} -> ${literal(value)}" }
+    val suites = classes.map(name => s"${JsonString.quote(name)} -> $runtime.Harness.derive[${typeName(name)}]")
+    val info = buildInfo.sorted.map { case (key, value) => s"${JsonString.quote(key)} -> ${JsonString.quote(value)}" }
     s"""package $packageName
        |
        |object BenchmarkMain {

@@ -1,5 +1,7 @@
 package scala.benchmark.runtime
 
+import scala.benchmark.internal.StudentT
+
 import org.apache.commons.math3.distribution.TDistribution
 import org.junit.Assert.*
 import org.junit.Test
@@ -19,7 +21,7 @@ class HarnessTest:
     for df <- Vector(1L, 2L, 3L, 5L, 10L, 30L, 100L, 1000L, 100000L, 10000000L) do
       val expected =
         new TDistribution(df.toDouble).inverseCumulativeProbability(0.9995)
-      assertEquals(s"df=$df", expected, StudentT.quantile(0.9995, df), 1e-7)
+      assertEquals(s"df=$df", expected, StudentT.quantile(0.9995, df.toDouble), 1e-7)
     val stats = Statistics(Vector(1.0 -> 1L, 2.0 -> 1L, 3.0 -> 1L))
     assertEquals(2.0, stats.mean, 0.0)
     assertEquals(1.0, stats.variance, 0.0)

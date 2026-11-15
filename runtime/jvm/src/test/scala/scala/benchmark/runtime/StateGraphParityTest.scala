@@ -199,11 +199,7 @@ class StateGraphParityTest:
         HarnessCompiler.derive(classes, Seq("execution.state.BenchmarkGraph"))
     )
 
-    private def fingerprint(path: Path): String = java.security.MessageDigest
-      .getInstance("SHA-256")
-      .digest(Files.readAllBytes(path))
-      .map(value => f"${value & 0xff}%02x")
-      .mkString
+    private def fingerprint(path: Path): String = UpstreamHarness.digest(Files.readAllBytes(path))
 
     private val artifacts = Vector(classOf[Mode], classOf[RFGeneratorSource]).map(c =>
       Paths.get(c.getProtectionDomain.getCodeSource.getLocation.toURI)

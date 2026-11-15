@@ -119,6 +119,4 @@ object Reports:
     val text = ConsoleReport.render(expanded(results))
     if text.nonEmpty then println(text)
 
-  def console(run: RunResult): Unit = console(Vector(run))
-
 end Reports

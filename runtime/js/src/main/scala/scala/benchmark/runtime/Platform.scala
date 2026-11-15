@@ -19,6 +19,7 @@ package scala.benchmark.runtime
 
 import scala.scalajs.js
 import scala.scalajs.js.annotation.JSGlobal
+import scala.scalajs.js.typedarray.*
 
 import org.openjdk.jmh.annotations.Mode
 
@@ -63,15 +64,15 @@ private[runtime] object Host extends js.Object:
   def parse(text: String): js.Dynamic = js.native
   def write(path: String, text: String): Unit = js.native
   def validateOutput(path: String): Unit = js.native
-  def consoleWrite(bytes: js.Array[Int], channel: Int, budget: String): Unit = js.native
+  def consoleWrite(bytes: Int8Array, channel: Int, budget: String): Unit = js.native
   def progress(message: String): Unit = js.native
   def fork(request: String, timeoutNanos: String): String = js.native
   def complete(result: String): Unit = js.native
   def event(sequence: Int, text: String): Unit = js.native
   def takeEvents(): js.Array[String] = js.native
-  def userWrite(bytes: js.Array[Int], channel: Int): Unit = js.native
+  def userWrite(bytes: Int8Array, channel: Int): Unit = js.native
   def userClose(channel: Int): Unit = js.native
-  def readUserOutput(channel: Int): js.Array[Int] = js.native
+  def readUserOutput(channel: Int): Int8Array = js.native
   def releaseUserOutput(): Unit = js.native
   def exit(status: Int): Unit = js.native
 
@@ -79,7 +80,7 @@ object Platform:
   def restoreCallerInterrupt(): Unit = ()
   def isCallerInterrupted: Boolean = false
   def ensureMeasurementHealthy(): Unit = ()
-  private def isWasm: Boolean = Registry.buildInfo.contains("backend" -> "wasm")
+  private def isWasm: Boolean = scala.scalajs.LinkingInfo.isWebAssembly
 
   def identity: scala.benchmark.Platform =
     if isWasm then scala.benchmark.Platform.Wasm else scala.benchmark.Platform.JS
@@ -121,8 +122,7 @@ object Platform:
           while next < offset + length do
             val end = math.min(offset + length, next + 8192)
             try
-              Host
-                .consoleWrite(js.Array(bytes.slice(next, end).iterator.map(_.toInt).toSeq*), channel, budget.toString)
+              Host.consoleWrite(bytes.slice(next, end).toTypedArray, channel, budget.toString)
             catch case error: js.JavaScriptException => throw ForkOutputFailure.fail(error.getMessage, error)
             next =
               end
@@ -136,11 +136,8 @@ object Platform:
     val priorErr = System.err
     val priorConsole = BenchmarkOutput.console
     val budget = options.configuration(Configuration()).timeoutNanos
-    def raw(stream: java.io.PrintStream, channel: Int): java.io.PrintStream =
-      if stream.getClass().getName() == "java.lang.JSConsoleBasedPrintStream" then hostConsoleStream(channel, budget)
-      else stream
-    val out = raw(priorOut, 1)
-    val err = raw(priorErr, 2)
+    val out = consoleStream(priorOut, 1, budget)
+    val err = consoleStream(priorErr, 2, budget)
     val console = BenchmarkOutput.Streams(
       if priorConsole.out eq priorOut then out else priorConsole.out,
       if priorConsole.err eq priorErr then err else priorConsole.err
@@ -157,9 +154,9 @@ object Platform:
       mode: Mode,
       config: Configuration,
       parameters: Map[String, String],
-      warmups: Vector[WarmupRequest] = Vector.empty,
-      failOnError: Boolean = true,
-      observer: RunObserver = RunObserver.Disabled
+      warmups: Vector[WarmupRequest],
+      failOnError: Boolean,
+      observer: RunObserver
   ): Vector[IterationResult] =
     val overrides = js.Dictionary(Configuration.overrides(config).toSeq*)
     val bulk = js.Array(warmups.map { warmup =>
@@ -253,7 +250,7 @@ object Platform:
     new java.io.OutputStream:
       def write(value: Int): Unit = write(Array(value.toByte), 0, 1)
       override def write(bytes: Array[Byte], offset: Int, length: Int): Unit =
-        try Host.userWrite(js.Array(bytes.slice(offset, offset + length).iterator.map(_.toInt).toSeq*), channel)
+        try Host.userWrite(bytes.slice(offset, offset + length).toTypedArray, channel)
         catch case error: js.JavaScriptException => throw new java.io.IOException(error.getMessage, error)
       override def close(): Unit = Host.userClose(channel)
     ,
@@ -266,8 +263,8 @@ object Platform:
       for channel <- Vector(1, 2) do
         val destination = if channel == 1 then System.out else System.err
         var bytes = Host.readUserOutput(channel)
-        while bytes.nonEmpty do
-          destination.write(bytes.iterator.map(_.toByte).toArray)
+        while bytes.length > 0 do
+          destination.write(bytes.toArray)
           if destination.checkError() then throw ForkOutputFailure.fail("Benchmark user output destination failed")
           bytes = Host.readUserOutput(channel)
       val input = new java.io.InputStream:
@@ -275,7 +272,7 @@ object Platform:
         private var index = 0
         def read(): Int =
           if index == bytes.length then
-            bytes = Host.readUserOutput(3).iterator.map(_.toByte).toArray; index = 0
+            bytes = Host.readUserOutput(3).toArray; index = 0
           if bytes.isEmpty then -1
           else
             val value = bytes(index) & 255; index += 1; value

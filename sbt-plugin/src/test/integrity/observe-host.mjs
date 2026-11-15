@@ -45,12 +45,9 @@ Object.defineProperty(globalThis, '__scalaBenchmarkHost', {
       const index = counts[activeMethod] ?? 0;
       counts[activeMethod] = index + 1;
       const reference = activeMethod === 'returnedAllocation' || (activeMethod === 'explicitBlackhole' && index % 2 === 1);
+      // Primitives cross as plain numbers: Ints and Doubles as they are, Longs folded into an Int.
       if (reference) references.push(result);
-      else if (value.metadata.backend === 'wasm') {
-        // Wasm passes boxed Longs as opaque GC references. Their payload is checked in the retained WAT.
-        assert.equal(typeof result, 'object');
-        scalars.push('<opaque-long>');
-      } else scalars.push(String(result));
+      else scalars.push(String(result));
       observedClocks.push(clockReads);
       consume.call(value, result);
     };
@@ -58,12 +55,9 @@ Object.defineProperty(globalThis, '__scalaBenchmarkHost', {
       const methods = ['primitiveBoolean', 'primitiveByte', 'primitiveShort', 'primitiveChar', 'primitiveInt',
         'inlinedInt', 'primitiveLong', 'primitiveFloat', 'primitiveDouble', 'returnedAllocation'];
       assert.deepEqual(counts, Object.fromEntries([...methods.map(name => [name, 7]), ['explicitBlackhole', 14]]));
-      if (value.metadata.backend === 'wasm') assert.equal(scalars.length, 70);
-      else {
-        const expected = ['1', '42', '43', '44', '1698', '1718', '68940', '1109786624', '4631002238704156672', '70']
-          .flatMap(value => Array(7).fill(value)).sort();
-        assert.deepEqual(scalars.sort(), expected, 'Optimized scalar returns/explicit consumption changed');
-      }
+      const expected = ['1', '42', '43', '44', '1698', '1718', '68940', '41.5', '41.25', '70']
+        .flatMap(value => Array(7).fill(value)).sort();
+      assert.deepEqual(scalars.sort(), expected, 'Optimized scalar returns/explicit consumption changed');
       assert.equal(references.length, 14, 'Missing returned/explicit allocations');
       assert.equal(new Set(references).size, 14, 'Allocation identity was collapsed');
       assert.ok(observedClocks.every(count => count > 0 && count < clockReads), 'Consumption escaped clock reads');

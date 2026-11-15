@@ -18,7 +18,7 @@ object ForkSequenceChecks:
       val converter = fileConverter.value
       val classpath = (Jmh / fullClasspath).value.map(e => converter.toPath(e.data).toString)
       val support = file(sys.props("benchmark.scripted.support"))
-      val repository = support.getParentFile.getParentFile.getParentFile
+      val repository = FixtureBuild.root
       val hook = support.getParentFile / "test/fixtures/fork-sequence/journal-host.mjs"
       val command =
         if backend == "jvm" then
@@ -236,11 +236,7 @@ object ForkSequenceChecks:
                 ujson.Obj(
                   "file" -> f.getName,
                   "sha256" ->
-                    java.security.MessageDigest
-                      .getInstance("SHA-256")
-                      .digest(IO.readBytes(f))
-                      .map(b => f"${b & 0xff}%02x")
-                      .mkString
+                    FixtureBuild.sha256(f)
                 )
               )
             )

@@ -24,6 +24,8 @@
  */
 package scala.benchmark.runtime
 
+import scala.benchmark.internal.StudentT
+
 final class SampleBuffer extends scala.benchmark.internal.SamplingHistogram
 
 final case class Statistics(values: Vector[(Double, Long)], sampled: Boolean = false):
@@ -44,19 +46,23 @@ final case class Statistics(values: Vector[(Double, Long)], sampled: Boolean = f
   def error: Double =
     if count <= 2 then Double.NaN
     else
-      StudentT.quantile(0.9995, count - 1) * deviation / math.sqrt(count.toDouble)
+      StudentT.quantile(0.9995, (count - 1).toDouble) * deviation / math.sqrt(count.toDouble)
+
+  private lazy val minimum =
+    values.iterator.map(_._1).foldLeft(Double.PositiveInfinity)(scala.benchmark.internal.StatisticsNumbers.minimum)
+
+  /** Sorted once: reports query several percentiles of the same statistics. */
+  private lazy val population = (if sampled then values else values.filterNot(_._1.isNaN)).sortBy(_._1)
+  private lazy val populationCount = population.map(_._2).sum
 
   def percentile(percent: Double): Double =
     require(percent >= 0 && percent <= 100)
     if count == 0 then Double.NaN
     else
-      val minimum =
-        values.iterator.map(_._1).foldLeft(Double.PositiveInfinity)(scala.benchmark.internal.StatisticsNumbers.minimum)
       if percent == 0 then return minimum
-      val population = if sampled then values else values.filterNot(_._1.isNaN)
-      val n = population.map(_._2).sum
+      val n = populationCount
       if n == 0 then return Double.NaN
-      val sorted = population.sortBy(_._1)
+      val sorted = population
       def at(rank: Long): Double =
         var accumulated = 0L
         sorted.find { case (_, weight) => accumulated += weight; accumulated >= rank }.getOrElse(sorted.last)._1
@@ -69,8 +75,3 @@ final case class Statistics(values: Vector[(Double, Long)], sampled: Boolean = f
         first + (position - lower) * (at(lower + 1) - first)
 
 end Statistics
-
-private[runtime] object StudentT:
-
-  def quantile(probability: Double, degrees: Long): Double =
-    scala.benchmark.internal.StudentT.quantile(probability, degrees.toDouble)

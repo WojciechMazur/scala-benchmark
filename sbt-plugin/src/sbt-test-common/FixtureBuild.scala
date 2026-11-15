@@ -89,12 +89,18 @@ object FixtureBuild:
         )
     }
 
+  /** The repository checkout. */
+  val root: File = repository.getParentFile.getParentFile
+
   /** Results of the JVM reference and of the platforms compared with it, kept for CI artifacts. */
-  val evidence: File = repository.getParentFile.getParentFile / "target/execution-parity"
+  val evidence: File = root / "target/execution-parity"
 
   /** Observer checks shared with the runtime's unit tests. */
-  val trialObserverChecks: File = repository.getParentFile.getParentFile /
+  val trialObserverChecks: File = root /
     "runtime/shared/src/test/scala/scala/benchmark/runtime/TrialObserverChecks.scala"
+
+  def sha256(path: File): String =
+    java.security.MessageDigest.getInstance("SHA-256").digest(IO.readBytes(path)).map(b => f"${b & 0xff}%02x").mkString
 
   /** Fixture directory with the host services of a platform: processes or the Node.js host. */
   def host(platform: String): String = if platform == "jvm" || platform == "native" then "process" else "js"

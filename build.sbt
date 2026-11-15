@@ -64,8 +64,8 @@ lazy val interface = projectMatrix
     libraryScalaVersions,
     sourceLayout("jvm") ++ Seq(
       libraryDependencies ++= Seq(
-        "org.openjdk.jmh" % "jmh-core" % "1.37",
-        "org.openjdk.jmh" % "jmh-generator-reflection" % "1.37"
+        "org.openjdk.jmh" % "jmh-core" % jmhVersion,
+        "org.openjdk.jmh" % "jmh-generator-reflection" % jmhVersion
       )
     )
   )

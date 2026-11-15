@@ -19,6 +19,10 @@ package scala.benchmark.runtime
 
 /** Sequenced, complete progress records; time is measured only by the supervising process. */
 private[runtime] object ForkProgress:
+
+  /** First argument of a worker process; node-host.mjs recognises it too. */
+  val WorkerFlag = "--benchmark-worker-v3"
+
   val startupNanos: Long = 30000000000L
 
   def budget(duration: Long, timeout: Long): Long =

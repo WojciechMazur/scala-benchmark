@@ -64,20 +64,9 @@ object Execution extends MeasurementMath:
     var warmupOperations = 0L
     var measurementOperations = 0L
     val observing = observer ne TrialObserver.Disabled
-    def before(iteration: Int): Unit = if observing then
-      val warmup = iteration < c.warmupIterations
-      TrialObserver.invoke(
-        observer.iteration(warmup, if warmup then iteration + 1 else iteration - c.warmupIterations + 1)
-      )
-    def after(iteration: Int, raw: RawResult): Unit = if observing then
-      val warmup = iteration < c.warmupIterations
-      TrialObserver.invoke(
-        observer.iterationResult(
-          warmup,
-          if warmup then iteration + 1 else iteration - c.warmupIterations + 1,
-          TrialObserver.result(mode, c, warmup, Vector(raw))
-        )
-      )
+    def before(iteration: Int): Unit = if observing then TrialObserver.before(observer, c, iteration)
+    def after(iteration: Int, raw: RawResult): Unit =
+      if observing then TrialObserver.after(observer, mode, c, iteration, Vector(raw))
     before(0)
     if c.doGC then Platform.requestGC()
     val firstControl = new IterationControl(

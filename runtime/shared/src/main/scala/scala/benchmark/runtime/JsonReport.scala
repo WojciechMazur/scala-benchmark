@@ -17,6 +17,7 @@
  */
 package scala.benchmark.runtime
 
+import scala.benchmark.internal.reporting.JsonString
 import scala.jdk.CollectionConverters.*
 
 import org.openjdk.jmh.annotations.Mode
@@ -24,15 +25,7 @@ import org.openjdk.jmh.annotations.Mode
 /** JMH-compatible JSON results. */
 private[runtime] object JsonReport:
 
-  def quote(text: String): String = "\"" + text.flatMap {
-    case '"'          => "\\\""
-    case '\\'         => "\\\\"
-    case '\n'         => "\\n"
-    case '\r'         => "\\r"
-    case '\t'         => "\\t"
-    case c if c < ' ' => f"\\u${c.toInt}%04x"
-    case c            => c.toString
-  } + "\""
+  def quote(text: String): String = JsonString.quote(text)
 
   private def number(value: Double): String =
     if value.isFinite then value.toString

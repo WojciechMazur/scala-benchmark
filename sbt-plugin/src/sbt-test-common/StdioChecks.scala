@@ -11,7 +11,7 @@ object StdioChecks:
 
   def settings(backend: String): Seq[Def.Setting[?]] = Seq(
     verifyStdio := Def.uncached {
-      val root = file(sys.props("benchmark.scripted.support")).getParentFile.getParentFile.getParentFile
+      val root = FixtureBuild.root
       val directory = baseDirectory.value
       val evidence = root / "target/execution-parity/stdio" / backend
       IO.createDirectory(evidence)

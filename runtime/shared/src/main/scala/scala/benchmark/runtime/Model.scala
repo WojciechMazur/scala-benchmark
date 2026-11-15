@@ -205,11 +205,7 @@ object WarmupRequest:
           case error: Throwable =>
             if !ForkOutputFailure.failed then
               Console.err.println(s"# FAILED bulk warmup ${request.suite}: ${error.getMessage}")
-            if
-              failOnError || error.isInstanceOf[TrialObserverFailure] ||
-              error
-                .isInstanceOf[UnfinishedWorkersException] || ForkOutputFailure.failed || Platform.isCallerInterrupted
-            then throw error
+            if BenchmarkRunner.mustPropagate(error, failOnError) then throw error
     }
 
 end WarmupRequest
@@ -398,18 +394,9 @@ final class Environment(
       finally slot.leave(level, setup, success)
 
   def fixture(id: Int, level: Int, setup: Boolean): Unit =
-    val slot = states(id)
-    if slot.enter(level, setup) then
-      var success = false
-      try
-        if setup then suite.setup(id, level, slot.instance, this)
-        else suite.teardown(id, level, slot.instance, this)
-        success = true
-      catch
-        case error: Throwable =>
-          slot.fail(error)
-          throw error
-      finally slot.leave(level, setup, success)
+    guarded(id, level, setup) {
+      if setup then suite.setup(id, level, state(id), this) else suite.teardown(id, level, state(id), this)
+    }
 
 end Environment
 
@@ -428,4 +415,3 @@ object Values:
   def long(value: String): Long = value.toLong
   def float(value: String): Float = value.toFloat
   def double(value: String): Double = value.toDouble
-  def string(value: String): String = value

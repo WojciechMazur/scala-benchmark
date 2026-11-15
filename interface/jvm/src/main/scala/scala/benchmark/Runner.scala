@@ -19,7 +19,7 @@ package scala.benchmark
 
 import java.util.{Collection, Collections}
 
-import scala.benchmark.internal.JvmPreflight
+import scala.benchmark.internal.{JvmPreflight, Selection}
 
 import org.openjdk.jmh.results.RunResult
 import org.openjdk.jmh.runner.{NoBenchmarksException, Runner as JmhRunner, RunnerException}
@@ -42,9 +42,8 @@ class Runner(private val options: Options, private val format: OutputFormat):
   private def preflight(options: Options, listing: Boolean = false, parameters: Boolean = false): Option[Options] =
     try JvmPreflight.resolve(options, listing, parameters, format)
     catch
-      case error: IllegalArgumentException if error.getMessage.contains("No benchmarks match the selection") =>
-        throw new NoBenchmarksException
-      case error: IllegalArgumentException =>
+      case _: Selection.EmptySelectionException => throw new NoBenchmarksException
+      case error: IllegalArgumentException      =>
         throw new RunnerException(error.getMessage, error)
 
   def run(): Collection[RunResult] =
