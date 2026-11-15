@@ -162,13 +162,12 @@ object Main:
       released = true
     try
       val command = new java.util.ArrayList[String]
-      Vector(
-        Platform.executable,
+      (Platform.workerCommand(suite, descriptor) ++ Vector(
         ForkProgress.WorkerFlag,
         request.toString,
         result.toString,
         progress.toString
-      ).foreach(command.add)
+      )).foreach(command.add)
       process = new ProcessBuilder(command).redirectErrorStream(true).start()
       ForkProcess.managed(process) {
         token = Platform.attachFork(process)

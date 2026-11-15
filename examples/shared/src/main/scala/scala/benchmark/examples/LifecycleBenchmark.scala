@@ -2,6 +2,8 @@ package scala.benchmark.examples
 
 import java.util.concurrent.TimeUnit
 
+import scala.compiletime.uninitialized
+
 // Plain JMH imports work unchanged; the other examples use the `scala.benchmark` aliases of the same API.
 import org.openjdk.jmh.annotations.*
 import org.openjdk.jmh.infra.Blackhole
@@ -9,7 +11,7 @@ import org.openjdk.jmh.infra.Blackhole
 /** Immutable data shared by benchmark workers. */
 @State(Scope.Benchmark)
 class SharedState:
-  var coefficients: Array[Int] = _
+  var coefficients: Array[Int] = uninitialized
 
   @Setup(Level.Trial) def prepare(): Unit =
     coefficients = Array.tabulate(256)(i => (i * 31 + 17) & 0xff)
@@ -18,8 +20,8 @@ class SharedState:
 @State(Scope.Thread)
 class InputState:
   @Param(Array("1024", "16384")) var size: Int = 0
-  var input: Array[Int] = _
-  var output: Array[Int] = _
+  var input: Array[Int] = uninitialized
+  var output: Array[Int] = uninitialized
 
   @Setup(Level.Trial) def prepare(shared: SharedState): Unit =
     input = Array.tabulate(size)(i => (i * 0x9e3779b9) ^ shared.coefficients(i & 0xff))

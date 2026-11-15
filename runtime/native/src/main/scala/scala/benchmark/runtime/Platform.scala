@@ -74,6 +74,8 @@ object Platform extends ProcessPlatform:
       .asInstanceOf[Suite]
   }
 
+  def workerCommand(suite: String, descriptor: Descriptor): Seq[String] = Seq(executable)
+
   def executable: String = Zone {
     @annotation.tailrec
     def resolve(capacity: Int): String =
@@ -86,6 +88,30 @@ object Platform extends ProcessPlatform:
   }
 
   def description: String = "Scala Native"
+
+  override def buildWarnings: Seq[String] =
+    Option
+      .when(!scala.scalanative.meta.LinktimeInfo.releaseMode)(
+        "Built in debug mode; use a release mode, such as `//> using nativeMode release-full` with scala-cli"
+      )
+      .toSeq
+
+  override def validate(config: Configuration): Unit =
+    require(
+      config.threads == 1 || scala.scalanative.meta.LinktimeInfo.isMultithreadingEnabled,
+      "Multiple benchmark threads need Scala Native multithreading; enable it or use -t 1"
+    )
+
+  /** Link-time configuration. The exact release mode, LTO and clang options are only known to the build tool. */
+  override def defaultBuildInfo: Seq[(String, String)] =
+    import scala.scalanative.meta.LinktimeInfo
+    Seq(
+      "scalaNativeVersion" -> LinktimeInfo.runtimeVersion,
+      "mode" -> (if LinktimeInfo.releaseMode then "release" else "debug"),
+      "gc" -> LinktimeInfo.garbageCollector,
+      "multithreading" -> LinktimeInfo.isMultithreadingEnabled.toString
+    )
+
   override def runtimeVersion: String = buildMetadata.toMap.getOrElse("scalaNativeVersion", "unknown")
 
   @extern private object Native:

@@ -66,7 +66,7 @@ object AggregationChecks:
         .map(e => converter.toPath(e.data).toFile)
         .filter(path =>
           path.isFile &&
-            (path.getName.startsWith("benchmark-") || path.getName.startsWith("jmh-") ||
+            (path.getName.startsWith("scala-benchmark-") || path.getName.startsWith("jmh-") ||
               path.getName
                 .startsWith("commons-math3"))
         )

@@ -113,6 +113,7 @@ private[runtime] object JsonReport:
             .flatten ++ Platform.buildMetadata.map { case (k, v) => k -> quote(v) }).toMap.toVector.sortBy(_._1)
       )
       val supplied = run.reportParams
+      val jvm = Platform.jvmInfo
       obj(
         Vector(
           "jmhVersion" -> quote(supplied.fold(Platform.description + " (JMH API 1.37)")(_.getJmhVersion())),
@@ -120,11 +121,13 @@ private[runtime] object JsonReport:
           "mode" -> quote(run.mode.shortLabel()),
           "threads" -> c.threads.toString,
           "forks" -> c.forks.toString,
-          "jvm" -> quote(supplied.fold("N/A")(_.getJvm())),
-          "jvmArgs" -> array(supplied.toVector.flatMap(_.getJvmArgs().asScala).map(quote)),
-          "jdkVersion" -> quote(supplied.fold("N/A")(_.getJdkVersion())),
-          "vmName" -> quote(supplied.fold(Platform.description)(_.getVmName())),
-          "vmVersion" -> quote(supplied.fold(Platform.runtimeVersion)(_.getVmVersion())),
+          "jvm" -> quote(supplied.fold(jvm.fold("N/A")(_.jvm))(_.getJvm())),
+          "jvmArgs" -> array(
+            supplied.fold(jvm.toVector.flatMap(_.jvmArgs))(_.getJvmArgs().asScala.toVector).map(quote)
+          ),
+          "jdkVersion" -> quote(supplied.fold(jvm.fold("N/A")(_.jdkVersion))(_.getJdkVersion())),
+          "vmName" -> quote(supplied.fold(jvm.fold(Platform.description)(_.vmName))(_.getVmName())),
+          "vmVersion" -> quote(supplied.fold(jvm.fold(Platform.runtimeVersion)(_.vmVersion))(_.getVmVersion())),
           "warmupIterations" -> c.warmupIterations.toString,
           "warmupTime" -> quote(Configuration.time(c, true).toString),
           "warmupBatchSize" -> c.warmupBatchSize.toString,

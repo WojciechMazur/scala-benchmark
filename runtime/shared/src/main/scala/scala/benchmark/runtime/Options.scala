@@ -40,7 +40,11 @@ final case class Options(
     consoleOutput: Option[String] = None,
     verbosity: String = "NORMAL",
     warmupMode: String = "INDI",
-    warmupIncludes: Vector[String] = Vector.empty
+    warmupIncludes: Vector[String] = Vector.empty,
+    jvm: Option[String] = None,
+    jvmArgs: Option[Vector[String]] = None,
+    jvmArgsAppend: Vector[String] = Vector.empty,
+    jvmArgsPrepend: Vector[String] = Vector.empty
 ):
 
   def configuration(default: Configuration): Configuration =
@@ -160,6 +164,10 @@ object Options:
       | -rff <path>       Result file
       | -foe true|false   Stop after a failed benchmark
       | --suite <object>  Also run a hand-written suite object
+      | -jvm <path>       JVM backend: Java executable of the forks
+      | -jvmArgs <args>   JVM backend: replace the forks' inherited JVM options
+      | -jvmArgsAppend <args>   JVM backend: append JVM options to the forks
+      | -jvmArgsPrepend <args>  JVM backend: prepend JVM options to the forks
       | -h                Show this help
       |""".stripMargin
 
@@ -257,6 +265,15 @@ object Options:
         case "-tu" => options = options.copy(overrides = options.overrides.updated(key, cliUnit(argument())))
         case "-wi" | "-i" | "-wbs" | "-bs" | "-f" | "-wf" | "-opi" | "-tg" =>
           options = options.copy(overrides = options.overrides.updated(key, argument()))
+        case "-jvm" | "-jvmArgs" | "-jvmArgsAppend" | "-jvmArgsPrepend" =>
+          require(Platform.identity == scala.benchmark.Platform.JVM, s"$key only applies to the JVM backend")
+          val value = argument()
+          val words = value.trim.split("\\s+").toVector.filter(_.nonEmpty)
+          options = key match
+            case "-jvm"           => options.copy(jvm = Some(value))
+            case "-jvmArgs"       => options.copy(jvmArgs = Some(words))
+            case "-jvmArgsAppend" => options.copy(jvmArgsAppend = words)
+            case _                => options.copy(jvmArgsPrepend = words)
         case v if v.startsWith("-") =>
           throw new IllegalArgumentException(
             s"Unsupported benchmark option: $v"

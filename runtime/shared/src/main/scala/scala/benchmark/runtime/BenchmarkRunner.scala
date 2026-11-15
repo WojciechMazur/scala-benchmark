@@ -111,6 +111,7 @@ object BenchmarkRunner:
     println(
       s"# Scala Benchmark, JMH API 1.37; ${Platform.description}; clock delta >= ${clock.minimumDeltaNanos} ns, average call ${clock.averageCallNanos} ns"
     )
+    Platform.buildWarnings.foreach(w => Console.err.println("# WARNING: " + w))
     var completed = Vector.empty[RunResult]
     def save(): Unit = options.output.foreach { output =>
       Platform.write(output, Reports.render(observer.reportResults(completed), options.format))

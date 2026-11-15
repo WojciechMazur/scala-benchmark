@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { ProgressDeadline } from '../../main/resources/scala-benchmark/progress-deadline.mjs';
+import { ProgressDeadline } from '../../../../runtime/js/src/main/resources/scala-benchmark/progress-deadline.mjs';
 
 test('stale, partial and malformed progress cannot renew a lease', () => {
   let now = 0n;

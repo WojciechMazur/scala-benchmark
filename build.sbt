@@ -32,7 +32,7 @@ developers := List(
 licenses := Seq("GPLv2 with Classpath Exception" -> uri("https://openjdk.org/legal/gplv2+ce.html"))
 
 /** `scriptedOn <platforms> [scala=<version>] <tests>` runs scripted tests on the given platforms, optionally with a
-  * newer compiler in the benchmark projects.
+  * newer compiler in the benchmark projects. The version may be short: `3.lts` or `3.rc` (see `ScalaVersions`).
   *
   * The selection is a launch option of the scripted builds. It is set here rather than read from a system property:
   * the build usually runs in a server that outlives the command line that started it.
@@ -40,8 +40,8 @@ licenses := Seq("GPLv2 with Classpath Exception" -> uri("https://openjdk.org/leg
 commands += Command.args("scriptedOn", "<platforms> [scala=<version>] <tests>") { (state, arguments) =>
   val platforms = arguments.headOption.getOrElse(sys.error("scriptedOn expects platforms, such as jvm,native"))
   val (versions, tests) = arguments.tail.partition(_.startsWith("scala="))
-  val options =
-    ("-Dbenchmark.platforms=" + platforms) +: versions.map("-Dbenchmark.scala.version=" + _.stripPrefix("scala="))
+  val options = ("-Dbenchmark.platforms=" + platforms) +:
+    versions.map(v => "-Dbenchmark.scala.version=" + ScalaVersions.resolve(v.stripPrefix("scala=")))
   val launchOptions = options.map("\"" + _ + "\"").mkString("Seq(", ", ", ")")
   // A selection made earlier in this session must not leak into this run.
   "session clear" ::
@@ -53,9 +53,9 @@ commands += Command.args("scriptedOn", "<platforms> [scala=<version>] <tests>") 
 lazy val root = project
   .in(file("."))
   .aggregate(
-    (Seq(interface, runtime, examples).flatMap(_.projectRefs) :+ LocalProject(sbtPlugin.id)) *
+    (Seq(interface, runtime, scalaBenchmark, examples).flatMap(_.projectRefs) :+ LocalProject(sbtPlugin.id)) *
   )
-  .settings(name := "scala-benchmark", publish / skip := true)
+  .settings(name := "scala-benchmark-root", publish / skip := true)
 
 lazy val interface = projectMatrix
   .in(file("interface"))
@@ -80,11 +80,10 @@ lazy val runtime = projectMatrix
     sourceLayout("shared"),
     libraryDependencies += "com.lihaoyi" %% "scalatags" % scalaTagsVersion
   )
-  // The JVM row only hosts the unit tests: JVM benchmarks run on upstream JMH.
+  // The JVM row runs benchmarks started directly, such as with scala-cli; sbt-jmh projects keep upstream JMH.
   .jvmPlatform(
     libraryScalaVersions,
     sourceLayout("jvm-native") ++ sourceLayout("jvm") ++ junitSettings ++ harnessTestSettings ++ Seq(
-      publish / skip := true,
       libraryDependencies += "org.apache.commons" % "commons-math3" % "3.6.1" % Test
     )
   )
@@ -92,7 +91,18 @@ lazy val runtime = projectMatrix
     libraryScalaVersions,
     sourceLayout("non-jvm") ++ sourceLayout("jvm-native") ++ sourceLayout("native")
   )
-  .jsPlatform(libraryScalaVersions, sourceLayout("non-jvm") ++ sourceLayout("js"))
+  .jsPlatform(libraryScalaVersions, sourceLayout("non-jvm") ++ sourceLayout("js") ++ embeddedNodeHostSettings)
+
+/** `scala-benchmark`: the single dependency for running benchmarks without the sbt plugin, such as with scala-cli.
+  * It has no code of its own and depends on the interface and the runtime.
+  */
+lazy val scalaBenchmark = projectMatrix
+  .in(file("scala-benchmark"))
+  .dependsOn(interface, runtime)
+  .settings(librarySettings("aggregate"), name := "scala-benchmark")
+  .jvmPlatform(libraryScalaVersions)
+  .nativePlatform(libraryScalaVersions)
+  .jsPlatform(libraryScalaVersions)
 
 lazy val examples = projectMatrix
   .in(file("examples"))
@@ -112,6 +122,8 @@ lazy val sbtPlugin = project
   .settings(
     pluginBuildInfoSettings,
     Compile / unmanagedSources ++= reportingSources((LocalRootProject / baseDirectory).value),
+    // The Node.js host is shared with the Scala.js runtime, which embeds it for launchers other than sbt.
+    Compile / unmanagedResourceDirectories += (LocalRootProject / baseDirectory).value / nodeHostResources,
     name := "sbt-scala-benchmark",
     libraryDependencies += "com.lihaoyi" %% "scalatags" % scalaTagsVersion,
     scalaVersion := sbtScalaVersion,

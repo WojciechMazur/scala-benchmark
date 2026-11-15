@@ -328,7 +328,7 @@ class HarnessDerivationTest:
   @Test def platformRestrictionsPrecedeHarnessValidation(): Unit =
     val source = """package bench
       |import scala.benchmark.*
-      |@Platforms(Array(Platform.JVM), reason = "Requires grouped workers")
+      |@Platforms(Array(Platform.Native), reason = "Requires grouped workers")
       |class Example {
       |  @Benchmark @Group("group") def run(): Int = 1
       |}
@@ -337,7 +337,7 @@ class HarnessDerivationTest:
       assertTrue(success)
       inventory(output, "Example") { metadata =>
         val descriptor = Descriptor.of(0, metadata.head)
-        assertEquals(Vector(scala.benchmark.Platform.JVM), descriptor.eligibility.allowed)
+        assertEquals(Vector(scala.benchmark.Platform.Native), descriptor.eligibility.allowed)
         assertEquals(Vector("Requires grouped workers"), descriptor.eligibility.reasons)
         assertTrue(descriptor.states.isEmpty)
       }
@@ -496,7 +496,8 @@ class HarnessDerivationTest:
       |""".stripMargin
   )((success, _) => assertFalse(success))
 
-  @Test def jvmOnlyForkSettingsAreRecorded(): Unit = compile(
+  // The JVM backend applies Fork JVM options to its forks; other backends record them as ignored settings.
+  @Test def jvmForkSettingsAreNotIgnoredOnTheJvm(): Unit = compile(
     """package bench
       |import org.openjdk.jmh.annotations._
       |@Fork(jvmArgs = Array("-Xmx2g"))
@@ -507,7 +508,7 @@ class HarnessDerivationTest:
     HarnessCompiler.withLoader(output) { loader =>
       val suite = HarnessCompiler.suite(loader, "bench.Example")
       val descriptor = Descriptor.of(0, suite.metadata()(0))
-      assertTrue(descriptor.warnings.exists(_.contains("Fork.jvmArgs=-Xmx2g")))
+      assertTrue(descriptor.warnings.isEmpty)
     }
   }
 

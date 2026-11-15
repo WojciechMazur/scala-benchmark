@@ -79,6 +79,36 @@ sbt "benchmarks/Jmh/run Example -rf html -rff results.html"
 Result formats are `text`, `csv`, `scsv`, `json`, `latex` and `html`. The programmatic API is available too:
 `scala.benchmark.Runner` with `OptionsBuilder`, as in JMH.
 
+## Run with scala-cli
+
+Without sbt, list the benchmark classes in a main method. `suite[T]` derives a class's harness at compile time, and
+`run` takes the same command-line options as `Jmh/run`:
+
+```scala
+//> using dep io.github.wojciechmazur::scala-benchmark::<version>
+//> using nativeMode release-full
+//> using nativeMultithreading
+//> using jsMode release
+
+import scala.benchmark.{run, suite}
+
+@main def benchmarks(args: String*): Unit = run(args)(
+  suite[Example],
+  suite[ConcurrentBenchmarks]
+)
+```
+
+```text
+scala-cli run . -- -l
+scala-cli run . --native -- Example -wi 3 -i 5 -f 2
+scala-cli run . --js -- Example -rf json -rff results.json
+```
+
+The same runtime then measures on every platform, including the JVM. Unlike `Jmh/run`, the JVM path uses Scala
+Benchmark's own harness rather than upstream JMH; see [compatibility](docs/compatibility.md#running-without-sbt).
+The `nativeMode` and `jsMode` directives matter: a debug build runs, but warns that its measurements are not
+representative. [examples/scala-cli](examples/scala-cli) is a complete project.
+
 ## Contributing
 
 See [CONTRIBUTING.md](CONTRIBUTING.md).

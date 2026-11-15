@@ -22,9 +22,18 @@ object Registry:
   private var suites = Map.empty[String, Suite]
   private var build = Vector.empty[(String, String)]
 
+  /** Installs the benchmark project. `buildInfo` from the build tool takes precedence over what the platform can
+    * report about the running program itself.
+    */
   def install(suites: Seq[(String, Suite)], buildInfo: Seq[(String, String)]): Unit =
+    val duplicates = suites.groupBy(_._1).collect { case (name, entries) if entries.size > 1 => name }
+    require(duplicates.isEmpty, "Benchmark classes listed more than once: " + duplicates.toVector.sorted.mkString(", "))
     this.suites = suites.toMap
-    this.build = buildInfo.toVector.sortBy(_._1)
+    this.build = (Platform.defaultBuildInfo.toMap ++ buildInfo).toVector.sortBy(_._1)
+
+  /** Entries of the public `scala.benchmark.run` entry point. */
+  def entries(suites: Seq[scala.benchmark.BenchmarkSuite]): Seq[(String, Suite)] =
+    suites.map(suite => suite.name -> suite.harness)
 
   /** Benchmark class names, in a stable order. */
   def names: Vector[String] = suites.keys.toVector.sorted

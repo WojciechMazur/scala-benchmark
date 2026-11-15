@@ -28,12 +28,32 @@ benchmark harness at compile time and the Scala Benchmark runtime executes it.
 | `@Param`, including enums and overrides | yes | yes, non-`private` fields | yes, non-`private` fields |
 | `@AuxCounters` | yes | yes | yes |
 | `Blackhole`, `BenchmarkParams`, `IterationParams`, `ThreadParams`, `Control` | yes | yes | yes |
-| `@Fork(jvmArgs = ...)` and other JVM options | yes | ignored, with a warning | ignored, with a warning |
+| `@Fork(jvmArgs = ...)` and other JVM options | yes (also with `scala.benchmark.run`) | ignored, with a warning | ignored, with a warning |
 | `Runner`, `OptionsBuilder`, command-line options | yes | yes | yes |
 | Custom `OutputFormat` | yes | yes | yes |
 | Result formats: text, CSV, SCSV, JSON, LaTeX, HTML | yes | yes | yes |
 | Bulk and individual warmup, extra warmup benchmarks | yes | yes | yes |
 | `@Platforms` restrictions | yes | yes | yes |
+
+## Running without sbt
+
+`scala.benchmark.run(args)(suite[A], suite[B])` runs benchmarks from any build tool, such as scala-cli. Benchmark
+classes are listed explicitly: Scala Native and Scala.js cannot enumerate classes at run time, and only the build
+tool knows which classes a compilation contains.
+
+| | JVM | Native | JS / Wasm |
+| --- | --- | --- | --- |
+| Harness | derived by macro, as on Native | as with sbt | as with sbt |
+| Forks | the same main class and class path, in a fresh JVM | as with sbt | the embedded Node.js host |
+| Build information in results | Java version and vendor | Scala Native version, release or debug mode, GC, multithreading | Scala.js version, backend, optimization |
+
+On the JVM, forks use JMH's compiler blackholes when the JVM supports them, apply `@CompilerControl` and
+`@Fork(jvmArgs, jvmArgsAppend, jvmArgsPrepend)` as HotSpot options, and accept `-jvm`, `-jvmArgs`,
+`-jvmArgsAppend` and `-jvmArgsPrepend`. Upstream JMH remains the reference on the JVM: it has profilers and more
+JVM-specific measures against false sharing and loop optimizations. With sbt, the JVM keeps using upstream JMH.
+
+Scala.js benchmarks started with plain `node`, as scala-cli does, start the Node.js host themselves from a temporary
+directory, with the same Node.js options.
 
 ## Differences from JMH
 

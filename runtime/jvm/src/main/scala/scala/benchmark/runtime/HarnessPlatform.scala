@@ -17,8 +17,11 @@
  */
 package scala.benchmark.runtime
 
-/** The JVM runtime only hosts deterministic harness tests, which exercise the Native code path. */
 object HarnessPlatform:
-  val names: Set[String] = Set("Native")
+  /** `@Platforms` values for which this backend generates harness code. */
+  val names: Set[String] = Set("JVM")
+
+  /** Whether the JVM applies `@CompilerControl` and `@Fork(jvmArgs)` itself. */
+  val jvm: Boolean = true
 
   final class boundary extends scala.annotation.StaticAnnotation

@@ -12,12 +12,14 @@
 | Module | Contents |
 | --- | --- |
 | `interface` | JMH API for Native and JS, the `scala.benchmark` facade, the JVM adapter and the inventory macro |
-| `runtime` | the harness macro and the Native/JS runtime |
-| `sbt-plugin` | sbt integration and the Node.js host |
+| `runtime` | the harness macro, the `scala.benchmark.run` entry point and the runtime of every platform |
+| `scala-benchmark` | no code: the single `scala-benchmark` dependency on the interface and the runtime |
+| `sbt-plugin` | sbt integration |
 | `examples` | example benchmarks for every platform |
 
 Platform-specific sources live next to the shared ones: `shared`, `jvm`, `native`, `js`, plus `non-jvm` (Native
-and JS) and `jvm-native` (the JVM unit tests and Native).
+and JS) and `jvm-native` (JVM and Native). The Node.js host lives in `runtime/js/src/main/resources/scala-benchmark`;
+the sbt plugin ships it as a resource, and the Scala.js runtime embeds it for launchers other than sbt.
 
 ## Tests
 
@@ -26,6 +28,15 @@ sbt runtime/test
 node --test sbt-plugin/src/test/node/*.test.mjs
 sbt "scriptedOn jvm,native,js benchmark/*"
 sbt "scriptedOn wasm benchmark/integrity benchmark/platform"
+```
+
+To check the scala-cli entry point, publish the libraries locally and run the example on each platform:
+
+```text
+sbt "interface/publishLocal; interfaceNative/publishLocal; interfaceJS/publishLocal; runtime/publishLocal; runtimeNative/publishLocal; runtimeJS/publishLocal; scalaBenchmark/publishLocal; scalaBenchmarkNative/publishLocal; scalaBenchmarkJS/publishLocal"
+scala-cli run examples/scala-cli -- -l
+scala-cli run examples/scala-cli --native -- LifecycleBenchmark.sum -wi 0 -i 1 -r 100ms -f 1
+scala-cli run examples/scala-cli --js -- LifecycleBenchmark.sum -wi 0 -i 1 -r 100ms -f 1
 ```
 
 The scripted tests in `sbt-plugin/src/sbt-test/benchmark` run each scenario on every selected platform and compare

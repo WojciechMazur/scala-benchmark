@@ -22,4 +22,7 @@ object HarnessPlatform:
   /** `@Platforms` values for which this backend generates harness code. JS and Wasm share one compilation. */
   val names: Set[String] = Set("JS", "Wasm")
 
+  /** Whether the JVM applies `@CompilerControl` and `@Fork(jvmArgs)` itself. */
+  val jvm: Boolean = false
+
   final class boundary extends scala.annotation.StaticAnnotation

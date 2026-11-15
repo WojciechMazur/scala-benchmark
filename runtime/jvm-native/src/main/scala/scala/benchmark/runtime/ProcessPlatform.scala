@@ -42,6 +42,18 @@ trait ProcessPlatform:
   def inventory: Vector[String] = Registry.names
   def buildMetadata: Vector[(String, String)] = Registry.buildInfo
 
+  /** What the running program can report about its own build, for build tools that pass no build information. */
+  def defaultBuildInfo: Seq[(String, String)] = Nil
+
+  /** The command starting a worker process for one benchmark; worker arguments follow it. */
+  def workerCommand(suite: String, descriptor: Descriptor): Seq[String]
+
+  /** JVM identity reported in JMH's result fields; `None` outside the JVM. */
+  def jvmInfo: Option[JvmInfo] = None
+
+  /** Build settings that make measurements unrepresentative, reported once per run. */
+  def buildWarnings: Seq[String] = Nil
+
   def validateOutput(path: String): Unit =
     val file = Paths.get(path)
     require(

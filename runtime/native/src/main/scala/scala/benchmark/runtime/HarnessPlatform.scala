@@ -22,5 +22,8 @@ object HarnessPlatform:
   /** `@Platforms` values for which this backend generates harness code. */
   val names: Set[String] = Set("Native")
 
+  /** Whether the JVM applies `@CompilerControl` and `@Fork(jvmArgs)` itself. */
+  val jvm: Boolean = false
+
   /** Avoids a parameter-specialized copy of the outer harness boundary. */
   type boundary = scala.scalanative.annotation.nospecialize

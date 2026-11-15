@@ -247,7 +247,7 @@ object GroupFailureChecks:
       val files = (Compile / sources).value ++
         (Compile / dependencyClasspath).value
           .map(e => converter.toPath(e.data).toFile)
-          .filter(f => f.getName.startsWith("benchmark-") || f.getName.startsWith("jmh-")) ++
+          .filter(f => f.getName.startsWith("scala-benchmark-") || f.getName.startsWith("jmh-")) ++
         (if backend == "native" then Vector(file(command.head)) else Vector.empty)
       IO.write(
         evidence / "provenance.json",

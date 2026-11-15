@@ -86,6 +86,23 @@ object Platform:
     if isWasm then scala.benchmark.Platform.Wasm else scala.benchmark.Platform.JS
 
   def loadSuite(name: String): Suite = Registry.suite(name).getOrElse(throw new ClassNotFoundException(name))
+
+  def jvmInfo: Option[JvmInfo] = None
+
+  def buildWarnings: Seq[String] =
+    Option
+      .when(!scala.scalajs.LinkingInfo.productionMode)(
+        "Linked without full optimization; use fullLinkJS, or `//> using jsMode release` with scala-cli"
+      )
+      .toSeq
+
+  /** Link-time configuration, for build tools that pass no build information. */
+  def defaultBuildInfo: Seq[(String, String)] = Seq(
+    "scalaJSVersion" -> scala.scalajs.LinkingInfo.linkerVersion,
+    "backend" -> (if isWasm then "wasm" else "js"),
+    "optimization" -> (if scala.scalajs.LinkingInfo.productionMode then "full" else "fast")
+  )
+
   def inventory: Vector[String] = Registry.names
 
   /** What the host knows about itself, together with the build information published to it at startup. */

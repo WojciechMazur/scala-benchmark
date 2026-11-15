@@ -6,7 +6,7 @@ import path from 'node:path';
 import { spawn } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 
-const launcher = fileURLToPath(new URL('../../main/resources/scala-benchmark/node-host.mjs', import.meta.url));
+const launcher = fileURLToPath(new URL('../../../../runtime/js/src/main/resources/scala-benchmark/node-host.mjs', import.meta.url));
 function alive(pid) { try { process.kill(pid, 0); return true; } catch (error) { if (error.code === 'ESRCH') return false; throw error; } }
 function fixture(t, body, owner) {
   const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'benchmark-supervisor-test-'));

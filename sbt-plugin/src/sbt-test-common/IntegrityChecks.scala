@@ -46,7 +46,7 @@ object IntegrityChecks:
       val converter = fileConverter.value
       val dependencies = (Compile / dependencyClasspath).value
         .map(e => converter.toPath(e.data).toFile)
-        .filter(file => file.isFile && file.getName.startsWith("benchmark-"))
+        .filter(file => file.isFile && file.getName.startsWith("scala-benchmark-"))
       val fixtureSources = (Compile / sources).value
       val options = (Compile / scalacOptions).value
       val plugins = options

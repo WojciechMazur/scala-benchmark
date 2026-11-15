@@ -13,7 +13,7 @@ object ExecutionChecks:
       val converter = fileConverter.value
       val dependencies = (Compile / dependencyClasspath).value
         .map(entry => converter.toPath(entry.data).toFile)
-        .filter(path => path.isFile && (path.getName.startsWith("benchmark-") || path.getName.startsWith("jmh-")))
+        .filter(path => path.isFile && (path.getName.startsWith("scala-benchmark-") || path.getName.startsWith("jmh-")))
       val plugins = (Compile / scalacOptions).value
         .filter(_.startsWith("-Xplugin:"))
         .flatMap(_.stripPrefix("-Xplugin:").split(java.util.regex.Pattern.quote(java.io.File.pathSeparator)))

@@ -69,7 +69,7 @@ object FixtureBuild:
         IO.createDirectory(directory)
         directory
       },
-      libraryDependencies += sys.props("plugin.organization") %% "benchmark-interface" % sys.props("plugin.version"),
+      libraryDependencies += sys.props("plugin.organization") %% "scala-benchmark-interface" % sys.props("plugin.version"),
       // Sources stay where a single-platform project would keep them.
       sourceDirectory := (LocalRootProject / baseDirectory).value / "benchmarks/src",
       Compile / unmanagedSourceDirectories += sharedSources
@@ -246,7 +246,10 @@ object FixtureBuild:
 
   /** The generated entry point refers to exactly the benchmark classes that currently exist. */
   def checkGenerated(entryPoint: File, name: String, present: Boolean): Unit =
-    assert(IO.read(entryPoint).contains("\"probe." + name + "\"") == present, s"probe.$name present != $present")
+    assert(
+      IO.read(entryPoint).contains("suite[_root_.probe." + name + "]") == present,
+      s"probe.$name present != $present"
+    )
 
   def settings(backend: String): Seq[Setting[?]] = Seq(
     verifyDependencies := Def.uncached {

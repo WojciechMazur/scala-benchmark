@@ -3,6 +3,7 @@ package scala.benchmark.examples
 import java.util.concurrent.TimeUnit
 
 import scala.benchmark.*
+import scala.compiletime.uninitialized
 
 /** Compare decimal parsing with a counted loop and an iterator pipeline. */
 @State(Scope.Thread)
@@ -14,7 +15,7 @@ import scala.benchmark.*
 @OutputTimeUnit(TimeUnit.MICROSECONDS)
 class ParameterBenchmark:
   @Param(Array("64", "1024")) var size: Int = 0
-  private var records: Array[String] = _
+  private var records: Array[String] = uninitialized
 
   @Setup(Level.Trial) def prepare(): Unit =
     records = Array.tabulate(size)(i => ((i * 7919) % 1000000 - 500000).toString)

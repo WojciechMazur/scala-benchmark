@@ -54,14 +54,15 @@ private[sbtplugin] object GeneratedSources:
   /** Entry point of a Native or Scala.js benchmark executable. */
   def harnessMain(classes: Seq[String], buildInfo: Seq[(String, String)]): String =
     val runtime = "scala.benchmark.runtime"
-    val suites = classes.map(name => s"${JsonString.quote(name)} -> $runtime.Harness.derive[${typeName(name)}]")
+    // The same derivation as the public `scala.benchmark.run(args)(suite[...])` entry point.
+    val suites = classes.map(name => s"scala.benchmark.suite[${typeName(name)}]")
     val info = buildInfo.sorted.map { case (key, value) => s"${JsonString.quote(key)} -> ${JsonString.quote(value)}" }
     s"""package $packageName
        |
        |object BenchmarkMain {
-       |  def main(args: Array[String]): Unit = $runtime.Main.run(args, suites, buildInfo)
+       |  def main(args: Array[String]): Unit = $runtime.Main.run(args, $runtime.Registry.entries(suites), buildInfo)
        |
-       |  private def suites: Seq[(String, $runtime.Suite)] = Seq(${entries(suites)})
+       |  private def suites: Seq[scala.benchmark.BenchmarkSuite] = Seq(${entries(suites)})
        |
        |  private def buildInfo: Seq[(String, String)] = Seq(${entries(info)})
        |}

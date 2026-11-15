@@ -84,6 +84,9 @@ final case class BenchmarkMetadata(
 
 final case class Parameter(name: String, values: Vector[String])
 
+/** The JVM that runs forked benchmarks, reported in JMH's own result fields. */
+final case class JvmInfo(jvm: String, jvmArgs: Vector[String], jdkVersion: String, vmName: String, vmVersion: String)
+
 final case class StateDefinition(
     id: Int,
     scope: Scope,

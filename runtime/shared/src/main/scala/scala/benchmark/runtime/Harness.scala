@@ -208,6 +208,7 @@ final private class HarnessMacro[Q <: Quotes](q: Q) extends BenchmarkSymbols[Q](
     // A macro cannot change how other methods are compiled, unlike JMH's compiler directives on the JVM.
     for
       cls <- (benchmarkClass :: states.toList).distinct
+      if !HarnessPlatform.jvm
       method <- cls.declaredMethods
       if annotation[CompilerControl](method).nonEmpty && !inventory.contains(method)
     do
@@ -434,12 +435,15 @@ final private class HarnessMacro[Q <: Quotes](q: Q) extends BenchmarkSymbols[Q](
           }
         }
 
-    val ignored = groupAnnotations[Fork].headOption.toList.flatMap(arguments).filter(_._1.startsWith("jvm")).flatMap {
-      (key, term) =>
-        val literals = strings(term)
-        val values = (if literals.nonEmpty then literals else constant(term).toList).filterNot(_ == blank)
-        Option.when(values.nonEmpty)(s"Ignored JVM-only Fork.$key=${values.mkString(",")}")
-    }
+    // The JVM backend reads these from the annotation itself when it starts a fork.
+    val ignored = if HarnessPlatform.jvm then Nil
+    else
+      groupAnnotations[Fork].headOption.toList.flatMap(arguments).filter(_._1.startsWith("jvm")).flatMap {
+        (key, term) =>
+          val literals = strings(term)
+          val values = (if literals.nonEmpty then literals else constant(term).toList).filterNot(_ == blank)
+          Option.when(values.nonEmpty)(s"Ignored JVM-only Fork.$key=${values.mkString(",")}")
+      }
     ignored.foreach(report.warning(_, benchmark.pos.getOrElse(Position.ofMacroExpansion)))
 
     val restriction = restrictions(group)
@@ -627,7 +631,7 @@ final private class HarnessMacro[Q <: Quotes](q: Q) extends BenchmarkSymbols[Q](
       compilerControl(benchmark) match
         case None           => consumed
         case Some("INLINE") =>
-          if annotation[inline](benchmark).isEmpty then
+          if annotation[inline](benchmark).isEmpty && !HarnessPlatform.jvm then
             report.warning(
               s"CompilerControl.INLINE on ${benchmark.name} only takes effect on the JVM; " +
                 "add @inline for Scala Native and Scala.js",

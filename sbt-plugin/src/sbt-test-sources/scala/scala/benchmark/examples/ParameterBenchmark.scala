@@ -1,5 +1,7 @@
 package scala.benchmark.examples
 
+import scala.compiletime.uninitialized
+
 import org.openjdk.jmh.annotations.*
 
 @State(Scope.Thread)
@@ -8,11 +10,11 @@ import org.openjdk.jmh.annotations.*
 @Measurement(iterations = 1)
 @Fork(1)
 class ParameterBenchmark:
-  @Param var mode: Mode = _
+  @Param var mode: Mode = uninitialized
   @Param(Array("true")) var flag: Boolean = false
   @Param(Array("a")) var character: Char = 0
-  @Param(Array("2")) var boxed: java.lang.Integer = _
-  @Param(Array("")) var text: String = _
+  @Param(Array("2")) var boxed: java.lang.Integer = uninitialized
+  @Param(Array("")) var text: String = uninitialized
 
   @Setup def check(): Unit =
     assert(

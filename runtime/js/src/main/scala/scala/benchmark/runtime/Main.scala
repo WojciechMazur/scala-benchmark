@@ -25,9 +25,10 @@ object Main:
 
   /** Entry point of a benchmark project, called by its generated main class. */
   def run(args: Array[String], suites: Seq[(String, Suite)], buildInfo: Seq[(String, String)]): Unit =
+    if !NodeHostLauncher.hostPresent then NodeHostLauncher.relaunch()
     Registry.install(suites, buildInfo)
     // Host-side tooling, such as preloaded observers, reads the build from the host object.
-    buildInfo.foreach((key, value) => Host.metadata(key) = value)
+    Registry.buildInfo.foreach((key, value) => Host.metadata(key) = value)
     main(args)
 
   def main(args: Array[String]): Unit =

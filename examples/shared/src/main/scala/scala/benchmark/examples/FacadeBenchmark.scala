@@ -3,6 +3,7 @@ package scala.benchmark.examples
 import java.util.concurrent.TimeUnit
 
 import scala.benchmark.*
+import scala.compiletime.uninitialized
 
 /** Hash a batch of integer keys using the Scala facade API. Setup stays outside measured code. */
 @State(Scope.Thread)
@@ -14,7 +15,7 @@ import scala.benchmark.*
 @OutputTimeUnit(TimeUnit.MICROSECONDS)
 class FacadeBenchmark:
   @Param(Array("128", "4096")) var size: Int = 0
-  private var keys: Array[Int] = _
+  private var keys: Array[Int] = uninitialized
 
   @Setup(Level.Trial) def prepare(): Unit =
     keys = Array.tabulate(size)(i => (i * 0x9e3779b9) ^ (i >>> 3))

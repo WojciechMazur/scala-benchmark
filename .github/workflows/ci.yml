@@ -33,10 +33,63 @@ jobs:
           examplesNative/Jmh/compile;
           examplesJS/Jmh/compile;
           sbtPlugin/compile"
-      - name: Use the libraries from a newer compiler
-        run: sbt --batch "scriptedOn jvm,native,js scala=3.8.4 benchmark/api"
+      # The libraries are built with 3.3 LTS, but their macros expand in the user's compiler.
+      - name: Use the libraries from the latest LTS and the latest release candidate
+        run: >-
+          sbt --batch "scriptedOn jvm,native,js scala=3.lts benchmark/api;
+          scriptedOn jvm,native,js scala=3.rc benchmark/api"
       - name: Check host process supervision
         run: node --test sbt-plugin/src/test/node/*.test.mjs
+
+  # The scala-cli entry point on every platform. The newest compilers are checked on Linux; macOS and Windows run the
+  # LTS only, for their OS-specific fork, process containment and Node.js host code.
+  scala-cli:
+    name: scala-cli entry point (Scala ${{ matrix.scala }}, ${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            scala: 3.lts
+          - os: ubuntu-latest
+            scala: 3.rc
+          - os: macos-latest
+            scala: 3.lts
+          - os: windows-latest
+            scala: 3.lts
+    env:
+      RUN: >-
+        scala-cli run examples/scala-cli --scala ${{ matrix.scala }}
+      BENCHMARK: >-
+        LifecycleBenchmark.sum -p size=16 -wi 0 -i 1 -r 100ms -f 1
+    steps:
+      - uses: actions/checkout@v7
+      - uses: ./.github/actions/setup
+        with:
+          native: 'true'
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '25'
+      - uses: VirtusLab/scala-cli-setup@v1.19.0
+      - name: Publish the libraries locally
+        run: >-
+          sbt --batch "interface/publishLocal; interfaceNative/publishLocal; interfaceJS/publishLocal;
+          runtime/publishLocal; runtimeNative/publishLocal; runtimeJS/publishLocal;
+          scalaBenchmark/publishLocal; scalaBenchmarkNative/publishLocal; scalaBenchmarkJS/publishLocal"
+      - name: List the benchmarks
+        if: runner.os == 'Linux'
+        run: |
+          ${{ env.RUN }} --platform jvm -- -l
+          ${{ env.RUN }} --platform scala-native -- -l
+          ${{ env.RUN }} --platform scala-js -- -l
+      - name: Run on the JVM
+        run: ${{ env.RUN }} --platform jvm -- ${{ env.BENCHMARK }} -rf json -rff result-jvm.json
+      - name: Run on Scala Native
+        run: ${{ env.RUN }} --platform scala-native -- ${{ env.BENCHMARK }} -rf json -rff result-native.json
+      - name: Run on Scala.js
+        run: ${{ env.RUN }} --platform scala-js -- ${{ env.BENCHMARK }} -rf json -rff result-js.json
 
   # Every scripted test builds one project per platform. The JVM always runs first: upstream JMH is the reference
   # that the other platforms are compared with.

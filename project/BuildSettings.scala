@@ -17,6 +17,43 @@ object BuildSettings:
   val javaRelease = "17"
   val sbtScalaVersion = "3.8.4"
 
+  /** Node.js host modules of the Scala.js backend, under `scala-benchmark/`. */
+  val nodeHostResources = "runtime/js/src/main/resources"
+
+  private def scalaString(text: String): String =
+    text.flatMap {
+      case '"'                     => "\\\""
+      case '\\'                    => "\\\\"
+      case '\n'                    => "\\n"
+      case '\r'                    => "\\r"
+      case '\t'                    => "\\t"
+      case c if c < ' ' || c > '~' => "\\u%04x".format(c.toInt)
+      case c                       => c.toString
+    }.mkString("\"", "", "\"")
+
+  /** Linked JavaScript cannot read classpath resources: the Scala.js runtime embeds the host as string constants, so
+    * that a benchmark started by plain `node` (for example by scala-cli) can start the host itself.
+    */
+  val embeddedNodeHostSettings = Seq(
+    Compile / sourceGenerators += Def.task {
+      val directory = (LocalRootProject / baseDirectory).value / nodeHostResources / "scala-benchmark"
+      val modules = (directory * "*.mjs").get().sortBy(_.getName)
+      val entries = modules.map(file => s"    ${scalaString(file.getName)} -> ${scalaString(IO.read(file))}")
+      val source =
+        s"""package scala.benchmark.runtime
+           |
+           |/** Generated from $nodeHostResources/scala-benchmark. */
+           |private[runtime] object NodeHostSources:
+           |  val modules: Seq[(String, String)] = Seq(
+           |${entries.mkString(",\n")}
+           |  )
+           |""".stripMargin
+      val file = (Compile / sourceManaged).value / "scala/benchmark/runtime/NodeHostSources.scala"
+      if !file.exists() || IO.read(file) != source then IO.write(file, source)
+      Seq(file)
+    }.taskValue
+  )
+
   def reportingSources(root: File): Seq[File] =
     ((root / "runtime/shared/src/main/scala/scala/benchmark/internal/reporting") * "*.scala").get()
 
@@ -63,7 +100,7 @@ object BuildSettings:
   )
 
   def librarySettings(module: String) = Seq(
-    name := s"benchmark-$module",
+    name := s"scala-benchmark-$module",
     exportJars := true,
     scalaVersion := libraryScalaVersion,
     crossScalaVersions := Seq(libraryScalaVersion)

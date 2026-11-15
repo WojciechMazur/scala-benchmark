@@ -57,7 +57,7 @@ object BenchmarkPlugin extends AutoPlugin:
     libraryDependencies ~= (_.filterNot(_.organization == jmhOrganization)),
     libraryDependencies ++= {
       if benchmarkUsePublishedArtifacts.value then
-        Seq((organization %% "benchmark-runtime" % BuildInfo.version).platform(platform.value))
+        Seq((organization %% "scala-benchmark-runtime" % BuildInfo.version).platform(platform.value))
       else Nil
     },
     // Benchmarks may live in the Jmh source directories; they are compiled with the main sources so that the
@@ -114,7 +114,7 @@ object BenchmarkPlugin extends AutoPlugin:
     },
     libraryDependencies ++= {
       if platform.value == Platform.jvm && benchmarkUsePublishedArtifacts.value then
-        Seq(organization %% "benchmark-interface" % BuildInfo.version)
+        Seq(organization %% "scala-benchmark-interface" % BuildInfo.version)
       else Nil
     },
     Jmh / run / mainClass := Some("scala.benchmark.internal.JvmMain"),
