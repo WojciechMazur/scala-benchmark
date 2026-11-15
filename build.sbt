@@ -11,10 +11,12 @@ version := projectVersion
 scalaVersion := libraryScalaVersion
 // sbt 2 applies bare settings to every subproject.
 scalacOptions ++= Seq("-deprecation", "-feature", "-unchecked", "-java-output-version", javaRelease)
+
 // Unsafe-free lazy vals for the JVM artifacts; Scala 3.8 and later use them by default.
 scalacOptions ++= {
-  if platform.value == Platform.jvm && scalaVersion.value.startsWith("3.3.") then Seq("-Yfuture-lazy-vals") else Nil
+  if (platform.value == Platform.jvm && scalaVersion.value.startsWith("3.3.")) Seq("-Yfuture-lazy-vals") else Nil
 }
+
 javacOptions ++= Seq("--release", javaRelease)
 
 homepage := Some(uri(s"https://github.com/$projectRepository"))
