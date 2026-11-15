@@ -61,43 +61,33 @@ object FixtureBuild:
     *   sources and checks of the test, given the row's platform
     */
   def matrix(supported: String*)(settings: String => Seq[Setting[?]]): ProjectMatrix =
-    val base = ProjectMatrix("benchmarks", file("benchmarks"), getClass.getClassLoader)
-    selectedPlatforms.filter(supported.contains).foldLeft(base) { (matrix, platform) =>
-      val axes = platform match
-        case "jvm"    => Seq(VirtualAxis.jvm)
-        case "native" => Seq(VirtualAxis.native)
-        case "js"     => Seq(VirtualAxis.js)
-        case "wasm"   => Seq(VirtualAxis.js, WasmAxis)
-      val plugins: Seq[AutoPlugin] = platform match
-        case "jvm"         => Nil
-        case "native"      => Seq(ScalaNativePlugin)
-        case "js" | "wasm" => Seq(ScalaJSPlugin)
-      matrix.customRow(
-        Seq(testScalaVersion),
-        axes,
-        (project: Project) =>
-          project
-            .enablePlugins((JmhPlugin +: plugins)*)
-            .settings(
-              fixturePlatform := platform,
-              baseDirectory := {
-                val directory = (LocalRootProject / baseDirectory).value / "run" / platform
-                IO.createDirectory(directory)
-                directory
-              },
-              libraryDependencies +=
-                sys.props("plugin.organization") %% "benchmark-interface" % sys.props("plugin.version"),
-              // Sources stay where a single-platform project would keep them.
-              sourceDirectory := (LocalRootProject / baseDirectory).value / "benchmarks/src",
-              Compile / unmanagedSourceDirectories += sharedSources
-            )
-            .settings(platformSettings(platform))
-            .settings(settings(platform))
-            .settings(Compile / sources := (Compile / sources).value.filterNot(isOtherHost(platform)))
-      )
+    val versions = Seq(testScalaVersion)
+    def row(platform: String): Seq[Setting[?]] = Seq(
+      fixturePlatform := platform,
+      baseDirectory := {
+        val directory = (LocalRootProject / baseDirectory).value / "run" / platform
+        IO.createDirectory(directory)
+        directory
+      },
+      libraryDependencies += sys.props("plugin.organization") %% "benchmark-interface" % sys.props("plugin.version"),
+      // Sources stay where a single-platform project would keep them.
+      sourceDirectory := (LocalRootProject / baseDirectory).value / "benchmarks/src",
+      Compile / unmanagedSourceDirectories += sharedSources
+    ) ++ platformSettings(platform) ++ settings(platform) ++
+      Seq(Compile / sources := (Compile / sources).value.filterNot(isOtherHost(platform)))
+    val base = ProjectMatrix("benchmarks", file("benchmarks"), getClass.getClassLoader).enablePlugins(JmhPlugin)
+    selectedPlatforms.filter(supported.contains).foldLeft(base) {
+      case (matrix, "jvm")    => matrix.jvmPlatform(versions, row("jvm"))
+      case (matrix, "native") => matrix.nativePlatform(versions, row("native"))
+      case (matrix, "js")     => matrix.jsPlatform(versions, row("js"))
+      // The second Scala.js row needs an axis of its own, which only a custom row can declare.
+      case (matrix, platform) =>
+        matrix.customRow(
+          versions,
+          Seq(VirtualAxis.js, WasmAxis),
+          (project: Project) => project.enablePlugins(ScalaJSPlugin).settings(row(platform))
+        )
     }
-
-  end matrix
 
   /** Results of the JVM reference and of the platforms compared with it, kept for CI artifacts. */
   val evidence: File = repository.getParentFile.getParentFile / "target/execution-parity"

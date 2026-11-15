@@ -12,6 +12,7 @@ object BuildSettings:
 
   /** Libraries and macros are built once with the LTS compiler; consumers may use any later Scala 3. */
   val libraryScalaVersion = "3.3.9"
+  val libraryScalaVersions = Seq(libraryScalaVersion)
   val javaRelease = "17"
   val sbtScalaVersion = "3.8.4"
 
@@ -27,20 +28,6 @@ object BuildSettings:
     ),
     buildInfoOptions += BuildInfoOption.PackagePrivate
   )
-
-  val compilerSettings = Seq(
-    scalacOptions ++= Seq(
-      "-deprecation",
-      "-feature",
-      "-unchecked",
-      "-java-output-version",
-      javaRelease
-    ),
-    javacOptions ++= Seq("--release", javaRelease)
-  )
-
-  /** Unsafe-free lazy vals. Only the JVM artifacts need this encoding. */
-  val futureLazyVals = Seq(scalacOptions += "-Yfuture-lazy-vals")
 
   val junitSettings = Seq(
     libraryDependencies ++= Seq(
@@ -78,7 +65,7 @@ object BuildSettings:
     exportJars := true,
     scalaVersion := libraryScalaVersion,
     crossScalaVersions := Seq(libraryScalaVersion)
-  ) ++ compilerSettings ++ legalSettings
+  ) ++ legalSettings
 
   def sourceLayout(directory: String) = Seq(Compile, Test).flatMap { configuration =>
     inConfig(configuration)(
@@ -93,7 +80,7 @@ object BuildSettings:
     )
   }
 
-  val exampleSettings = compilerSettings ++ Seq(
+  val exampleSettings = Seq(
     scalaVersion := libraryScalaVersion,
     publish / skip := true,
     Compile / unmanagedSourceDirectories += (LocalRootProject / baseDirectory).value / "examples/shared/src/main/scala"

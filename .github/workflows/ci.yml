@@ -28,8 +28,8 @@ jobs:
         run: scalafmt --check
       - name: Compile every module and platform; run unit tests
         run: >-
-          sbt --batch "runtimeJVM/test;
-          examplesJVM/Jmh/compile;
+          sbt --batch "runtime/test;
+          examples/Jmh/compile;
           examplesNative/Jmh/compile;
           examplesJS/Jmh/compile;
           sbtPlugin/compile"

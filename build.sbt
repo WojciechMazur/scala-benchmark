@@ -1,6 +1,5 @@
 import scala.benchmark.sbtplugin.BenchmarkPlugin.autoImport.*
 
-import BuildPlatforms.*
 import BuildSettings.*
 import ScriptedPlugin.autoImport.*
 import pl.project13.scala.sbt.JmhPlugin
@@ -10,6 +9,14 @@ import sbtbuildinfo.BuildInfoPlugin
 organization := projectOrganization
 version := projectVersion
 scalaVersion := libraryScalaVersion
+// sbt 2 applies bare settings to every subproject.
+scalacOptions ++= Seq("-deprecation", "-feature", "-unchecked", "-java-output-version", javaRelease)
+// Unsafe-free lazy vals for the JVM artifacts; Scala 3.8 and later use them by default.
+scalacOptions ++= {
+  if platform.value == Platform.jvm && scalaVersion.value.startsWith("3.3.") then Seq("-Yfuture-lazy-vals") else Nil
+}
+javacOptions ++= Seq("--release", javaRelease)
+
 homepage := Some(uri(s"https://github.com/$projectRepository"))
 
 scmInfo := Some(
@@ -51,16 +58,17 @@ lazy val root = project
 lazy val interface = projectMatrix
   .in(file("interface"))
   .settings(librarySettings("interface"), sourceLayout("shared"))
-  .libraryPlatforms(
-    jvmSettings = sourceLayout("jvm") ++ Seq(
+  .jvmPlatform(
+    libraryScalaVersions,
+    sourceLayout("jvm") ++ Seq(
       libraryDependencies ++= Seq(
         "org.openjdk.jmh" % "jmh-core" % "1.37",
         "org.openjdk.jmh" % "jmh-generator-reflection" % "1.37"
       )
-    ),
-    nativeSettings = sourceLayout("non-jvm") ++ sourceLayout("native"),
-    jsSettings = sourceLayout("non-jvm") ++ sourceLayout("js")
+    )
   )
+  .nativePlatform(libraryScalaVersions, sourceLayout("non-jvm") ++ sourceLayout("native"))
+  .jsPlatform(libraryScalaVersions, sourceLayout("non-jvm") ++ sourceLayout("js"))
 
 lazy val runtime = projectMatrix
   .in(file("runtime"))
@@ -70,20 +78,27 @@ lazy val runtime = projectMatrix
     sourceLayout("shared"),
     libraryDependencies += "com.lihaoyi" %% "scalatags" % scalaTagsVersion
   )
-  .libraryPlatforms(
-    jvmSettings = sourceLayout("jvm-native") ++ sourceLayout("jvm") ++ junitSettings ++ harnessTestSettings ++ Seq(
+  // The JVM row only hosts the unit tests: JVM benchmarks run on upstream JMH.
+  .jvmPlatform(
+    libraryScalaVersions,
+    sourceLayout("jvm-native") ++ sourceLayout("jvm") ++ junitSettings ++ harnessTestSettings ++ Seq(
       publish / skip := true,
       libraryDependencies += "org.apache.commons" % "commons-math3" % "3.6.1" % Test
-    ),
-    nativeSettings = sourceLayout("non-jvm") ++ sourceLayout("jvm-native") ++ sourceLayout("native"),
-    jsSettings = sourceLayout("non-jvm") ++ sourceLayout("js")
+    )
   )
+  .nativePlatform(
+    libraryScalaVersions,
+    sourceLayout("non-jvm") ++ sourceLayout("jvm-native") ++ sourceLayout("native")
+  )
+  .jsPlatform(libraryScalaVersions, sourceLayout("non-jvm") ++ sourceLayout("js"))
 
 lazy val examples = projectMatrix
   .in(file("examples"))
   .dependsOn(runtime)
   .enablePlugins(JmhPlugin)
-  .libraryPlatforms()
+  .jvmPlatform(libraryScalaVersions)
+  .nativePlatform(libraryScalaVersions)
+  .jsPlatform(libraryScalaVersions)
   .settings(
     exampleSettings,
     benchmarkUsePublishedArtifacts := false
@@ -116,10 +131,10 @@ lazy val sbtPlugin = project
     ),
     scriptedDependencies := {
       publishLocal.value
-      (interface.jvm(true) / publishLocal).value
-      (interface.native(true) / publishLocal).value
-      (interface.js(true) / publishLocal).value
-      (runtime.native(true) / publishLocal).value
-      (runtime.js(true) / publishLocal).value
+      (interface.jvm(libraryScalaVersion) / publishLocal).value
+      (interface.native(libraryScalaVersion) / publishLocal).value
+      (interface.js(libraryScalaVersion) / publishLocal).value
+      (runtime.native(libraryScalaVersion) / publishLocal).value
+      (runtime.js(libraryScalaVersion) / publishLocal).value
     }
   )

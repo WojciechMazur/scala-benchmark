@@ -1,0 +1,79 @@
+# Compatibility
+
+Scala Benchmark runs JMH 1.37 benchmarks written in Scala 3 on the JVM, Scala Native, Scala.js and Scala.js
+WebAssembly. On the JVM, benchmarks are generated and run by upstream JMH; Scala Benchmark only adds platform
+selection (`@Platforms`) and the HTML and LaTeX result formats. On the other platforms, a macro derives the
+benchmark harness at compile time and the Scala Benchmark runtime executes it.
+
+## Toolchain
+
+| Component | Supported |
+| --- | --- |
+| Scala | 3.3.9 or later; libraries are built with 3.3.9 |
+| Java | 17 or later |
+| sbt | 2.0 |
+| JMH API | 1.37 |
+| Scala Native | 0.5.12 |
+| Scala.js | 1.22.0 |
+| Node.js (Scala.js and Wasm) | 25 |
+
+## Platforms
+
+| | JVM | Native | JS | Wasm |
+| --- | --- | --- | --- | --- |
+| Harness | upstream JMH | derived by macro | derived by macro | derived by macro |
+| Benchmark threads | any | any | 1 | 1 |
+| Forks | JVM processes | fresh processes | fresh Node.js processes | fresh Node.js processes |
+| Process containment | JMH | process groups (POSIX), job objects (Windows) | process groups (POSIX), best effort on Windows | as JS |
+| Collection requests (`-gc`) | yes | yes | needs `--expose-gc` | needs `--expose-gc` |
+| Profilers (`-prof`) | yes | no | no | no |
+
+## API
+
+| Feature | JVM | Native | JS / Wasm |
+| --- | --- | --- | --- |
+| Modes: throughput, average, sample, single shot | yes | yes | yes |
+| Batching and operations per invocation | yes | yes | yes |
+| `@State` scopes `Thread`, `Benchmark`, `Group` | yes | yes | yes, one worker |
+| `@Setup` / `@TearDown` at every level, dependent states | yes | yes | yes |
+| `@Group` and `@GroupThreads` | yes | yes | one active worker |
+| `@Param`, including enums and overrides | yes | yes, non-`private` fields | yes, non-`private` fields |
+| `@AuxCounters` | yes | yes | yes |
+| `Blackhole`, `BenchmarkParams`, `IterationParams`, `ThreadParams`, `Control` | yes | yes | yes |
+| `@Fork(jvmArgs = ...)` and other JVM options | yes | ignored, with a warning | ignored, with a warning |
+| `Runner`, `OptionsBuilder`, command-line options | yes | yes | yes |
+| Custom `OutputFormat` | yes | yes | yes |
+| Result formats: text, CSV, SCSV, JSON, LaTeX, HTML | yes | yes | yes |
+| Bulk and individual warmup, extra warmup benchmarks | yes | yes | yes |
+| `@Platforms` restrictions | yes | yes | yes |
+
+## Differences from JMH
+
+| Topic | Behaviour off the JVM |
+| --- | --- |
+| `private` `@Param` fields | Rejected at compile time. Use a public or `private[pkg]` `var`. |
+| `@CompilerControl(DONT_INLINE)` on a benchmark method | The call is kept out of the measured loop. |
+| `@CompilerControl(INLINE)` | Advisory; add Scala's `@inline` as well. Warned at compile time. |
+| `@CompilerControl` on other methods | No effect; use `@noinline` or `@inline`. Warned at compile time. |
+| Other `@CompilerControl` modes | Rejected at compile time. |
+| Benchmark classes | Discovered in the benchmark project's own sources, not in dependencies. |
+| Inner classes needing an outer instance, benchmarks declared in objects | Not supported. |
+| Failures in custom `OutputFormat` callbacks | Fatal; JMH may ignore them. |
+| Failures after a trial has completed | Fatal, as in JMH. |
+| Supporting APIs | A subset of `org.openjdk.jmh`; the statistics types do not reproduce Commons Math exceptions. |
+
+## Verification
+
+| Operating system | JVM | Native | JS | Wasm |
+| --- | --- | --- | --- | --- |
+| macOS arm64 | tested locally | tested locally | tested locally | tested locally |
+| Linux x86-64 | CI | CI, including thin and full LTO | CI | CI |
+| Windows x86-64 | CI | CI, including thin LTO | not tested | not tested |
+
+The scripted tests in `sbt-plugin/src/sbt-test/benchmark` run each scenario on every platform and compare the
+other platforms with upstream JMH on the JVM. Run them with `scriptedOn <platforms> <tests>`, for example:
+
+```text
+sbt "scriptedOn jvm,native,js benchmark/*"
+sbt "scriptedOn wasm benchmark/integrity benchmark/platform"
+```
