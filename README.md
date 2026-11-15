@@ -79,25 +79,9 @@ sbt "benchmarks/Jmh/run Example -rf html -rff results.html"
 Result formats are `text`, `csv`, `scsv`, `json`, `latex` and `html`. The programmatic API is available too:
 `scala.benchmark.Runner` with `OptionsBuilder`, as in JMH.
 
-## Develop
+## Contributing
 
-The build has four modules:
-
-| Module | Contents |
-| --- | --- |
-| `interface` | JMH API for Native and JS, the `scala.benchmark` facade, the JVM adapter and the inventory macro |
-| `runtime` | the harness macro and the Native/JS runtime |
-| `sbt-plugin` | sbt integration and the Node.js host |
-| `examples` | example benchmarks for every platform |
-
-```text
-sbt runtime/test
-sbt "scriptedOn jvm,native,js benchmark/*"
-sbt "scriptedOn wasm benchmark/integrity benchmark/platform"
-```
-
-`scriptedOn` selects the platforms the scripted tests run on; add `scala=<version>` to build the test projects
-with a newer compiler. Format with `scalafmt`.
+See [CONTRIBUTING.md](CONTRIBUTING.md).
 
 ## License
 
