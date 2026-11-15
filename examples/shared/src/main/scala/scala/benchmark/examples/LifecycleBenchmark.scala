@@ -2,6 +2,7 @@ package scala.benchmark.examples
 
 import java.util.concurrent.TimeUnit
 
+// Plain JMH imports work unchanged; the other examples use the `scala.benchmark` aliases of the same API.
 import org.openjdk.jmh.annotations.*
 import org.openjdk.jmh.infra.Blackhole
 

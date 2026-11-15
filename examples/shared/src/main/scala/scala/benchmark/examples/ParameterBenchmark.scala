@@ -2,7 +2,7 @@ package scala.benchmark.examples
 
 import java.util.concurrent.TimeUnit
 
-import org.openjdk.jmh.annotations.*
+import scala.benchmark.*
 
 /** Compare decimal parsing with a counted loop and an iterator pipeline. */
 @State(Scope.Thread)
