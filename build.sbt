@@ -7,10 +7,19 @@ import pl.project13.scala.sbt.JmhPlugin
 import sbt.{*, given}
 import sbtbuildinfo.BuildInfoPlugin
 
-organization := "org.scala-native"
+organization := projectOrganization
 version := projectVersion
 scalaVersion := libraryScalaVersion
-homepage := Some(uri("https://github.com/scala-native/scala-benchmark"))
+homepage := Some(uri(s"https://github.com/$projectRepository"))
+
+scmInfo := Some(
+  ScmInfo(uri(s"https://github.com/$projectRepository"), s"scm:git:https://github.com/$projectRepository.git")
+)
+
+developers := List(
+  Developer("WojciechMazur", "Wojciech Mazur", "", uri("https://github.com/WojciechMazur"))
+)
+
 licenses := Seq("GPLv2 with Classpath Exception" -> uri("https://openjdk.org/legal/gplv2+ce.html"))
 
 /** `scriptedOn <platforms> [scala=<version>] <tests>` runs scripted tests on the given platforms, optionally with a
@@ -98,6 +107,7 @@ lazy val sbtPlugin = project
     scriptedLaunchOpts ++= Seq(
       "-Xmx1024m",
       "-Dplugin.version=" + version.value,
+      "-Dplugin.organization=" + projectOrganization,
       "-Dbenchmark.scala.version=" + libraryScalaVersion,
       "-Dbenchmark.scripted.support=" +
         ((LocalRootProject / baseDirectory).value / "sbt-plugin/src/sbt-test-common").getAbsolutePath,

@@ -6,6 +6,8 @@ import xsbti.FileConverter
 
 object BuildSettings:
   val scalaTagsVersion = "0.13.1"
+  val projectOrganization = "io.github.wojciechmazur"
+  val projectRepository = "WojciechMazur/scala-benchmark"
   val projectVersion = "0.1.0-SNAPSHOT"
 
   /** Libraries and macros are built once with the LTS compiler; consumers may use any later Scala 3. */
@@ -18,7 +20,11 @@ object BuildSettings:
 
   val pluginBuildInfoSettings = Seq(
     buildInfoPackage := "scala.benchmark.sbtplugin",
-    buildInfoKeys := Seq(BuildInfoKey(version), BuildInfoKey("minimumScalaVersion" -> libraryScalaVersion)),
+    buildInfoKeys := Seq(
+      BuildInfoKey(version),
+      BuildInfoKey("organization" -> projectOrganization),
+      BuildInfoKey("minimumScalaVersion" -> libraryScalaVersion)
+    ),
     buildInfoOptions += BuildInfoOption.PackagePrivate
   )
 

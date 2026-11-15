@@ -85,7 +85,8 @@ object FixtureBuild:
                 IO.createDirectory(directory)
                 directory
               },
-              libraryDependencies += "org.scala-native" %% "benchmark-interface" % sys.props("plugin.version"),
+              libraryDependencies +=
+                sys.props("plugin.organization") %% "benchmark-interface" % sys.props("plugin.version"),
               // Sources stay where a single-platform project would keep them.
               sourceDirectory := (LocalRootProject / baseDirectory).value / "benchmarks/src",
               Compile / unmanagedSourceDirectories += sharedSources

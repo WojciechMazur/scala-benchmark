@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2026, Scala Benchmark contributors.
+ * Copyright (c) 2026, Wojciech Mazur.
  *
  * This code is free software; you can redistribute it and/or modify it
  * under the terms of the GNU General Public License version 2 only, as
@@ -45,7 +45,7 @@ object BenchmarkPlugin extends AutoPlugin:
 
   override def projectConfigurations: Seq[Configuration] = Seq(Inventory)
 
-  private val organization = "org.scala-native"
+  private val organization = BuildInfo.organization
   private val jmhOrganization = "org.openjdk.jmh"
   private val supportedJmh = "1.37"
 

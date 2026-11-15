@@ -1,5 +1,6 @@
 Scala Benchmark
-Copyright (c) 2026, Scala Benchmark contributors.
+https://github.com/WojciechMazur/scala-benchmark
+Copyright (c) 2026, Wojciech Mazur.
 
 This project is licensed under the GNU General Public License, version 2,
 with the "Classpath" exception. See the LICENSE file.
@@ -9,8 +10,8 @@ from OpenJDK JMH 1.37 (commit 2effa2c8310e1d3ad03c8ee02024edca9252b46a).
 Files ported from JMH retain Oracle's copyright and licence notices, including
 Oracle's designation of the "Classpath" exception.
 
-All other source files of this project are copyright their contributors. The
-copyright holders extend the same "Classpath" exception, as worded in the
+All other source files of this project are copyright Wojciech Mazur and
+contributors. The copyright holders extend the same "Classpath" exception, as worded in the
 LICENSE file, to every one of those files: linking this library with
 independent modules, statically or dynamically, does not make those modules
 subject to the GNU General Public License.
