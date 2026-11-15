@@ -5,18 +5,6 @@ WebAssembly. On the JVM, benchmarks are generated and run by upstream JMH; Scala
 selection (`@Platforms`) and the HTML and LaTeX result formats. On the other platforms, a macro derives the
 benchmark harness at compile time and the Scala Benchmark runtime executes it.
 
-## Toolchain
-
-| Component | Supported |
-| --- | --- |
-| Scala | 3.3.9 or later; libraries are built with 3.3.9 |
-| Java | 17 or later |
-| sbt | 2.0 |
-| JMH API | 1.37 |
-| Scala Native | 0.5.12 |
-| Scala.js | 1.22.0 |
-| Node.js (Scala.js and Wasm) | 25 |
-
 ## Platforms
 
 | | JVM | Native | JS | Wasm |
@@ -61,19 +49,3 @@ benchmark harness at compile time and the Scala Benchmark runtime executes it.
 | Failures in custom `OutputFormat` callbacks | Fatal; JMH may ignore them. |
 | Failures after a trial has completed | Fatal, as in JMH. |
 | Supporting APIs | A subset of `org.openjdk.jmh`; the statistics types do not reproduce Commons Math exceptions. |
-
-## Verification
-
-| Operating system | JVM | Native | JS | Wasm |
-| --- | --- | --- | --- | --- |
-| macOS arm64 | tested locally | tested locally | tested locally | tested locally |
-| Linux x86-64 | CI | CI, including thin and full LTO | CI | CI |
-| Windows x86-64 | CI | CI, including thin LTO | not tested | not tested |
-
-The scripted tests in `sbt-plugin/src/sbt-test/benchmark` run each scenario on every platform and compare the
-other platforms with upstream JMH on the JVM. Run them with `scriptedOn <platforms> <tests>`, for example:
-
-```text
-sbt "scriptedOn jvm,native,js benchmark/*"
-sbt "scriptedOn wasm benchmark/integrity benchmark/platform"
-```
