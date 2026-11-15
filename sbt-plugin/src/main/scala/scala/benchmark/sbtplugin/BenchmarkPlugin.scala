@@ -79,6 +79,16 @@ object BenchmarkPlugin extends AutoPlugin:
     }
   )
 
+  /** Forked JMH output. A forked JVM writes to the sbt server's own stdout by default, which the sbt 2 thin client
+    * never shows, so listings and results would be lost. Each write goes to the current `System.out`, which sbt
+    * routes to the terminal of the client that issued the command; closing the fork's stream must not close it.
+    */
+  private val forkedOutput: OutputStrategy = OutputStrategy.CustomOutput(new java.io.OutputStream:
+    override def write(byte: Int): Unit = System.out.write(byte)
+    override def write(bytes: Array[Byte], offset: Int, length: Int): Unit = System.out.write(bytes, offset, length)
+    override def flush(): Unit = System.out.flush()
+    override def close(): Unit = flush())
+
   /** Runs a benchmark launcher in the project directory, failing the task when it fails. */
   private[sbtplugin] def launch(command: Seq[String], directory: File, environment: Map[String, String]): Unit =
     val exit = scala.sys.process.Process(command, directory, environment.toSeq*).!
@@ -108,6 +118,7 @@ object BenchmarkPlugin extends AutoPlugin:
       else Nil
     },
     Jmh / run / mainClass := Some("scala.benchmark.internal.JvmMain"),
+    Jmh / run / outputStrategy := Some(forkedOutput),
     Jmh / dependencyClasspath ++= Def.uncached((Inventory / exportedProducts).value),
     Jmh / JmhPlugin.generateJmhSourcesAndResources := Def.uncached {
       require(
@@ -122,7 +133,7 @@ object BenchmarkPlugin extends AutoPlugin:
       // Regenerate everything: removals and eligibility edits must not leave stale BenchmarkList entries.
       IO.delete(Seq(sources, resources))
       IO.createDirectories(Seq(sources, resources))
-      new ForkRun(ForkOptions())
+      new ForkRun(ForkOptions().withOutputStrategy(OutputStrategy.LoggedOutput(streams.value.log)))
         .run(
           "scala.benchmark.internal.JvmGenerator",
           classpath,
