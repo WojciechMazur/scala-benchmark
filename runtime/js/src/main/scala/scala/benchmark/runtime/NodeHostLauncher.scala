@@ -34,6 +34,27 @@ private[runtime] object NodeHostLauncher:
     if js.typeOf(process.getBuiltinModule) == "function" then process.getBuiltinModule(name)
     else js.Dynamic.global.require(name)
 
+  private val StackFrame = """\(([^()]+?\.[cm]?js):\d+:\d+\)|at (\S+?\.[cm]?js):\d+:\d+""".r
+
+  /** The linked module: the script Node.js was started with or, when the program came from standard input (`node -`,
+    * as scala-cli runs it on Windows), the file of this code's own stack frame.
+    */
+  private def modulePath(script: Option[String], fs: js.Dynamic, path: js.Dynamic): String =
+    def isFile(file: String) = fs.existsSync(file).asInstanceOf[Boolean] &&
+      fs.statSync(file).isFile().asInstanceOf[Boolean]
+    script.map(path.resolve(_).asInstanceOf[String]).filter(isFile).getOrElse {
+      val stack = js.Dynamic.newInstance(js.Dynamic.global.Error)().stack.asInstanceOf[String]
+      StackFrame
+        .findAllMatchIn(stack)
+        .map(m => Option(m.group(1)).getOrElse(m.group(2)))
+        .filterNot(_.startsWith("node:"))
+        .map(file =>
+          if file.startsWith("file:") then builtin("node:url").fileURLToPath(file).asInstanceOf[String] else file
+        )
+        .find(isFile)
+        .getOrElse(throw new IllegalStateException("Cannot determine the benchmark module that Node.js is running"))
+    }
+
   /** Runs the module under the host and exits with its status; never returns. */
   def relaunch(): Nothing =
     if js.typeOf(process) == "undefined" then
@@ -43,8 +64,7 @@ private[runtime] object NodeHostLauncher:
     val path = builtin("node:path")
     val childProcess = builtin("node:child_process")
     val argv = process.argv.asInstanceOf[js.Array[String]]
-    require(argv.length >= 2, "Cannot determine the benchmark module that Node.js is running")
-    val module = path.resolve(argv(1)).asInstanceOf[String]
+    val module = modulePath(argv.lift(1), fs, path)
     val arguments = argv.drop(2).toVector
     val directory = fs.mkdtempSync(path.join(os.tmpdir(), "scala-benchmark-host-")).asInstanceOf[String]
     val status =
