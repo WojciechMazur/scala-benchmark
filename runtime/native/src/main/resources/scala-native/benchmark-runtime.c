@@ -24,6 +24,8 @@
 #if defined(_WIN32)
 #define WIN32_LEAN_AND_MEAN
 #include <windows.h>
+#include <shellapi.h>
+#pragma comment(lib, "shell32.lib")
 #elif defined(__APPLE__)
 #include <mach-o/dyld.h>
 #include <unistd.h>
@@ -33,6 +35,65 @@
 #include <unistd.h>
 #include <signal.h>
 #endif
+
+// The UTF-8 command-line arguments of this process, without the program name.
+// Windows passes main() its arguments in the ANSI code page, which loses
+// characters outside it; elsewhere main() already receives them unchanged.
+// Returns NULL when they are unavailable. The result is never freed.
+char **scala_benchmark_arguments(int *count) {
+  *count = 0;
+#if defined(_WIN32)
+  int total = 0;
+  LPWSTR *wide = CommandLineToArgvW(GetCommandLineW(), &total);
+  if (wide == NULL)
+    return NULL;
+  char **arguments = calloc(total > 1 ? (size_t)total - 1 : 1, sizeof(char *));
+  if (arguments == NULL) {
+    LocalFree(wide);
+    return NULL;
+  }
+  for (int i = 1; i < total; i++) {
+    int size = WideCharToMultiByte(CP_UTF8, 0, wide[i], -1, NULL, 0, NULL, NULL);
+    arguments[i - 1] = size > 0 ? malloc((size_t)size) : NULL;
+    if (arguments[i - 1] == NULL ||
+        WideCharToMultiByte(CP_UTF8, 0, wide[i], -1, arguments[i - 1], size,
+                            NULL, NULL) != size) {
+      LocalFree(wide);
+      return NULL;
+    }
+  }
+  LocalFree(wide);
+  *count = total - 1;
+  return arguments;
+#else
+  return NULL;
+#endif
+}
+
+// The UTF-8 temporary directory on Windows, where Scala Native derives
+// java.io.tmpdir through the ANSI code page. Returns zero on success, a
+// required buffer size on truncation, or -1 on error or elsewhere.
+int scala_benchmark_temporary_directory(char *buffer, int length) {
+#if defined(_WIN32)
+  WCHAR path[MAX_PATH + 1];
+  DWORD count = GetTempPathW(MAX_PATH + 1, path);
+  if (count == 0 || count > MAX_PATH)
+    return -1;
+  int required = WideCharToMultiByte(CP_UTF8, 0, path, -1, NULL, 0, NULL, NULL);
+  if (required == 0)
+    return -1;
+  if (required > length)
+    return required;
+  return WideCharToMultiByte(CP_UTF8, 0, path, -1, buffer, length, NULL,
+                             NULL) == required
+             ? 0
+             : -1;
+#else
+  (void)buffer;
+  (void)length;
+  return -1;
+#endif
+}
 
 // Returns zero on success, a required buffer size on truncation, or -1 on
 // error.

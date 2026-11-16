@@ -76,6 +76,26 @@ object Platform extends ProcessPlatform:
 
   def workerCommand(suite: String, descriptor: Descriptor): Seq[String] = Seq(executable)
 
+  override def temporaryDirectory: java.nio.file.Path =
+    if !scala.scalanative.meta.LinktimeInfo.isWindows then super.temporaryDirectory
+    else
+      Zone {
+        val capacity = 4 * 261
+        val buffer = alloc[CChar](capacity)
+        if Native.temporaryDirectory(buffer, capacity) == 0 then
+          java.nio.file.Paths.get(fromCString(buffer, java.nio.charset.StandardCharsets.UTF_8))
+        else super.temporaryDirectory
+      }
+
+  /** On Windows, `main` receives its arguments in the ANSI code page: read them again as Unicode. */
+  override def commandLine(args: Array[String]): Array[String] =
+    if !scala.scalanative.meta.LinktimeInfo.isWindows then args
+    else
+      val count = stackalloc[CInt]()
+      val arguments = Native.arguments(count)
+      if arguments == null || !count != args.length then args
+      else Array.tabulate(!count)(i => fromCString(arguments(i), java.nio.charset.StandardCharsets.UTF_8))
+
   def executable: String = Zone {
     @annotation.tailrec
     def resolve(capacity: Int): String =
@@ -122,6 +142,12 @@ object Platform extends ProcessPlatform:
 
     @name("scala_benchmark_halt_worker")
     def haltWorker(): Unit = extern
+
+    @name("scala_benchmark_temporary_directory")
+    def temporaryDirectory(buffer: CString, length: CInt): CInt = extern
+
+    @name("scala_benchmark_arguments")
+    def arguments(count: Ptr[CInt]): Ptr[CString] = extern
 
     @name("scala_benchmark_executable")
     def executable(buffer: CString, length: CInt): CInt = extern

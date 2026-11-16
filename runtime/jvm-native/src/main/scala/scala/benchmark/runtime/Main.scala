@@ -39,7 +39,8 @@ object Main:
     Registry.install(suites, buildInfo)
     main(args)
 
-  def main(args: Array[String]): Unit =
+  def main(arguments: Array[String]): Unit =
+    val args = Platform.commandLine(arguments)
     try
       if args.headOption.contains(ForkProgress.WorkerFlag) then worker(args)
       else BenchmarkRunner.run(Options.parse(args))
@@ -100,7 +101,7 @@ object Main:
       failOnError: Boolean,
       observer: RunObserver
   ): Vector[IterationResult] =
-    val files = ForkDirectory(Files.createTempDirectory("scala-benchmark-"))
+    val files = ForkDirectory(Files.createTempDirectory(Platform.temporaryDirectory, "scala-benchmark-"))
     import files.*
     Files.write(userOut, Array.emptyByteArray)
     Files.write(userErr, Array.emptyByteArray)

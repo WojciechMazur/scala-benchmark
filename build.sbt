@@ -148,7 +148,11 @@ lazy val sbtPlugin = project
       (interface.jvm(libraryScalaVersion) / publishLocal).value
       (interface.native(libraryScalaVersion) / publishLocal).value
       (interface.js(libraryScalaVersion) / publishLocal).value
+      (runtime.jvm(libraryScalaVersion) / publishLocal).value
       (runtime.native(libraryScalaVersion) / publishLocal).value
       (runtime.js(libraryScalaVersion) / publishLocal).value
+      (scalaBenchmark.jvm(libraryScalaVersion) / publishLocal).value
+      (scalaBenchmark.native(libraryScalaVersion) / publishLocal).value
+      (scalaBenchmark.js(libraryScalaVersion) / publishLocal).value
     }
   )

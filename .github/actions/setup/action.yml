@@ -10,7 +10,8 @@ runs:
     - uses: coursier/setup-action@v3
       with:
         jvm: temurin:25
-        apps: sbt scalafmt
+        apps: scalafmt
+    - uses: sbt/setup-sbt@v1.5.14
     - uses: coursier/cache-action@v8
     
     - name: Install Native build dependencies
