@@ -1,10 +1,17 @@
 name: CI
 on:
   push:
+    branches: [main]
   pull_request:
   workflow_dispatch:
 permissions:
   contents: read
+# A newer push to the same branch or pull request supersedes the run in progress.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+# sbt 2 starts a thin client by default. `--server` runs sbt itself instead: on Windows the client cannot start its
+# server, and a failure to connect still exits with status 0.
 env:
   COMPATIBILITY: >-
     benchmark/platform benchmark/reports benchmark/api benchmark/configuration benchmark/result-extensions
@@ -14,7 +21,7 @@ env:
 jobs:
   unit:
     name: Formatting, compilation and unit tests
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
       - uses: actions/checkout@v7
@@ -28,7 +35,7 @@ jobs:
         run: scalafmt --check
       - name: Compile every module and platform; run unit tests
         run: >-
-          sbt --batch "runtime/test;
+          sbt --server --batch "runtime/test;
           examples/Jmh/compile;
           examplesNative/Jmh/compile;
           examplesJS/Jmh/compile;
@@ -36,7 +43,7 @@ jobs:
       # The libraries are built with 3.3 LTS, but their macros expand in the user's compiler.
       - name: Use the libraries from the latest LTS and the latest release candidate
         run: >-
-          sbt --batch "scriptedOn jvm,native,js scala=3.lts benchmark/api;
+          sbt --server --batch "scriptedOn jvm,native,js scala=3.lts benchmark/api;
           scriptedOn jvm,native,js scala=3.rc benchmark/api"
       - name: Check host process supervision
         run: node --test sbt-plugin/src/test/node/*.test.mjs
@@ -75,7 +82,7 @@ jobs:
       - uses: VirtusLab/scala-cli-setup@v1.19.0
       - name: Publish the libraries locally
         run: >-
-          sbt --batch "interface/publishLocal; interfaceNative/publishLocal; interfaceJS/publishLocal;
+          sbt --server --batch "interface/publishLocal; interfaceNative/publishLocal; interfaceJS/publishLocal;
           runtime/publishLocal; runtimeNative/publishLocal; runtimeJS/publishLocal;
           scalaBenchmark/publishLocal; scalaBenchmarkNative/publishLocal; scalaBenchmarkJS/publishLocal"
       - name: List the benchmarks
@@ -102,9 +109,9 @@ jobs:
       matrix:
         include:
           - platform: native
-            os: ubuntu-22.04
+            os: ubuntu-latest
           - platform: js
-            os: ubuntu-22.04
+            os: ubuntu-latest
           - platform: native
             os: macos-15
           - platform: native
@@ -125,11 +132,11 @@ jobs:
         shell: bash
         env:
           SCALANATIVE_LTO: ${{ matrix.lto || 'none' }}
-        run: sbt --batch "scriptedOn jvm,${{ matrix.platform }} $COMPATIBILITY"
+        run: sbt --server --batch "scriptedOn jvm,${{ matrix.platform }} $COMPATIBILITY"
 
   execution:
     name: Execution and failure parity (${{ matrix.platform }})
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-latest
     timeout-minutes: 90
     strategy:
       fail-fast: false
@@ -145,7 +152,7 @@ jobs:
           node-version: '25'
       - name: Compare failures and execution with the JVM
         run: >-
-          sbt --batch "scriptedOn jvm,${{ matrix.platform }} $EXECUTION benchmark/containment benchmark/group-failures"
+          sbt --server --batch "scriptedOn jvm,${{ matrix.platform }} $EXECUTION benchmark/containment benchmark/group-failures"
       - uses: actions/upload-artifact@v7
         if: always()
         with:
@@ -155,7 +162,7 @@ jobs:
   # Wasm shares the Scala.js runtime and host; only the linked code differs, which the integrity test inspects.
   integrity:
     name: Optimized measurement integrity (${{ matrix.platform }}, LTO ${{ matrix.lto || 'none' }})
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-latest
     timeout-minutes: 30
     strategy:
       fail-fast: false
@@ -180,10 +187,10 @@ jobs:
       - name: Inspect optimized workloads with collection enabled
         env:
           SCALANATIVE_LTO: ${{ matrix.lto || 'none' }}
-        run: sbt --batch "scriptedOn ${{ matrix.platform }} benchmark/integrity"
+        run: sbt --server --batch "scriptedOn ${{ matrix.platform }} benchmark/integrity"
       - name: Check platform selection on Wasm
         if: matrix.platform == 'wasm'
-        run: sbt --batch "scriptedOn wasm benchmark/platform"
+        run: sbt --server --batch "scriptedOn wasm benchmark/platform"
       - uses: actions/upload-artifact@v7
         if: always()
         with:
