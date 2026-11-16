@@ -101,7 +101,7 @@ object Main:
       failOnError: Boolean,
       observer: RunObserver
   ): Vector[IterationResult] =
-    val files = ForkDirectory(Files.createTempDirectory("scala-benchmark-"))
+    val files = ForkDirectory(Files.createTempDirectory(Platform.temporaryDirectory, "scala-benchmark-"))
     import files.*
     Files.write(userOut, Array.emptyByteArray)
     Files.write(userErr, Array.emptyByteArray)

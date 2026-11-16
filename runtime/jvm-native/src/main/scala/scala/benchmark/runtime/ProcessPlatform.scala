@@ -45,6 +45,9 @@ trait ProcessPlatform:
   /** What the running program can report about its own build, for build tools that pass no build information. */
   def defaultBuildInfo: Seq[(String, String)] = Nil
 
+  /** Where fork directories are created. */
+  def temporaryDirectory: java.nio.file.Path = java.nio.file.Paths.get(System.getProperty("java.io.tmpdir"))
+
   /** The program arguments as the operating system passed them. */
   def commandLine(args: Array[String]): Array[String] = args
 

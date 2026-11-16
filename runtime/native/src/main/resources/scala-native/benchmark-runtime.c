@@ -70,6 +70,31 @@ char **scala_benchmark_arguments(int *count) {
 #endif
 }
 
+// The UTF-8 temporary directory on Windows, where Scala Native derives
+// java.io.tmpdir through the ANSI code page. Returns zero on success, a
+// required buffer size on truncation, or -1 on error or elsewhere.
+int scala_benchmark_temporary_directory(char *buffer, int length) {
+#if defined(_WIN32)
+  WCHAR path[MAX_PATH + 1];
+  DWORD count = GetTempPathW(MAX_PATH + 1, path);
+  if (count == 0 || count > MAX_PATH)
+    return -1;
+  int required = WideCharToMultiByte(CP_UTF8, 0, path, -1, NULL, 0, NULL, NULL);
+  if (required == 0)
+    return -1;
+  if (required > length)
+    return required;
+  return WideCharToMultiByte(CP_UTF8, 0, path, -1, buffer, length, NULL,
+                             NULL) == required
+             ? 0
+             : -1;
+#else
+  (void)buffer;
+  (void)length;
+  return -1;
+#endif
+}
+
 // Returns zero on success, a required buffer size on truncation, or -1 on
 // error.
 int scala_benchmark_executable(char *buffer, int length) {
