@@ -55,11 +55,6 @@ object BenchmarkPlugin extends AutoPlugin:
       buildInfo: Def.Initialize[Task[Seq[(String, String)]]]
   ): Seq[Setting[?]] = Seq(
     libraryDependencies ~= (_.filterNot(_.organization == jmhOrganization)),
-    libraryDependencies ++= {
-      if benchmarkUsePublishedArtifacts.value then
-        Seq((organization %% "scala-benchmark-runtime" % BuildInfo.version).platform(platform.value))
-      else Nil
-    },
     // Benchmarks may live in the Jmh source directories; they are compiled with the main sources so that the
     // generated entry point can refer to them.
     Compile / unmanagedSourceDirectories ++= (Jmh / unmanagedSourceDirectories).value,
@@ -112,9 +107,10 @@ object BenchmarkPlugin extends AutoPlugin:
     benchmarkClasses := Def.uncached {
       GeneratedSources.benchmarkClasses((Compile / compile).value, streams.value.log)
     },
+    // The same dependency on every platform; on the JVM, upstream JMH still runs the benchmarks.
     libraryDependencies ++= {
-      if platform.value == Platform.jvm && benchmarkUsePublishedArtifacts.value then
-        Seq(organization %% "scala-benchmark-interface" % BuildInfo.version)
+      if benchmarkUsePublishedArtifacts.value then
+        Seq((organization %% "scala-benchmark" % BuildInfo.version).platform(platform.value))
       else Nil
     },
     Jmh / run / mainClass := Some("scala.benchmark.internal.JvmMain"),
