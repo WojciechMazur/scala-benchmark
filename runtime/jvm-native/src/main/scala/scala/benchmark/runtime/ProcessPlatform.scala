@@ -45,6 +45,9 @@ trait ProcessPlatform:
   /** What the running program can report about its own build, for build tools that pass no build information. */
   def defaultBuildInfo: Seq[(String, String)] = Nil
 
+  /** The program arguments as the operating system passed them. */
+  def commandLine(args: Array[String]): Array[String] = args
+
   /** The command starting a worker process for one benchmark; worker arguments follow it. */
   def workerCommand(suite: String, descriptor: Descriptor): Seq[String]
 
