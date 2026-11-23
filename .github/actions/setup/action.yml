@@ -29,8 +29,13 @@ runs:
       if: inputs.native == 'true' && runner.os == 'Windows'
       shell: pwsh
       run: |
-        choco install llvm --version=20.1.4 --allow-downgrade --force --yes --no-progress
-        if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+        # The Chocolatey feed times out now and then (504); retry before failing the job.
+        foreach ($attempt in 1..4) {
+          choco install llvm --version=20.1.4 --allow-downgrade --force --yes --no-progress
+          if ($LASTEXITCODE -eq 0) { break }
+          if ($attempt -eq 4) { exit $LASTEXITCODE }
+          Start-Sleep -Seconds (30 * $attempt)
+        }
         $llvmBin = Join-Path $env:ProgramFiles 'LLVM\bin'
         "LLVM_BIN=$llvmBin" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
         $llvmBin | Out-File -FilePath $env:GITHUB_PATH -Append -Encoding utf8
