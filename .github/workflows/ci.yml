@@ -59,7 +59,8 @@ jobs:
             scala: 3.rc
           - os: macos-latest
             scala: 3.lts
-          - os: windows-latest
+          # windows-latest ships MSVC 14.52, whose STL requires Clang 22; the setup action pins LLVM 20.
+          - os: windows-2022
             scala: 3.lts
     env:
       RUN: >-
