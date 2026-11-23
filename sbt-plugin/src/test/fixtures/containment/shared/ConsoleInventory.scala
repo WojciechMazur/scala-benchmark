@@ -1,6 +1,6 @@
-package scala.benchmark.examples
+package microbench.examples
 
-import scala.benchmark.runtime.*
+import microbench.runtime.*
 
 object ConsoleInventory extends Suite:
 

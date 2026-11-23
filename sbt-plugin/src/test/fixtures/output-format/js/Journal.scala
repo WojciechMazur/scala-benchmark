@@ -1,4 +1,4 @@
-package scala.benchmark.runtime.outputformat
+package microbench.runtime.outputformat
 
 import scala.scalajs.js
 import scala.scalajs.js.annotation.JSImport

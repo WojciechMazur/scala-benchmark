@@ -11,7 +11,7 @@ object ReportChecks:
   val verifyAllFormats = taskKey[Unit]("Validate report contents and escaping in every export format")
   val verifyAllModes = taskKey[Unit]("Verify HTML and JSON measurements for every benchmark mode")
   private val payload = "a;b,\"quoted\"\n<script>alert('x')</script>&_%#$price{}^~\\東京"
-  private val benchmarkName = "scala.benchmark.examples.ReportFormatsBenchmark.execute"
+  private val benchmarkName = "microbench.examples.ReportFormatsBenchmark.execute"
 
   def settings(backend: String): Seq[Setting[?]] = Seq(
     verifyAllFormats := Def.uncached {

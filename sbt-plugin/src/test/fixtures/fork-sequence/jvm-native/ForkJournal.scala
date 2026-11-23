@@ -1,4 +1,4 @@
-package scala.benchmark.examples
+package microbench.examples
 
 import java.nio.charset.StandardCharsets.UTF_8
 import java.nio.file.{Files, Paths}

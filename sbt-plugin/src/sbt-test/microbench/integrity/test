@@ -1,0 +1,5 @@
+> on js,wasm set LocalProject("@") / benchmarkNodeOptions := Nil
+> on js,wasm Jmh/run IntegrityBenchmark -gc true -to 5s -foe true -rf json -rff integrity-unobserved.json
+> on js,wasm set LocalProject("@") / benchmarkNodeOptions := Seq("--import", (file(sys.props("microbench.scripted.support")).getParentFile / "test/integrity/observe-host.mjs").getAbsolutePath)
+> bench Jmh/run IntegrityBenchmark -gc true -to 5s -foe true -rf json -rff integrity.json
+> bench verifyIntegrity

@@ -24,7 +24,7 @@
  */
 package org.openjdk.jmh.util
 
-class SampleBuffer extends scala.benchmark.internal.SamplingHistogram with Serializable:
+class SampleBuffer extends microbench.internal.SamplingHistogram with Serializable:
   def addAll(other: SampleBuffer): Unit = merge(other)
 
   def getStatistics(multiplier: Double): Statistics =

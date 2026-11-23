@@ -1,11 +1,11 @@
-# Scala Benchmark
+# Scala MicroBenchmark Harness (SMH)
 
 Run JMH benchmarks written in Scala 3 on the JVM, Scala Native, Scala.js and Scala.js WebAssembly, from the same
 sources.
 
 - **JVM:** benchmarks are generated and measured by upstream JMH 1.37, unchanged.
 - **Native, JS and Wasm:** a macro derives each benchmark's harness at compile time, with the benchmark call
-  inlined into the measured loop, and the Scala Benchmark runtime executes it.
+  inlined into the measured loop, and the SMH runtime executes it.
 
 See [compatibility](docs/compatibility.md) for supported versions, features per platform and the differences
 from JMH.
@@ -15,7 +15,7 @@ from JMH.
 Add the plugin to `project/plugins.sbt`, next to sbt-jmh and the plugins of the platforms you need:
 
 ```scala
-addSbtPlugin("io.github.wojciechmazur" % "sbt-scala-benchmark" % "<version>")
+addSbtPlugin("io.github.wojciechmazur" % "sbt-microbench" % "<version>")
 addSbtPlugin("pl.project13.scala" % "sbt-jmh" % "0.4.8")
 addSbtPlugin("org.scala-native" % "sbt-scala-native" % "0.5.12")
 addSbtPlugin("org.scala-js" % "sbt-scalajs" % "1.22.0")
@@ -36,11 +36,11 @@ lazy val benchmarks = projectMatrix
 
 ## Write benchmarks
 
-Benchmarks use the JMH annotations. Import them from `scala.benchmark`, or keep existing `org.openjdk.jmh`
+Benchmarks use the JMH annotations. Import them from `microbench`, or keep existing `org.openjdk.jmh`
 imports:
 
 ```scala
-import scala.benchmark.*
+import microbench.*
 
 @State(Scope.Thread)
 @BenchmarkMode(Array(Mode.AverageTime))
@@ -77,7 +77,7 @@ sbt "benchmarks/Jmh/run Example -rf html -rff results.html"
 ```
 
 Result formats are `text`, `csv`, `scsv`, `json`, `latex` and `html`. The programmatic API is available too:
-`scala.benchmark.Runner` with `OptionsBuilder`, as in JMH.
+`microbench.Runner` with `OptionsBuilder`, as in JMH.
 
 ## Run with scala-cli
 
@@ -85,12 +85,12 @@ Without sbt, list the benchmark classes in a main method. `suite[T]` derives a c
 `run` takes the same command-line options as `Jmh/run`:
 
 ```scala
-//> using dep io.github.wojciechmazur::scala-benchmark::<version>
+//> using dep io.github.wojciechmazur::microbench::<version>
 //> using nativeMode release-full
 //> using nativeMultithreading
 //> using jsMode release
 
-import scala.benchmark.{run, suite}
+import microbench.{run, suite}
 
 @main def benchmarks(args: String*): Unit = run(args)(
   suite[Example],

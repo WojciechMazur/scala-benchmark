@@ -17,7 +17,7 @@ object ForkSequenceChecks:
       def artifact(name: String): File = files.find(_.getName == name).getOrElse(sys.error("Missing " + name))
       val converter = fileConverter.value
       val classpath = (Jmh / fullClasspath).value.map(e => converter.toPath(e.data).toString)
-      val support = file(sys.props("benchmark.scripted.support"))
+      val support = file(sys.props("microbench.scripted.support"))
       val repository = FixtureBuild.root
       val hook = support.getParentFile / "test/fixtures/fork-sequence/journal-host.mjs"
       val command =

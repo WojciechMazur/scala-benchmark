@@ -38,7 +38,7 @@ object StdioChecks:
             "-Djmh.ignoreLock=true",
             "-cp",
             classpath.mkString(java.io.File.pathSeparator),
-            "scala.benchmark.internal.JvmMain"
+            "microbench.internal.JvmMain"
           )
         else if backend == "native" then
           Vector(products.find(f => f.canExecute && Set("benchmarks", "benchmarks.exe")(f.getName)).get.getAbsolutePath)
@@ -51,7 +51,7 @@ object StdioChecks:
         val err = evidence / s"cli-$forks-err.bin"
         val process = new ProcessBuilder(
           (command ++ Vector(
-            "scala.benchmark.runtime.stdio.RawTarget.execute",
+            "microbench.runtime.stdio.RawTarget.execute",
             "-f",
             forks.toString,
             "-wi",

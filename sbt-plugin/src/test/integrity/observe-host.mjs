@@ -24,7 +24,7 @@ let clockReads = 0;
 const originalNow = performance.now.bind(performance);
 Object.defineProperty(performance, 'now', { value() { clockReads++; return originalNow(); } });
 let host;
-Object.defineProperty(globalThis, '__scalaBenchmarkHost', {
+Object.defineProperty(globalThis, '__microbenchHost', {
   configurable: true,
   get() { return host; },
   set(value) {

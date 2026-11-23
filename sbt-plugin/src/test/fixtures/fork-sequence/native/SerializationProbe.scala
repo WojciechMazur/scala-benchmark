@@ -1,6 +1,6 @@
-package scala.benchmark.examples
+package microbench.examples
 
-import scala.benchmark.runtime.*
+import microbench.runtime.*
 
 /** Loaded by name by the transport driver, without a derived harness. */
 @scala.scalanative.reflect.annotation.EnableReflectiveInstantiation

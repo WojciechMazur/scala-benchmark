@@ -43,7 +43,7 @@ trait Statistics
   def getMeanErrorAt(confidence: Double): Double =
     if getN() <= 2 then Double.NaN
     else
-      scala.benchmark.internal.StudentT.quantile((1 + confidence) / 2, (getN() - 1).toDouble) *
+      microbench.internal.StudentT.quantile((1 + confidence) / 2, (getN() - 1).toDouble) *
         getStandardDeviation() / math.sqrt(getN().toDouble)
 
   def getConfidenceIntervalAt(confidence: Double): Array[Double] =
@@ -82,7 +82,7 @@ trait Statistics
     if degrees.isNaN || a.isNaN || b.isNaN then false
     else
       math.abs(getMean() - other.getMean()) >
-        scala.benchmark.internal.StudentT.quantile((1 + confidence) / 2, degrees) * math.sqrt(a + b)
+        microbench.internal.StudentT.quantile((1 + confidence) / 2, degrees) * math.sqrt(a + b)
 
   def compareTo(other: Statistics, confidence: Double): Int =
     if isDifferent(other, confidence) then java.lang.Double.compare(getMean(), other.getMean()) else 0
@@ -111,10 +111,10 @@ class MultisetStatistics extends AbstractStatistics:
     if observations.isEmpty then Double.NaN else observations.iterator.map { case (value, count) => value * count }.sum
 
   def getMin(): Double = if observations.isEmpty then Double.NaN
-  else observations.keysIterator.foldLeft(Double.PositiveInfinity)(scala.benchmark.internal.StatisticsNumbers.minimum)
+  else observations.keysIterator.foldLeft(Double.PositiveInfinity)(microbench.internal.StatisticsNumbers.minimum)
 
   def getMax(): Double = if observations.isEmpty then Double.NaN
-  else observations.keysIterator.foldLeft(Double.NegativeInfinity)(scala.benchmark.internal.StatisticsNumbers.maximum)
+  else observations.keysIterator.foldLeft(Double.NegativeInfinity)(microbench.internal.StatisticsNumbers.maximum)
 
   def getVariance(): Double =
     val n = getN()
@@ -163,10 +163,10 @@ class ListStatistics extends AbstractStatistics:
   def getSum(): Double = if values.isEmpty then Double.NaN else values.sum
 
   def getMin(): Double = if values.isEmpty then Double.NaN
-  else values.foldLeft(Double.PositiveInfinity)(scala.benchmark.internal.StatisticsNumbers.minimum)
+  else values.foldLeft(Double.PositiveInfinity)(microbench.internal.StatisticsNumbers.minimum)
 
   def getMax(): Double = if values.isEmpty then Double.NaN
-  else values.foldLeft(Double.NegativeInfinity)(scala.benchmark.internal.StatisticsNumbers.maximum)
+  else values.foldLeft(Double.NegativeInfinity)(microbench.internal.StatisticsNumbers.maximum)
 
   def getVariance(): Double =
     if values.size <= 1 then Double.NaN

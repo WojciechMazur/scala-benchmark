@@ -1,9 +1,9 @@
 # Compatibility
 
-Scala Benchmark runs JMH 1.37 benchmarks written in Scala 3 on the JVM, Scala Native, Scala.js and Scala.js
-WebAssembly. On the JVM, benchmarks are generated and run by upstream JMH; Scala Benchmark only adds platform
+SMH runs JMH 1.37 benchmarks written in Scala 3 on the JVM, Scala Native, Scala.js and Scala.js
+WebAssembly. On the JVM, benchmarks are generated and run by upstream JMH; SMH only adds platform
 selection (`@Platforms`) and the HTML and LaTeX result formats. On the other platforms, a macro derives the
-benchmark harness at compile time and the Scala Benchmark runtime executes it.
+benchmark harness at compile time and the SMH runtime executes it.
 
 ## Platforms
 
@@ -28,7 +28,7 @@ benchmark harness at compile time and the Scala Benchmark runtime executes it.
 | `@Param`, including enums and overrides | yes | yes, non-`private` fields | yes, non-`private` fields |
 | `@AuxCounters` | yes | yes | yes |
 | `Blackhole`, `BenchmarkParams`, `IterationParams`, `ThreadParams`, `Control` | yes | yes | yes |
-| `@Fork(jvmArgs = ...)` and other JVM options | yes (also with `scala.benchmark.run`) | ignored, with a warning | ignored, with a warning |
+| `@Fork(jvmArgs = ...)` and other JVM options | yes (also with `microbench.run`) | ignored, with a warning | ignored, with a warning |
 | `Runner`, `OptionsBuilder`, command-line options | yes | yes | yes |
 | Custom `OutputFormat` | yes | yes | yes |
 | Result formats: text, CSV, SCSV, JSON, LaTeX, HTML | yes | yes | yes |
@@ -37,7 +37,7 @@ benchmark harness at compile time and the Scala Benchmark runtime executes it.
 
 ## Running without sbt
 
-`scala.benchmark.run(args)(suite[A], suite[B])` runs benchmarks from any build tool, such as scala-cli. Benchmark
+`microbench.run(args)(suite[A], suite[B])` runs benchmarks from any build tool, such as scala-cli. Benchmark
 classes are listed explicitly: Scala Native and Scala.js cannot enumerate classes at run time, and only the build
 tool knows which classes a compilation contains.
 

@@ -1,11 +1,11 @@
-package scala.benchmark.runtime.outputfactory
+package microbench.runtime.outputfactory
 
 import java.io.{ByteArrayOutputStream, PrintStream}
 import java.util.concurrent.TimeUnit
 
-import scala.benchmark.*
 import scala.jdk.CollectionConverters.*
 
+import microbench.*
 import org.openjdk.jmh.results.{AggregationPolicy, Result as Metric, ResultRole}
 import org.openjdk.jmh.runner.{IterationType, WorkloadParams}
 import org.openjdk.jmh.runner.format.OutputFormatFactory
@@ -185,7 +185,7 @@ class OutputFactoryBenchmark:
         .get
         .isInstanceOf[NullPointerException]
     )
-    val facade = scala.benchmark.OutputFormatFactory.createFormatInstance(new Capture().stream, VerboseMode.SILENT)
+    val facade = microbench.OutputFormatFactory.createFormatInstance(new Capture().stream, VerboseMode.SILENT)
     facade.close()
     new org.openjdk.jmh.runner.format.OutputFormatFactory
     println("OUTPUT_FACTORY_DIRECT_OK:" + count)
@@ -199,7 +199,7 @@ end OutputFactoryBenchmark
 class OutputFactoryRunnerBenchmark:
 
   @Benchmark def execute(): Int =
-    val name = "scala.benchmark.runtime.outputfactory.OutputFactoryTarget.execute"
+    val name = "microbench.runtime.outputfactory.OutputFactoryTarget.execute"
     var count = 0
     for verbose <- Vector(VerboseMode.SILENT, VerboseMode.NORMAL, VerboseMode.EXTRA); forks <- Vector(0, 1) do
       val capture = new Capture

@@ -56,7 +56,7 @@ if backend == 'native':
     directory = root / 'serialization-interruption'
     directory.mkdir()
     request = directory / 'request.properties'
-    request.write_text('suite=scala.benchmark.examples.SerializationProbe$\nbenchmark=0\nmode=SingleShotTime\nbulk.count=0\n-to=1000000000ns\n')
+    request.write_text('suite=microbench.examples.SerializationProbe$\nbenchmark=0\nmode=SingleShotTime\nbulk.count=0\n-to=1000000000ns\n')
     fifo = directory / 'result.pipe'
     os.mkfifo(fifo)
     prefix = bytearray()
