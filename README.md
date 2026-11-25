@@ -111,7 +111,7 @@ representative. [examples/scala-cli](examples/scala-cli) is a complete project.
 
 ## Versioning
 
-Releases follow [Semantic Versioning](https://semver.org) from 1.0.0, published with `versionScheme := "early-semver"`:
+Releases follow [Semantic Versioning](https://semver.org) from 1.0.0, published with `versionScheme := "semver-spec"`:
 
 - **Patch** releases (1.0.x) fix bugs and are binary and source compatible.
 - **Minor** releases (1.x.0) add features and are binary compatible with earlier 1.x releases.

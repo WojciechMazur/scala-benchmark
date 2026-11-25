@@ -6,8 +6,10 @@ import sbt.{*, given}
 import sbtbuildinfo.BuildInfoPlugin
 
 organization := projectOrganization
+ThisBuild / version := projectVersion
+ThisBuild / isSnapshot := (ThisBuild / version).value.endsWith("-SNAPSHOT")
 description := projectDescription
-versionScheme := Some("early-semver")
+versionScheme := Some("semver-spec")
 scalaVersion := libraryScalaVersion
 // sbt 2 applies bare settings to every subproject.
 scalacOptions ++= Seq("-deprecation", "-feature", "-unchecked", "-java-output-version", javaRelease)

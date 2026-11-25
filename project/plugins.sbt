@@ -11,6 +11,7 @@ Compile / unmanagedSourceDirectories += baseDirectory.value.getParentFile / "sbt
 
 // The build uses the plugin sources for the example matrices as well.
 enablePlugins(BuildInfoPlugin)
+version := projectVersion
 pluginBuildInfoSettings
 
 Compile / unmanagedResourceDirectories += baseDirectory.value.getParentFile / "sbt-plugin/src/main/resources"
