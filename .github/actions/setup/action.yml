@@ -13,7 +13,15 @@ runs:
         apps: scalafmt
     - uses: sbt/setup-sbt@v1.5.14
     - uses: coursier/cache-action@v8
-    
+
+    # On Windows the JVM encodes piped stdout/stderr with the ANSI code page (Windows-1252), turning box-drawing
+    # characters into `?` and `±`/`—` into bytes the UTF-8 log shows as `�`.
+    - name: Use UTF-8 for sbt output on Windows
+      if: runner.os == 'Windows'
+      shell: pwsh
+      run: |
+        "SBT_OPTS=-Dstdout.encoding=UTF-8 -Dstderr.encoding=UTF-8 $env:SBT_OPTS" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
+
     - name: Install Native build dependencies
       if: inputs.native == 'true' && runner.os == 'Linux'
       shell: bash

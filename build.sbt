@@ -134,6 +134,9 @@ lazy val sbtPlugin = project
     scriptedBufferLog := false,
     scriptedLaunchOpts ++= Seq(
       "-Xmx1024m",
+      // Windows otherwise encodes the relayed benchmark output with the ANSI code page (see the setup action).
+      "-Dstdout.encoding=UTF-8",
+      "-Dstderr.encoding=UTF-8",
       "-Dplugin.version=" + version.value,
       "-Dplugin.organization=" + projectOrganization,
       "-Dmicrobench.scala.version=" + libraryScalaVersion,
