@@ -86,11 +86,11 @@ Without sbt, list the benchmark classes in a main method. `suite[T]` derives a c
 
 ```scala
 //> using dep io.github.wojciechmazur::microbench::<version>
-//> using nativeVersion 0.5.13
-//> using jsVersion 1.23.0
 //> using nativeMode release-full
 //> using nativeMultithreading
 //> using jsMode release
+//> using nativeVersion 0.5.13
+//> using jsVersion 1.23.0
 
 import microbench.{run, suite}
 
