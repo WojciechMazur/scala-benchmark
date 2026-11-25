@@ -134,6 +134,8 @@ lazy val sbtPlugin = project
     scriptedBufferLog := false,
     scriptedLaunchOpts ++= Seq(
       "-Xmx1024m",
+      "-Dstdout.encoding=UTF-8",
+      "-Dstderr.encoding=UTF-8",
       "-Dplugin.version=" + version.value,
       "-Dplugin.organization=" + projectOrganization,
       "-Dmicrobench.scala.version=" + libraryScalaVersion,
