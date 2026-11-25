@@ -1,7 +1,6 @@
-package scala.benchmark.examples
+package microbench.examples
 
-import scala.benchmark.*
-
+import microbench.*
 import org.openjdk.jmh.runner.IterationType
 
 object WarmupFailureTrace:

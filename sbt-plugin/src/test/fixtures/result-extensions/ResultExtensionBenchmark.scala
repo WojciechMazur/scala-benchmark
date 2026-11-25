@@ -1,8 +1,8 @@
-package scala.benchmark.runtime.resultsextensions
+package microbench.runtime.resultsextensions
 
-import scala.benchmark.*
 import scala.jdk.CollectionConverters.*
 
+import microbench.*
 import org.openjdk.jmh.infra.BenchmarkParams
 import org.openjdk.jmh.results.{
   AggregationPolicy,
@@ -47,11 +47,11 @@ class TextAccess(text: String, name: String) extends TextResult(text, name):
 class ResultExtensionBenchmark:
 
   @Benchmark def execute(params: BenchmarkParams): Int =
-    assert(scala.benchmark.TimeValue.milliseconds(2).getTime() == 2)
-    assert(scala.benchmark.VerboseMode.valueOf("SILENT") == scala.benchmark.VerboseMode.SILENT)
-    assert(scala.benchmark.WarmupMode.BULK_INDI.isBulk())
-    assert(scala.benchmark.ResultFormatType.valueOf("JSON") == scala.benchmark.ResultFormatType.JSON)
-    assert(scala.benchmark.RunResult.DEFAULT_SORT_COMPARATOR != null)
+    assert(microbench.TimeValue.milliseconds(2).getTime() == 2)
+    assert(microbench.VerboseMode.valueOf("SILENT") == microbench.VerboseMode.SILENT)
+    assert(microbench.WarmupMode.BULK_INDI.isBulk())
+    assert(microbench.ResultFormatType.valueOf("JSON") == microbench.ResultFormatType.JSON)
+    assert(microbench.RunResult.DEFAULT_SORT_COMPARATOR != null)
     val singleton = new SingletonStatistics(7)
     assert(singleton.getN() == 1 && singleton.getMean() == 7 && singleton.getSum() == 7)
     assert(singleton.getVariance().isNaN && singleton.getMeanErrorAt(0.999).isNaN)
@@ -153,7 +153,7 @@ class ResultExtensionBenchmark:
     assert(extended.contains("N = 3") && extended.contains("Histogram") && extended.contains("p(99.9999)"), extended)
     val format = new CountingFormat
     val options = new OptionsBuilder()
-      .include("scala.benchmark.runtime.resultsextensions.ResultModeTarget.execute")
+      .include("microbench.runtime.resultsextensions.ResultModeTarget.execute")
       .mode(Mode.All)
       .forks(0)
       .warmupIterations(0)
@@ -161,7 +161,7 @@ class ResultExtensionBenchmark:
       .measurementTime(TimeValue.milliseconds(2))
       .verbosity(VerboseMode.SILENT)
       .build()
-    val multiple = scala.util.Try(new scala.benchmark.Runner(options, format).runSingle())
+    val multiple = scala.util.Try(new microbench.Runner(options, format).runSingle())
     assert(multiple.failed.get.isInstanceOf[org.openjdk.jmh.runner.RunnerException])
     assert(
       format.benchmarks == 4 && format.results == 4,
@@ -169,19 +169,19 @@ class ResultExtensionBenchmark:
     )
     val rejectedFormat = new CountingFormat
     val rejectedOptions = new OptionsBuilder()
-      .include("scala.benchmark.runtime.resultsextensions.ResultMultipleModesTarget.execute")
+      .include("microbench.runtime.resultsextensions.ResultMultipleModesTarget.execute")
       .mode(Mode.SingleShotTime)
       .forks(0)
       .warmupIterations(0)
       .measurementIterations(1)
       .verbosity(VerboseMode.SILENT)
       .build()
-    assert(scala.util.Try(new scala.benchmark.Runner(rejectedOptions, rejectedFormat).runSingle()).isFailure)
+    assert(scala.util.Try(new microbench.Runner(rejectedOptions, rejectedFormat).runSingle()).isFailure)
     assert(rejectedFormat.benchmarks == 0 && rejectedFormat.results == 0)
     for forks <- Vector(0, 1) do
       val captured = new CountingFormat
       val parameterOptions = new OptionsBuilder()
-        .include("scala.benchmark.runtime.resultsextensions.ResultParamTarget.execute")
+        .include("microbench.runtime.resultsextensions.ResultParamTarget.execute")
         .mode(Mode.SingleShotTime)
         .forks(forks)
         .warmupIterations(0)
@@ -189,7 +189,7 @@ class ResultExtensionBenchmark:
         .param("value", "b", "a", "b")
         .verbosity(VerboseMode.SILENT)
         .build()
-      val observations = new scala.benchmark.Runner(parameterOptions, captured).run()
+      val observations = new microbench.Runner(parameterOptions, captured).run()
       assert(observations.size() == 3, "Parameter runs were collapsed: " + observations.size())
       assert(observations.asScala.toVector.map(_.getParams().getParam("value")) == Vector("b", "a", "b"))
       assert(captured.results == 3)

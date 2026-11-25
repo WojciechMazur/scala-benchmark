@@ -10,7 +10,7 @@ export function inspectWasm(wat, glue) {
     assert.ok(body, `Missing optimized Wasm function ${name}`);
     return body;
   };
-  const owner = '$f.scala.benchmark.examples.IntegrityBenchmark.';
+  const owner = '$f.microbench.examples.IntegrityBenchmark.';
   const measure = find('BenchmarkMain$$anon$1.measure_');
   const names = ['primitiveBoolean', 'primitiveByte', 'primitiveShort', 'primitiveChar', 'primitiveInt',
     'primitiveLong', 'primitiveFloat', 'primitiveDouble', 'returnedAllocation', 'explicitBlackhole', 'observableUnit'];
@@ -33,11 +33,11 @@ export function inspectWasm(wat, glue) {
   assert.match(find(owner + 'primitiveDouble_'), /f64\.convert_i64_s[\s\S]*f64\.add/);
   assert.match(find(owner + 'primitiveFloat_'), /f32\.convert_i64_s[\s\S]*f32\.add/);
   assert.match(find(owner + 'returnedAllocation_'), /call \$new\..*IntegrityValue[\s\S]*i64\.mul[\s\S]*i64\.add[\s\S]*call \$ct\..*IntegrityValue/);
-  assert.match(find('$ct.scala.benchmark.examples.IntegrityValue.<init>_'), /struct\.set .*IntegrityValue.*value/);
-  assert.match(find('$new.scala.benchmark.examples.IntegrityValue '), /struct\.new .*IntegrityValue/);
+  assert.match(find('$ct.microbench.examples.IntegrityValue.<init>_'), /struct\.set .*IntegrityValue.*value/);
+  assert.match(find('$new.microbench.examples.IntegrityValue '), /struct\.new .*IntegrityValue/);
   assert.ok((measure.match(/call \$m\.java\.lang\.System\$NanoTime\$/g) ?? []).length >= 2, 'Clock reads missing from measurement');
   assert.ok(measure.includes('Blackhole.consume_'), 'Returned values no longer consumed');
-  assert.match(glue, /__scalaBenchmarkHost\.consume\(/);
+  assert.match(glue, /__microbenchHost\.consume\(/);
   return { methods: names, pureArithmeticRetained: true, allocationAndPayloadRetained: true, measuredCallsAndConsumptionRetained: true };
 }
 
@@ -46,9 +46,9 @@ if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.me
   const wat = fs.readFileSync(path.join(directory, 'main.wat'), 'utf8');
   const glue = fs.readFileSync(path.join(directory, 'main.js'), 'utf8');
   const result = inspectWasm(wat, glue);
-  assert.throws(() => inspectWasm(wat.replaceAll('call $f.scala.benchmark.examples.IntegrityBenchmark.primitiveLong_', 'call $removed.primitiveLong_'), glue));
-  assert.throws(() => inspectWasm(wat.replaceAll('struct.set $c.scala.benchmark.examples.IntegrityValue', 'removed.store $c.scala.benchmark.examples.IntegrityValue'), glue));
-  assert.throws(() => inspectWasm(wat.replaceAll('call $f.scala.benchmark.internal.BlackholeSink$.consume', 'drop ;; removed sink .consume').replaceAll('call $f.org.openjdk.jmh.infra.Blackhole.consume', 'drop ;; removed sink .consume'), glue));
+  assert.throws(() => inspectWasm(wat.replaceAll('call $f.microbench.examples.IntegrityBenchmark.primitiveLong_', 'call $removed.primitiveLong_'), glue));
+  assert.throws(() => inspectWasm(wat.replaceAll('struct.set $c.microbench.examples.IntegrityValue', 'removed.store $c.microbench.examples.IntegrityValue'), glue));
+  assert.throws(() => inspectWasm(wat.replaceAll('call $f.microbench.internal.BlackholeSink$.consume', 'drop ;; removed sink .consume').replaceAll('call $f.org.openjdk.jmh.infra.Blackhole.consume', 'drop ;; removed sink .consume'), glue));
   assert.throws(() => inspectWasm(wat.replaceAll('System$NanoTime$', 'removed_clock'), glue), /Clock reads missing/);
   result.rejectsRemovedWorkPayloadConsumptionAndClocks = true;
   fs.writeFileSync(path.join(directory, 'inspection.json'), JSON.stringify(result, null, 2));

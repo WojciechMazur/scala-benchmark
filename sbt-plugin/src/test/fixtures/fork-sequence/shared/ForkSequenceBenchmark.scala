@@ -1,6 +1,6 @@
-package scala.benchmark.examples
+package microbench.examples
 
-import scala.benchmark.*
+import microbench.*
 
 @State(Scope.Thread)
 @BenchmarkMode(Array(Mode.SingleShotTime))

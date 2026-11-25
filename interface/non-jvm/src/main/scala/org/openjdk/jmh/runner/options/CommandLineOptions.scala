@@ -80,7 +80,7 @@ class CommandLineOptions(arguments: String*) extends OptionsBuilder:
         case "-foe" => shouldFailOnError(java.lang.Boolean.parseBoolean(argument()))
         case "-v"   => verbosity(VerboseMode.valueOf(argument()))
         case "-o"   => output(argument())
-        case "-rf"  => resultFormat(ResultFormatType.valueOf(scala.benchmark.internal.Ascii.upper(argument())))
+        case "-rf"  => resultFormat(ResultFormatType.valueOf(microbench.internal.Ascii.upper(argument())))
         case "-rff" => result(argument())
         case "-to"  => timeout(TimeValue.fromString(argument()))
         case "-tu"  =>
@@ -92,7 +92,7 @@ class CommandLineOptions(arguments: String*) extends OptionsBuilder:
             "m" -> "MINUTES",
             "h" -> "HOURS"
           )
-          val value = scala.benchmark.internal.Ascii.lower(argument())
+          val value = microbench.internal.Ascii.lower(argument())
           require(units.contains(value), "Unknown time unit: " + value)
           timeUnit(java.util.concurrent.TimeUnit.valueOf(units(value)))
         case "-jvm"                         => jvm(argument())

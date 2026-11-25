@@ -1,4 +1,4 @@
-package scala.benchmark.runtime.stdio
+package microbench.runtime.stdio
 
 import scala.scalajs.js
 import scala.scalajs.js.annotation.JSImport

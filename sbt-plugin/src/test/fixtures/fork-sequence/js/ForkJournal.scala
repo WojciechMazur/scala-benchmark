@@ -1,4 +1,4 @@
-package scala.benchmark.examples
+package microbench.examples
 
 import scala.scalajs.js
 import scala.scalajs.js.annotation.JSGlobal

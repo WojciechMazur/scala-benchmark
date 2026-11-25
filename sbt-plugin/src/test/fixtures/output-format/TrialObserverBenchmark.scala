@@ -1,6 +1,6 @@
-package scala.benchmark.runtime.outputformat
+package microbench.runtime.outputformat
 
-import scala.benchmark.*
+import microbench.*
 
 @BenchmarkMode(Array(Mode.SingleShotTime))
 @Warmup(iterations = 0)
@@ -9,7 +9,7 @@ import scala.benchmark.*
 class TrialObserverBenchmark:
 
   @Benchmark def execute(): Int =
-    val cases = scala.benchmark.runtime.TrialObserverChecks.verify()
+    val cases = microbench.runtime.TrialObserverChecks.verify()
     assert(cases == 32)
     println("TRIAL_OBSERVER_OK:" + cases)
     cases

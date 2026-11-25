@@ -1,5 +1,4 @@
-import scala.benchmark.sbtplugin.BenchmarkPlugin.autoImport.*
-
+import _root_.microbench.sbtplugin.MicrobenchPlugin.autoImport.*
 import BuildSettings.*
 import ScriptedPlugin.autoImport.*
 import pl.project13.scala.sbt.JmhPlugin
@@ -40,8 +39,8 @@ licenses := Seq("GPLv2 with Classpath Exception" -> uri("https://openjdk.org/leg
 commands += Command.args("scriptedOn", "<platforms> [scala=<version>] <tests>") { (state, arguments) =>
   val platforms = arguments.headOption.getOrElse(sys.error("scriptedOn expects platforms, such as jvm,native"))
   val (versions, tests) = arguments.tail.partition(_.startsWith("scala="))
-  val options = ("-Dbenchmark.platforms=" + platforms) +:
-    versions.map(v => "-Dbenchmark.scala.version=" + ScalaVersions.resolve(v.stripPrefix("scala=")))
+  val options = ("-Dmicrobench.platforms=" + platforms) +:
+    versions.map(v => "-Dmicrobench.scala.version=" + ScalaVersions.resolve(v.stripPrefix("scala=")))
   val launchOptions = options.map("\"" + _ + "\"").mkString("Seq(", ", ", ")")
   // A selection made earlier in this session must not leak into this run.
   "session clear" ::
@@ -53,9 +52,9 @@ commands += Command.args("scriptedOn", "<platforms> [scala=<version>] <tests>") 
 lazy val root = project
   .in(file("."))
   .aggregate(
-    (Seq(interface, runtime, scalaBenchmark, examples).flatMap(_.projectRefs) :+ LocalProject(sbtPlugin.id)) *
+    (Seq(interface, runtime, microbench, examples).flatMap(_.projectRefs) :+ LocalProject(sbtPlugin.id)) *
   )
-  .settings(name := "scala-benchmark-root", publish / skip := true)
+  .settings(name := "microbench-root", publish / skip := true)
 
 lazy val interface = projectMatrix
   .in(file("interface"))
@@ -93,13 +92,13 @@ lazy val runtime = projectMatrix
   )
   .jsPlatform(libraryScalaVersions, sourceLayout("non-jvm") ++ sourceLayout("js") ++ embeddedNodeHostSettings)
 
-/** `scala-benchmark`: the single dependency for running benchmarks without the sbt plugin, such as with scala-cli.
+/** `microbench`: the single dependency for running benchmarks without the sbt plugin, such as with scala-cli.
   * It has no code of its own and depends on the interface and the runtime.
   */
-lazy val scalaBenchmark = projectMatrix
-  .in(file("scala-benchmark"))
+lazy val microbench = projectMatrix
+  .in(file("microbench"))
   .dependsOn(interface, runtime)
-  .settings(librarySettings("aggregate"), name := "scala-benchmark")
+  .settings(librarySettings("aggregate"), name := "microbench")
   .jvmPlatform(libraryScalaVersions)
   .nativePlatform(libraryScalaVersions)
   .jsPlatform(libraryScalaVersions)
@@ -124,7 +123,7 @@ lazy val sbtPlugin = project
     Compile / unmanagedSources ++= reportingSources((LocalRootProject / baseDirectory).value),
     // The Node.js host is shared with the Scala.js runtime, which embeds it for launchers other than sbt.
     Compile / unmanagedResourceDirectories += (LocalRootProject / baseDirectory).value / nodeHostResources,
-    name := "sbt-scala-benchmark",
+    name := "sbt-microbench",
     libraryDependencies += "com.lihaoyi" %% "scalatags" % scalaTagsVersion,
     scalaVersion := sbtScalaVersion,
     crossScalaVersions := Seq(sbtScalaVersion),
@@ -137,10 +136,10 @@ lazy val sbtPlugin = project
       "-Xmx1024m",
       "-Dplugin.version=" + version.value,
       "-Dplugin.organization=" + projectOrganization,
-      "-Dbenchmark.scala.version=" + libraryScalaVersion,
-      "-Dbenchmark.scripted.support=" +
+      "-Dmicrobench.scala.version=" + libraryScalaVersion,
+      "-Dmicrobench.scripted.support=" +
         ((LocalRootProject / baseDirectory).value / "sbt-plugin/src/sbt-test-common").getAbsolutePath,
-      "-Dbenchmark.test.sources=" +
+      "-Dmicrobench.test.sources=" +
         ((LocalRootProject / baseDirectory).value / "sbt-plugin/src/sbt-test-sources/scala").getAbsolutePath
     ),
     scriptedDependencies := {
@@ -151,8 +150,8 @@ lazy val sbtPlugin = project
       (runtime.jvm(libraryScalaVersion) / publishLocal).value
       (runtime.native(libraryScalaVersion) / publishLocal).value
       (runtime.js(libraryScalaVersion) / publishLocal).value
-      (scalaBenchmark.jvm(libraryScalaVersion) / publishLocal).value
-      (scalaBenchmark.native(libraryScalaVersion) / publishLocal).value
-      (scalaBenchmark.js(libraryScalaVersion) / publishLocal).value
+      (microbench.jvm(libraryScalaVersion) / publishLocal).value
+      (microbench.native(libraryScalaVersion) / publishLocal).value
+      (microbench.js(libraryScalaVersion) / publishLocal).value
     }
   )

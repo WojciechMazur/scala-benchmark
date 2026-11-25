@@ -1,9 +1,9 @@
-package scala.benchmark.runtime.outputformat
+package microbench.runtime.outputformat
 
-import scala.benchmark.*
 import scala.collection.mutable.ArrayBuffer
 import scala.jdk.CollectionConverters.*
 
+import microbench.*
 import org.openjdk.jmh.infra.{BenchmarkParams, IterationParams}
 import org.openjdk.jmh.results.{BenchmarkResult, IterationResult, RunResult}
 import org.openjdk.jmh.runner.format.OutputFormat
@@ -80,7 +80,7 @@ class OutputFormatEdgeApiBenchmark:
 
   private def options(target: String, forks: Int): org.openjdk.jmh.runner.options.ChainedOptionsBuilder =
     new OptionsBuilder()
-      .include("scala.benchmark.runtime.outputformat." + target + ".execute")
+      .include("microbench.runtime.outputformat." + target + ".execute")
       .warmupIterations(1)
       .measurementIterations(2)
       .warmupBatchSize(2)
@@ -129,7 +129,7 @@ class OutputFormatEdgeApiBenchmark:
         options("OutputModeTarget", forks)
           .mode(Mode.SingleShotTime)
           .warmupMode(mode)
-          .includeWarmup("scala.benchmark.runtime.outputformat.OutputWarmupTarget.execute")
+          .includeWarmup("microbench.runtime.outputformat.OutputWarmupTarget.execute")
           .warmupForks(warmupForks)
           .build(),
         capture
@@ -157,7 +157,7 @@ class OutputFormatEdgeApiBenchmark:
           options("OutputModeTarget", forks)
             .mode(Mode.SingleShotTime)
             .warmupMode(WarmupMode.BULK_INDI)
-            .includeWarmup("scala.benchmark.runtime.outputformat.OutputWarmupFailure.execute")
+            .includeWarmup("microbench.runtime.outputformat.OutputWarmupFailure.execute")
             .shouldFailOnError(failOnError)
             .build(),
           capture
@@ -220,7 +220,7 @@ class OutputGroupApiBenchmark:
     for forks <- Vector(0, 1); overridden <- Vector(false, true) do
       val capture = new Capture
       val builder = new OptionsBuilder()
-        .include("scala.benchmark.runtime.outputformat.OutputGroupTarget.exchange")
+        .include("microbench.runtime.outputformat.OutputGroupTarget.exchange")
         .mode(Mode.SingleShotTime)
         .warmupIterations(1)
         .measurementIterations(2)
@@ -255,20 +255,20 @@ class OutputFormatListingApiBenchmark:
     val capture = new Capture:
       override def println(text: String): Unit = lines += text
     val options = new OptionsBuilder()
-      .include("scala.benchmark.runtime.outputformat.OutputTarget.execute")
+      .include("microbench.runtime.outputformat.OutputTarget.execute")
       .param("journal", "listed-only")
       .forks(0)
       .warmupIterations(0)
       .measurementIterations(1)
       .build()
-    val runner = new scala.benchmark.Runner(options, capture)
+    val runner = new microbench.Runner(options, capture)
     runner.list()
     assert(lines.exists(_.contains("OutputTarget.execute")), "listing: " + lines)
     lines.clear()
     runner.listWithParams()
     assert(lines.exists(_.contains("journal")), "parameter listing: " + lines)
     assert(capture.trace.isEmpty)
-    new scala.benchmark.Runner(new OptionsBuilder().include("unmatched-output-format-benchmark").build(), capture)
+    new microbench.Runner(new OptionsBuilder().include("unmatched-output-format-benchmark").build(), capture)
       .list()
     assert(capture.trace.isEmpty)
     for single <- Vector(false, true) do
@@ -284,9 +284,9 @@ class OutputFormatListingApiBenchmark:
         missing.trace.toString
       )
     val success = new Capture
-    new scala.benchmark.Runner(
+    new microbench.Runner(
       new OptionsBuilder()
-        .include("scala.benchmark.runtime.outputformat.OutputModeTarget.execute")
+        .include("microbench.runtime.outputformat.OutputModeTarget.execute")
         .mode(Mode.SingleShotTime)
         .forks(0)
         .warmupIterations(0)
@@ -313,7 +313,7 @@ class OutputFormatCrashApiBenchmark:
     val capture = new Capture
     val journal = Journal.create("crash-")
     val options = new OptionsBuilder()
-      .include("scala.benchmark.runtime.outputformat.OutputTarget.execute")
+      .include("microbench.runtime.outputformat.OutputTarget.execute")
       .mode(Mode.SingleShotTime)
       .warmupIterations(1)
       .measurementIterations(2)
@@ -366,14 +366,14 @@ class OutputFormatMutationApiBenchmark:
               )
             )
       val options = new OptionsBuilder()
-        .include("scala.benchmark.runtime.outputformat.OutputModeTarget.execute")
+        .include("microbench.runtime.outputformat.OutputModeTarget.execute")
         .mode(Mode.SingleShotTime)
         .forks(forks)
         .warmupIterations(1)
         .measurementIterations(2)
         .verbosity(VerboseMode.SILENT)
         .build()
-      val returned = new scala.benchmark.Runner(options, capture).run()
+      val returned = new microbench.Runner(options, capture).run()
       assert(returned eq capture.runs, "endRun collection must be returned")
       assert(returned.iterator().next().getSecondaryResults().get("callback").getScore() == 23)
       val measured =
@@ -387,14 +387,14 @@ class OutputFormatMutationApiBenchmark:
       override def endRun(r: java.util.Collection[RunResult]): Unit =
         super.endRun(r); r.clear()
     val options = new OptionsBuilder()
-      .include("scala.benchmark.runtime.outputformat.OutputModeTarget.execute")
+      .include("microbench.runtime.outputformat.OutputModeTarget.execute")
       .mode(Mode.SingleShotTime)
       .forks(0)
       .warmupIterations(0)
       .measurementIterations(1)
       .verbosity(VerboseMode.SILENT)
       .build()
-    assert(new scala.benchmark.Runner(options, capture).run().isEmpty())
+    assert(new microbench.Runner(options, capture).run().isEmpty())
     println("OUTPUT_FORMAT_MUTATION_OK:3")
     1
 
@@ -424,7 +424,7 @@ class OutputFormatReportApiBenchmark:
             new org.openjdk.jmh.results.ScalarResult("callback", 23, "#", org.openjdk.jmh.results.AggregationPolicy.AVG)
           )
       val options = new OptionsBuilder()
-        .include("scala.benchmark.runtime.outputformat.OutputModeTarget.execute")
+        .include("microbench.runtime.outputformat.OutputModeTarget.execute")
         .mode(mode)
         .forks(forks)
         .warmupIterations(0)
@@ -434,7 +434,7 @@ class OutputFormatReportApiBenchmark:
         .result(path)
         .verbosity(VerboseMode.SILENT)
         .build()
-      new scala.benchmark.Runner(options, capture).run()
+      new microbench.Runner(options, capture).run()
       val text = Journal.read(path).mkString("\n")
       assert(text.contains("callback") && text.contains("23"), s"$forks/$name: $text")
       cases += 1
@@ -443,7 +443,7 @@ class OutputFormatReportApiBenchmark:
       override def endRun(r: java.util.Collection[RunResult]): Unit =
         super.endRun(r); r.clear()
     val options = new OptionsBuilder()
-      .include("scala.benchmark.runtime.outputformat.OutputModeTarget.execute")
+      .include("microbench.runtime.outputformat.OutputModeTarget.execute")
       .mode(Mode.SingleShotTime)
       .forks(0)
       .warmupIterations(0)
@@ -452,7 +452,7 @@ class OutputFormatReportApiBenchmark:
       .resultFormat(org.openjdk.jmh.results.format.ResultFormatType.JSON)
       .verbosity(VerboseMode.SILENT)
       .build()
-    assert(new scala.benchmark.Runner(options, capture).run().isEmpty())
+    assert(new microbench.Runner(options, capture).run().isEmpty())
     assert(Journal.read(path).mkString.replaceAll("\\s", "") == "[]")
     println("OUTPUT_FORMAT_REPORTS_OK:" + (cases + 1))
     cases + 1

@@ -66,7 +66,7 @@ object AggregationChecks:
         .map(e => converter.toPath(e.data).toFile)
         .filter(path =>
           path.isFile &&
-            (path.getName.startsWith("scala-benchmark-") || path.getName.startsWith("jmh-") ||
+            (path.getName.startsWith("microbench-") || path.getName.startsWith("jmh-") ||
               path.getName
                 .startsWith("commons-math3"))
         )
@@ -75,7 +75,7 @@ object AggregationChecks:
         .flatMap(_.stripPrefix("-Xplugin:").split(java.util.regex.Pattern.quote(java.io.File.pathSeparator)))
         .map(file)
         .filter(_.isFile)
-      val support = file(sys.props("benchmark.scripted.support"))
+      val support = file(sys.props("microbench.scripted.support"))
       IO.write(
         evidence / "provenance.json",
         ujson.write(

@@ -12,10 +12,10 @@ concurrency:
 # `sbt --server`: sbt 2's thin client cannot start its server on Windows, and still exits with status 0.
 env:
   COMPATIBILITY: >-
-    benchmark/platform benchmark/reports benchmark/api benchmark/configuration benchmark/result-extensions
-    benchmark/formatters benchmark/output-factory benchmark/stdio benchmark/aggregation
+    microbench/platform microbench/reports microbench/api microbench/configuration microbench/result-extensions
+    microbench/formatters microbench/output-factory microbench/stdio microbench/aggregation
   EXECUTION: >-
-    benchmark/runner-failures benchmark/fork-sequence benchmark/execution benchmark/output-format
+    microbench/runner-failures microbench/fork-sequence microbench/execution microbench/output-format
 jobs:
   unit:
     name: Formatting, compilation and unit tests
@@ -40,8 +40,8 @@ jobs:
           sbtPlugin/compile"
       - name: Use the libraries from the latest LTS and the latest release candidate
         run: >-
-          sbt --server --batch "scriptedOn jvm,native,js scala=3.lts benchmark/api;
-          scriptedOn jvm,native,js scala=3.rc benchmark/api"
+          sbt --server --batch "scriptedOn jvm,native,js scala=3.lts microbench/api;
+          scriptedOn jvm,native,js scala=3.rc microbench/api"
       - name: Check host process supervision
         run: node --test sbt-plugin/src/test/node/*.test.mjs
 
@@ -59,7 +59,8 @@ jobs:
             scala: 3.rc
           - os: macos-latest
             scala: 3.lts
-          - os: windows-latest
+          # windows-latest ships MSVC 14.52, whose STL requires Clang 22; the setup action pins LLVM 20.
+          - os: windows-2022
             scala: 3.lts
     env:
       RUN: >-
@@ -79,7 +80,7 @@ jobs:
         run: >-
           sbt --server --batch "interface/publishLocal; interfaceNative/publishLocal; interfaceJS/publishLocal;
           runtime/publishLocal; runtimeNative/publishLocal; runtimeJS/publishLocal;
-          scalaBenchmark/publishLocal; scalaBenchmarkNative/publishLocal; scalaBenchmarkJS/publishLocal"
+          microbench/publishLocal; microbenchNative/publishLocal; microbenchJS/publishLocal"
       - name: List the benchmarks
         if: runner.os == 'Linux'
         run: |
@@ -147,7 +148,7 @@ jobs:
           node-version: '25'
       - name: Compare failures and execution with the JVM
         run: >-
-          sbt --server --batch "scriptedOn jvm,${{ matrix.platform }} $EXECUTION benchmark/containment benchmark/group-failures"
+          sbt --server --batch "scriptedOn jvm,${{ matrix.platform }} $EXECUTION microbench/containment microbench/group-failures"
       - uses: actions/upload-artifact@v7
         if: always()
         with:
@@ -182,10 +183,10 @@ jobs:
       - name: Inspect optimized workloads with collection enabled
         env:
           SCALANATIVE_LTO: ${{ matrix.lto || 'none' }}
-        run: sbt --server --batch "scriptedOn ${{ matrix.platform }} benchmark/integrity"
+        run: sbt --server --batch "scriptedOn ${{ matrix.platform }} microbench/integrity"
       - name: Check platform selection on Wasm
         if: matrix.platform == 'wasm'
-        run: sbt --server --batch "scriptedOn wasm benchmark/platform"
+        run: sbt --server --batch "scriptedOn wasm microbench/platform"
       - uses: actions/upload-artifact@v7
         if: always()
         with:

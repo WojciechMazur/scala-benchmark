@@ -1,8 +1,8 @@
-package scala.benchmark.runtime.outputformat
+package microbench.runtime.outputformat
 
-import scala.benchmark.*
 import scala.jdk.CollectionConverters.*
 
+import microbench.*
 import org.openjdk.jmh.infra.{BenchmarkParams, IterationParams}
 import org.openjdk.jmh.results.{BenchmarkResult, IterationResult, RunResult}
 import org.openjdk.jmh.runner.format.OutputFormat
@@ -60,7 +60,7 @@ class OutputFormatApiBenchmark:
         def flush(): Unit = record("flush")
         def close(): Unit = record("close")
       val options = new OptionsBuilder()
-        .include("scala.benchmark.runtime.outputformat.OutputTarget.execute")
+        .include("microbench.runtime.outputformat.OutputTarget.execute")
         .mode(Mode.SingleShotTime)
         .warmupIterations(1)
         .measurementIterations(2)

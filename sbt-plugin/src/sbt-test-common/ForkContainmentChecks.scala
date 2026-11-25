@@ -24,7 +24,7 @@ object ForkContainmentChecks:
             "node",
             "--import",
             (file(
-              sys.props("benchmark.scripted.support")
+              sys.props("microbench.scripted.support")
             ).getParentFile / "test/fixtures/containment/tree-host.mjs").getAbsolutePath,
             artifact(_.getName == "node-host.mjs").getAbsolutePath,
             artifact(f => f.getName == "main.js" && f.getPath.contains("-opt/")).getAbsolutePath
@@ -129,7 +129,7 @@ object ForkContainmentChecks:
         )
         val log = evidence / "process-tree-driver.log"
         val helper =
-          file(sys.props("benchmark.scripted.support")).getParentFile / "test/transport/check-process-trees.py"
+          file(sys.props("microbench.scripted.support")).getParentFile / "test/transport/check-process-trees.py"
         val driver = new ProcessBuilder("python3", helper.getAbsolutePath, request.getAbsolutePath)
           .redirectErrorStream(true)
           .redirectOutput(log)

@@ -1,8 +1,8 @@
-import scala.benchmark.sbtplugin.ScalaJSBenchmarkPlugin
 import scala.scalanative.build.LTO
 import scala.scalanative.sbtplugin.ScalaNativePlugin
 import scala.scalanative.sbtplugin.ScalaNativePlugin.autoImport.nativeConfig
 
+import microbench.sbtplugin.ScalaJSMicrobenchPlugin
 import org.scalajs.linker.interface.ESVersion
 import org.scalajs.sbtplugin.ScalaJSPlugin
 import org.scalajs.sbtplugin.ScalaJSPlugin.autoImport.scalaJSLinkerConfig
@@ -12,18 +12,18 @@ import sbt.{*, given}
 import sbt.Keys.*
 
 object FixtureBuild:
-  private val testScalaVersion = sys.props("benchmark.scala.version")
-  private val repository = file(sys.props("benchmark.scripted.support")).getParentFile
-  private val sharedSources = file(sys.props("benchmark.test.sources"))
+  private val testScalaVersion = sys.props("microbench.scala.version")
+  private val repository = file(sys.props("microbench.scripted.support")).getParentFile
+  private val sharedSources = file(sys.props("microbench.test.sources"))
 
   /** Benchmark sources that only some scripted tests use. */
   val fixtures: File = repository / "test/fixtures"
 
   val allPlatforms: Seq[String] = Seq("jvm", "native", "js", "wasm")
 
-  /** Platforms under test: `-Dbenchmark.platforms=jvm,native`. The JVM runs first, as the reference. */
+  /** Platforms under test: `-Dmicrobench.platforms=jvm,native`. The JVM runs first, as the reference. */
   val selectedPlatforms: Seq[String] =
-    val requested = sys.props.get("benchmark.platforms").fold(Seq("jvm", "native", "js"))(_.split(",").toSeq)
+    val requested = sys.props.get("microbench.platforms").fold(Seq("jvm", "native", "js"))(_.split(",").toSeq)
     require(requested.forall(allPlatforms.contains), s"Unknown platform in: ${requested.mkString(",")}")
     allPlatforms.filter(requested.contains)
 
@@ -70,7 +70,7 @@ object FixtureBuild:
         directory
       },
       libraryDependencies +=
-        sys.props("plugin.organization") %% "scala-benchmark" % sys.props("plugin.version"),
+        sys.props("plugin.organization") %% "microbench" % sys.props("plugin.version"),
       // Sources stay where a single-platform project would keep them.
       sourceDirectory := (LocalRootProject / baseDirectory).value / "benchmarks/src",
       Compile / unmanagedSourceDirectories += sharedSources
@@ -98,7 +98,7 @@ object FixtureBuild:
 
   /** Observer checks shared with the runtime's unit tests. */
   val trialObserverChecks: File = root /
-    "runtime/shared/src/test/scala/scala/benchmark/runtime/TrialObserverChecks.scala"
+    "runtime/shared/src/test/scala/microbench/runtime/TrialObserverChecks.scala"
 
   def sha256(path: File): String =
     java.security.MessageDigest.getInstance("SHA-256").digest(IO.readBytes(path)).map(b => f"${b & 0xff}%02x").mkString
@@ -113,7 +113,7 @@ object FixtureBuild:
 
   /** Preloads a module into every Node.js process of the benchmark. */
   def nodeImport(module: File): Seq[Setting[?]] =
-    Seq(ScalaJSBenchmarkPlugin.autoImport.benchmarkNodeOptions := Seq("--import", module.getAbsolutePath))
+    Seq(ScalaJSMicrobenchPlugin.autoImport.benchmarkNodeOptions := Seq("--import", module.getAbsolutePath))
 
   /** Command line that runs the row's benchmarks without sbt: upstream JMH, the linked executable, or Node.js with
     * the linked module. The benchmarks must have been run through sbt before, so that they are linked.
@@ -243,7 +243,7 @@ object FixtureBuild:
   def probe(root: File) = root / "benchmarks/src/main/scala/IncrementalProbe.scala"
 
   def writeProbe(root: File, name: String): Unit =
-    IO.write(probe(root), s"package probe; import scala.benchmark.*; class $name { @Benchmark def run(): Int = 1 }")
+    IO.write(probe(root), s"package probe; import microbench.*; class $name { @Benchmark def run(): Int = 1 }")
 
   /** The generated entry point refers to exactly the benchmark classes that currently exist. */
   def checkGenerated(entryPoint: File, name: String, present: Boolean): Unit =
@@ -311,7 +311,7 @@ object FixtureBuild:
       assert(!(baseDirectory.value / "preflight.json").exists())
     },
     verifyEligibility := Def.uncached {
-      val prefix = "scala.benchmark.examples.PlatformBenchmarks."
+      val prefix = "microbench.examples.PlatformBenchmarks."
       val expected = Set(prefix + "everywhere", prefix + backend + "Only")
       val results = ujson.read(IO.read(baseDirectory.value / "eligibility.json")).arr
       assert(results.map(_("benchmark").str).toSet == expected)

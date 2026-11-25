@@ -1,4 +1,4 @@
-package scala.benchmark.examples
+package microbench.examples
 
 object TreeHost:
 

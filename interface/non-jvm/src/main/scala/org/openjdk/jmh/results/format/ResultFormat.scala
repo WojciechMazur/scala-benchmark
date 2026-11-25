@@ -26,8 +26,7 @@ package org.openjdk.jmh.results.format
 
 import java.io.PrintStream
 
-import scala.benchmark.internal.RunnerServices
-
+import microbench.internal.RunnerServices
 import org.openjdk.jmh.results.RunResult
 
 trait ResultFormat:
@@ -43,7 +42,7 @@ object ResultFormatFactory:
 
   def getInstance(format: ResultFormatType, out: PrintStream): ResultFormat =
     if format == null then throw new NullPointerException("format")
-    if format == ResultFormatType.JSON then scala.benchmark.internal.JsonReportOptions.initialize()
+    if format == ResultFormatType.JSON then microbench.internal.JsonReportOptions.initialize()
     new ResultFormat:
       def writeOut(results: java.util.Collection[RunResult]): Unit =
         if out == null then throw new NullPointerException("out")

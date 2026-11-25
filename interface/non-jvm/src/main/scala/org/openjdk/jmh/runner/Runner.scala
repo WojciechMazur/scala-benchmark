@@ -24,8 +24,7 @@
  */
 package org.openjdk.jmh.runner
 
-import scala.benchmark.internal.RunnerServices
-
+import microbench.internal.RunnerServices
 import org.openjdk.jmh.runner.options.{CommandLineOptions, Options}
 
 class RunnerException(message: String, cause: Throwable) extends Exception(message, cause):

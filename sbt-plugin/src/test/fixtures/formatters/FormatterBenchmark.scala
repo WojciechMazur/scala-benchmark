@@ -1,11 +1,11 @@
-package scala.benchmark.runtime.formatters
+package microbench.runtime.formatters
 
 import java.io.{ByteArrayOutputStream, PrintStream}
 import java.util.concurrent.TimeUnit
 
-import scala.benchmark.*
 import scala.jdk.CollectionConverters.*
 
+import microbench.*
 import org.openjdk.jmh.results.{AggregationPolicy, Result as Metric, ResultRole}
 import org.openjdk.jmh.results.format.{ResultFormatFactory, ResultFormatType}
 import org.openjdk.jmh.runner.{IterationType, WorkloadParams}
@@ -20,23 +20,23 @@ class FormatterBenchmark:
     val formats = ResultFormatType.values().toVector
     // Java-style empty argument lists and the Scala facade must both remain usable.
     assert(org.openjdk.jmh.annotations.Mode.values().length == 5)
-    assert(scala.benchmark.Mode.values().length == 5)
+    assert(microbench.Mode.values().length == 5)
     assert(org.openjdk.jmh.annotations.Scope.values().length == 3)
-    assert(scala.benchmark.Scope.values().length == 3)
+    assert(microbench.Scope.values().length == 3)
     assert(org.openjdk.jmh.annotations.Level.values().length == 3)
-    assert(scala.benchmark.Level.values().length == 3)
+    assert(microbench.Level.values().length == 3)
     assert(org.openjdk.jmh.annotations.AuxCounters.Type.values().length == 2)
-    assert(scala.benchmark.AuxCounters.Type.values().length == 2)
+    assert(microbench.AuxCounters.Type.values().length == 2)
     assert(org.openjdk.jmh.annotations.CompilerControl.Mode.values().length == 6)
-    assert(scala.benchmark.CompilerControl.Mode.values().length == 6)
+    assert(microbench.CompilerControl.Mode.values().length == 6)
     assert(org.openjdk.jmh.runner.options.VerboseMode.values().length == 3)
-    assert(scala.benchmark.VerboseMode.values().length == 3)
+    assert(microbench.VerboseMode.values().length == 3)
     assert(org.openjdk.jmh.runner.options.WarmupMode.values().length == 3)
-    assert(scala.benchmark.WarmupMode.values().length == 3)
+    assert(microbench.WarmupMode.values().length == 3)
     assert(org.openjdk.jmh.runner.IterationType.values().length == 2)
     assert(org.openjdk.jmh.results.ResultRole.values().length == 4)
     assert(org.openjdk.jmh.results.AggregationPolicy.values().length == 4)
-    assert(scala.benchmark.ResultFormatType.values().length == formats.size)
+    assert(microbench.ResultFormatType.values().length == formats.size)
     val copied = ResultFormatType.values()
     copied(0) = ResultFormatType.JSON
     assert(ResultFormatType.values()(0) == ResultFormatType.TEXT)
@@ -136,8 +136,8 @@ class FormatterBenchmark:
     assert(scala.util.Try(nullFile.writeOut(empty)).failed.get.isInstanceOf[NullPointerException])
     val nullStream = ResultFormatFactory.getInstance(ResultFormatType.JSON, null: PrintStream)
     assert(scala.util.Try(nullStream.writeOut(empty)).failed.get.isInstanceOf[NullPointerException])
-    val facade = scala.benchmark.ResultFormatFactory
-      .getInstance(scala.benchmark.ResultFormatType.JSON, new PrintStream(new ByteArrayOutputStream))
+    val facade = microbench.ResultFormatFactory
+      .getInstance(microbench.ResultFormatType.JSON, new PrintStream(new ByteArrayOutputStream))
     facade.writeOut(empty)
     println("RESULT_FORMAT_FACTORY_OK:" + cases)
     cases

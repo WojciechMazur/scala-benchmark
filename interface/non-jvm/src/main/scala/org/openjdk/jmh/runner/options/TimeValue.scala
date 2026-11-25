@@ -31,7 +31,7 @@ class TimeValue(private val time: Long, private val unit: TimeUnit) extends Seri
   def getTime(): Long = time
   def getTimeUnit(): TimeUnit = unit
   def convertTo(target: TimeUnit): Long = target.convert(time, unit)
-  def sleep(): Unit = scala.benchmark.internal.TimeServices.sleep(time, unit)
+  def sleep(): Unit = microbench.internal.TimeServices.sleep(time, unit)
 
   override def equals(other: Any): Boolean = other match
     case that: TimeValue => getClass == that.getClass && time == that.time && unit == that.unit
@@ -64,7 +64,7 @@ object TimeValue:
 
   def fromString(value: String): TimeValue =
     require(value != null, "String is null")
-    val normalized = scala.benchmark.internal.Ascii.lower(value.replace(" ", ""))
+    val normalized = microbench.internal.Ascii.lower(value.replace(" ", ""))
     val units = Vector(
       "ns" -> TimeUnit.NANOSECONDS,
       "ms" -> TimeUnit.MILLISECONDS,

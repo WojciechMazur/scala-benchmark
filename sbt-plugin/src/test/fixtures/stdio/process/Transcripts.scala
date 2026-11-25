@@ -1,4 +1,4 @@
-package scala.benchmark.runtime.stdio
+package microbench.runtime.stdio
 
 object Transcripts:
 

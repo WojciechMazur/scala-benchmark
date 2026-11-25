@@ -6,7 +6,7 @@ import sbt.Keys.*
 object IntegrityChecks:
 
   /** Node.js preload that records what the host observes of the optimized workload. */
-  val observeHost: File = file(sys.props("benchmark.scripted.support")).getParentFile /
+  val observeHost: File = file(sys.props("microbench.scripted.support")).getParentFile /
     "test/integrity/observe-host.mjs"
 
   val verifyIntegrity = taskKey[Unit]("Retain and inspect optimized measurement artifacts")
@@ -46,7 +46,7 @@ object IntegrityChecks:
       val converter = fileConverter.value
       val dependencies = (Compile / dependencyClasspath).value
         .map(e => converter.toPath(e.data).toFile)
-        .filter(file => file.isFile && file.getName.startsWith("scala-benchmark-"))
+        .filter(file => file.isFile && file.getName.startsWith("microbench-"))
       val fixtureSources = (Compile / sources).value
       val options = (Compile / scalacOptions).value
       val plugins = options
@@ -101,7 +101,7 @@ object IntegrityChecks:
           )
         )
         val inspector =
-          file(sys.props("benchmark.scripted.support")).getParentFile / "test/integrity/inspect-native.mjs"
+          file(sys.props("microbench.scripted.support")).getParentFile / "test/integrity/inspect-native.mjs"
         assert(
           Process(Seq("node", inspector.getAbsolutePath, evidence.getAbsolutePath)).! == 0,
           "Native optimized-code inspection failed"
@@ -122,7 +122,7 @@ object IntegrityChecks:
         linked.foreach(path => IO.copyFile(path, evidence / path.getName))
         artifacts
           .filter(path =>
-            (path.getParentFile.getName == "scala-benchmark" && Set(
+            (path.getParentFile.getName == "microbench" && Set(
               "node-host.mjs",
               "progress-deadline.mjs",
               "worker-lifeline.mjs",
@@ -141,7 +141,7 @@ object IntegrityChecks:
         assert(linked.exists(_.getName.endsWith(".wasm")) == (backend == "wasm"))
         if backend == "wasm" then
           val inspector =
-            file(sys.props("benchmark.scripted.support")).getParentFile / "test/integrity/inspect-wasm.mjs"
+            file(sys.props("microbench.scripted.support")).getParentFile / "test/integrity/inspect-wasm.mjs"
           assert(
             Process(Seq("node", inspector.getAbsolutePath, evidence.getAbsolutePath)).! == 0,
             "Wasm optimized-code inspection failed"
@@ -162,9 +162,9 @@ object IntegrityChecks:
               (fixtureSources ++ dependencies ++ plugins ++ retained ++
                 Seq((LocalRootProject / baseDirectory).value / "build.sbt") ++
                 Seq("IntegrityChecks.scala", "FixtureBuild.scala").map(name =>
-                  file(sys.props("benchmark.scripted.support")) / name
+                  file(sys.props("microbench.scripted.support")) / name
                 ) ++
-                ((file(sys.props("benchmark.scripted.support")).getParentFile / "test/integrity") ** "*.mjs")
+                ((file(sys.props("microbench.scripted.support")).getParentFile / "test/integrity") ** "*.mjs")
                   .get()).distinct.map(hash)
             )
           ),

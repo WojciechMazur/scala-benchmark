@@ -1,4 +1,4 @@
-package scala.benchmark.runtime.outputformat
+package microbench.runtime.outputformat
 
 import java.nio.charset.StandardCharsets.UTF_8
 import java.nio.file.{Files, Paths, StandardOpenOption}
@@ -31,7 +31,7 @@ object CancellationChecks:
     import java.util.concurrent.atomic.{AtomicBoolean, AtomicReference}
     import org.openjdk.jmh.infra.{BenchmarkParams, IterationParams}
     import org.openjdk.jmh.results.IterationResult
-    import scala.benchmark.*
+    import microbench.*
     import org.openjdk.jmh.runner.options.VerboseMode
     for
       forks <- Vector(0, 1);
@@ -50,7 +50,7 @@ object CancellationChecks:
         override def iterationResult(p: BenchmarkParams, i: IterationParams, n: Int, r: IterationResult): Unit =
           super.iterationResult(p, i, n, r); block("result:" + i.getType() + ":" + n)
       val options = new OptionsBuilder()
-        .include("scala.benchmark.runtime.outputformat.OutputModeTarget.execute")
+        .include("microbench.runtime.outputformat.OutputModeTarget.execute")
         .mode(Mode.SingleShotTime)
         .forks(forks)
         .warmupIterations(1)
@@ -59,7 +59,7 @@ object CancellationChecks:
         .verbosity(VerboseMode.SILENT)
         .build()
       val caller = new Thread(() =>
-        try new scala.benchmark.Runner(options, capture).run()
+        try new microbench.Runner(options, capture).run()
         catch case error: Throwable => failure.set(error)
         finally interrupted.set(Thread.currentThread().isInterrupted())
         ()

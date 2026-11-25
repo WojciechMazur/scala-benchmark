@@ -8,7 +8,7 @@ object BuildSettings:
   val scalaTagsVersion = "0.13.1"
   val jmhVersion = "1.37"
   val projectOrganization = "io.github.wojciechmazur"
-  val projectRepository = "WojciechMazur/scala-benchmark"
+  val projectRepository = "WojciechMazur/microbench"
   val projectVersion = "0.1.0-SNAPSHOT"
 
   /** Libraries and macros are built once with the LTS compiler; consumers may use any later Scala 3. */
@@ -17,7 +17,7 @@ object BuildSettings:
   val javaRelease = "17"
   val sbtScalaVersion = "3.8.4"
 
-  /** Node.js host modules of the Scala.js backend, under `scala-benchmark/`. */
+  /** Node.js host modules of the Scala.js backend, under `microbench/`. */
   val nodeHostResources = "runtime/js/src/main/resources"
 
   private def scalaString(text: String): String =
@@ -36,29 +36,29 @@ object BuildSettings:
     */
   val embeddedNodeHostSettings = Seq(
     Compile / sourceGenerators += Def.task {
-      val directory = (LocalRootProject / baseDirectory).value / nodeHostResources / "scala-benchmark"
+      val directory = (LocalRootProject / baseDirectory).value / nodeHostResources / "microbench"
       val modules = (directory * "*.mjs").get().sortBy(_.getName)
       val entries = modules.map(file => s"    ${scalaString(file.getName)} -> ${scalaString(IO.read(file))}")
       val source =
-        s"""package scala.benchmark.runtime
+        s"""package microbench.runtime
            |
-           |/** Generated from $nodeHostResources/scala-benchmark. */
+           |/** Generated from $nodeHostResources/microbench. */
            |private[runtime] object NodeHostSources:
            |  val modules: Seq[(String, String)] = Seq(
            |${entries.mkString(",\n")}
            |  )
            |""".stripMargin
-      val file = (Compile / sourceManaged).value / "scala/benchmark/runtime/NodeHostSources.scala"
+      val file = (Compile / sourceManaged).value / "microbench/runtime/NodeHostSources.scala"
       if !file.exists() || IO.read(file) != source then IO.write(file, source)
       Seq(file)
     }.taskValue
   )
 
   def reportingSources(root: File): Seq[File] =
-    ((root / "runtime/shared/src/main/scala/scala/benchmark/internal/reporting") * "*.scala").get()
+    ((root / "runtime/shared/src/main/scala/microbench/internal/reporting") * "*.scala").get()
 
   val pluginBuildInfoSettings = Seq(
-    buildInfoPackage := "scala.benchmark.sbtplugin",
+    buildInfoPackage := "microbench.sbtplugin",
     buildInfoKeys := Seq(
       BuildInfoKey(version),
       BuildInfoKey("organization" -> projectOrganization),
@@ -100,7 +100,7 @@ object BuildSettings:
   )
 
   def librarySettings(module: String) = Seq(
-    name := s"scala-benchmark-$module",
+    name := s"microbench-$module",
     exportJars := true,
     scalaVersion := libraryScalaVersion,
     crossScalaVersions := Seq(libraryScalaVersion)

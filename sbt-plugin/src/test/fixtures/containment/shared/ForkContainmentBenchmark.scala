@@ -1,7 +1,6 @@
-package scala.benchmark.examples
+package microbench.examples
 
-import scala.benchmark.runtime.Platform
-
+import microbench.runtime.Platform
 import org.openjdk.jmh.annotations.*
 
 @State(Scope.Thread)

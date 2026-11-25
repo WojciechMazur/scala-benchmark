@@ -6,7 +6,7 @@ import path from 'node:path';
 import { spawn } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 
-const launcher = fileURLToPath(new URL('../../../../runtime/js/src/main/resources/scala-benchmark/node-host.mjs', import.meta.url));
+const launcher = fileURLToPath(new URL('../../../../runtime/js/src/main/resources/microbench/node-host.mjs', import.meta.url));
 function alive(pid) { try { process.kill(pid, 0); return true; } catch (error) { if (error.code === 'ESRCH') return false; throw error; } }
 function fixture(t, body, owner) {
   const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'benchmark-supervisor-test-'));
@@ -34,7 +34,7 @@ function fixture(t, body, owner) {
   });
   return { child, pid, closed, output: () => output };
 }
-const announce = "console.log('WORKER_PID ' + process.pid); globalThis.__scalaBenchmarkHost.progress('3 0 100000000\\n');\n";
+const announce = "console.log('WORKER_PID ' + process.pid); globalThis.__microbenchHost.progress('3 0 100000000\\n');\n";
 
 test('supervisor kills non-returning work when the monotonic lease expires', { timeout: 5000 }, async t => {
   const probe = fixture(t, announce + 'Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0);');
@@ -47,7 +47,7 @@ test('supervisor kills non-returning work when the monotonic lease expires', { t
 for (const [name, record] of [['duplicate', '3 0 99999999999\n'], ['partial', '3 1 99999999999']]) {
   test(`${name} progress cannot keep a worker alive`, { timeout: 5000 }, async t => {
     const probe = fixture(t, announce.replace('100000000', '1000000000') +
-      `setTimeout(() => setInterval(() => globalThis.__scalaBenchmarkHost.progress(${JSON.stringify(record)}), 10), 100);`);
+      `setTimeout(() => setInterval(() => globalThis.__microbenchHost.progress(${JSON.stringify(record)}), 10), 100);`);
     const pid = await probe.pid;
     const result = await probe.closed;
     assert.equal(result.code, 1, probe.output());
@@ -69,7 +69,7 @@ test('successful child exit without results is rejected and temporary files are 
   t.after(() => fs.rmSync(directory, { recursive: true, force: true }));
   const module = path.join(directory, 'worker.mjs');
   fs.writeFileSync(module, `
-    const host = globalThis.__scalaBenchmarkHost;
+    const host = globalThis.__microbenchHost;
     if (host.arguments[0] === '--benchmark-worker-v3') process.exit(0);
     else {
       let rejected = false;
@@ -106,7 +106,7 @@ test('hard-killing a synchronous coordinator terminates supervisor and worker', 
   const supervisorFile = path.join(directory, 'supervisor.pid');
   fs.writeFileSync(module, `
     import fs from 'node:fs';
-    const host = globalThis.__scalaBenchmarkHost;
+    const host = globalThis.__microbenchHost;
     if (host.arguments[0] === '--benchmark-worker-v3') {
       fs.writeFileSync(${JSON.stringify(workerFile)}, String(process.pid));
       fs.writeFileSync(${JSON.stringify(supervisorFile)}, String(process.ppid));
@@ -138,7 +138,7 @@ test('nonzero worker exit rejects even an already written result', { timeout: 50
   t.after(() => fs.rmSync(directory, { recursive: true, force: true }));
   const module = path.join(directory, 'worker.mjs');
   fs.writeFileSync(module, `
-    const host = globalThis.__scalaBenchmarkHost;
+    const host = globalThis.__microbenchHost;
     if (host.arguments[0] === '--benchmark-worker-v3') {
       host.complete('{"iterations": []}');
       process.exit(23);
@@ -177,7 +177,7 @@ for (const channel of [1, 2]) {
     const outcome = path.join(directory, 'outcome');
     fs.writeFileSync(module, `
       import fs from 'node:fs';
-      const host = globalThis.__scalaBenchmarkHost;
+      const host = globalThis.__microbenchHost;
       if (host.arguments[0] === '--benchmark-worker-v3') {
         const buffer = Buffer.alloc(65536, 120);
         for (let i = 0; i < 32; i++) fs.writeSync(${channel}, buffer);
@@ -213,7 +213,7 @@ test('worker death during a partial result write rejects the payload', { timeout
   const module = path.join(directory, 'worker.mjs');
   fs.writeFileSync(module, `
     import fs from 'node:fs';
-    const host = globalThis.__scalaBenchmarkHost;
+    const host = globalThis.__microbenchHost;
     if (host.arguments[0] === '--benchmark-worker-v3') {
       fs.writeFileSync(process.env.SCALA_BENCHMARK_RESULT, '[{"score":');
       process.kill(process.pid, 'SIGKILL');
@@ -244,7 +244,7 @@ for (const scenario of ['success', 'crash', 'missing', 'timeout', 'gap']) {
     fs.writeFileSync(module, `
       import fs from 'node:fs';
       import path from 'node:path';
-      const host = globalThis.__scalaBenchmarkHost;
+      const host = globalThis.__microbenchHost;
       if (host.arguments[0] === '--benchmark-worker-v3') {
         console.error('EVENT_PRIMARY_CAUSE');
         host.event(0, 'first');
@@ -287,7 +287,7 @@ for (const scenario of ['success', 'crash', 'missing', 'timeout']) {
     const module = path.join(directory, 'user.mjs');
     fs.writeFileSync(module, `
       import fs from 'node:fs';
-      const host = globalThis.__scalaBenchmarkHost;
+      const host = globalThis.__microbenchHost;
       const bytes = Array.from({length: 20000}, (_, index) => index & 255);
       if (host.arguments[0] === '--benchmark-worker-v3') {
         host.userWrite(bytes, 1);
@@ -304,7 +304,7 @@ for (const scenario of ['success', 'crash', 'missing', 'timeout']) {
           if (result.output.includes('FRAMEWORK')) throw new Error('Mixed output provenance');
         } catch(error) { rejected = true; }
         if (rejected !== ${scenario !== 'success'}) throw new Error('Unexpected status');
-        if (fs.readdirSync(${JSON.stringify(directory)}).some(name => name.startsWith('scala-benchmark-'))) throw new Error('RPC directory retained');
+        if (fs.readdirSync(${JSON.stringify(directory)}).some(name => name.startsWith('microbench-'))) throw new Error('RPC directory retained');
         const read = channel => {
           const chunks = []; let next;
           while ((next = host.readUserOutput(channel)).length) {

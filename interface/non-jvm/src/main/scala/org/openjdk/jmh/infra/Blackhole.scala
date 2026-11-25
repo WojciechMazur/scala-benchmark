@@ -24,7 +24,7 @@
  */
 package org.openjdk.jmh.infra
 
-import scala.benchmark.internal.BlackholeSink
+import microbench.internal.BlackholeSink
 
 /** Source-compatible consumption API. The Native backend is an observable C compiler barrier, rather than HotSpot's
   * compiler blackhole intrinsic.

@@ -1,8 +1,8 @@
-package scala.benchmark.runtime.stdio
+package microbench.runtime.stdio
 
 import java.io.{ByteArrayOutputStream, PrintStream}
 
-import scala.benchmark.*
+import microbench.*
 
 object UserMessages:
 
@@ -62,7 +62,7 @@ class StdioBenchmark:
       val beforeOut = System.out; val beforeErr = System.err
       val id = s"$forks-${verbosity.name().toLowerCase}-$custom-$action"
       val options = new OptionsBuilder()
-        .include("scala.benchmark.runtime.stdio.UserTarget.execute")
+        .include("microbench.runtime.stdio.UserTarget.execute")
         .mode(Mode.SingleShotTime)
         .warmupIterations(0)
         .measurementIterations(1)
@@ -105,7 +105,7 @@ class StdioBenchmark:
       val out = new Capture; val err = new Capture
       val beforeOut = System.out; val beforeErr = System.err
       val options = new OptionsBuilder()
-        .include("scala.benchmark.runtime.stdio.UserTarget.execute")
+        .include("microbench.runtime.stdio.UserTarget.execute")
         .warmupIterations(0)
         .measurementIterations(1)
         .forks(forks)

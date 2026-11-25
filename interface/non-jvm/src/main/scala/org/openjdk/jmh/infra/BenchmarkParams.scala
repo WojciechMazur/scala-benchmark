@@ -79,7 +79,7 @@ class BenchmarkParams(
 
   def id(): String =
     import scala.jdk.CollectionConverters.*
-    def escaped(value: String): String = scala.benchmark.internal.Ascii.formEncode(value)
+    def escaped(value: String): String = microbench.internal.Ascii.formEncode(value)
     escaped(benchmark) + "-" + mode.toString +
       params
         .keys()
