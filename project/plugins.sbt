@@ -3,7 +3,7 @@ import sbtbuildinfo.BuildInfoPlugin
 
 addSbtPlugin("com.eed3si9n" % "sbt-buildinfo" % "0.13.2")
 addSbtPlugin("org.scala-native" % "sbt-scala-native" % "0.5.13")
-addSbtPlugin("org.scala-js" % "sbt-scalajs" % "1.23.0")
+addSbtPlugin("org.scala-js" % "sbt-scalajs" % "1.22.0")
 addSbtPlugin("pl.project13.scala" % "sbt-jmh" % "0.4.8")
 
 Compile / unmanagedSourceDirectories += baseDirectory.value.getParentFile / "sbt-plugin/src/main/scala"

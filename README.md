@@ -18,7 +18,7 @@ Add the plugin to `project/plugins.sbt`, next to sbt-jmh and the plugins of the 
 addSbtPlugin("io.github.wojciechmazur" % "sbt-microbench" % "<version>")
 addSbtPlugin("pl.project13.scala" % "sbt-jmh" % "0.4.8")
 addSbtPlugin("org.scala-native" % "sbt-scala-native" % "0.5.13")
-addSbtPlugin("org.scala-js" % "sbt-scalajs" % "1.23.0")
+addSbtPlugin("org.scala-js" % "sbt-scalajs" % "1.22.0")
 ```
 
 Enable `JmhPlugin` on the benchmark project. The plugin adds the right backend for each platform:
@@ -90,7 +90,6 @@ Without sbt, list the benchmark classes in a main method. `suite[T]` derives a c
 //> using nativeMultithreading
 //> using jsMode release
 //> using nativeVersion 0.5.13
-//> using jsVersion 1.23.0
 
 import microbench.{run, suite}
 
@@ -100,7 +99,7 @@ import microbench.{run, suite}
 )
 ```
 
-`nativeVersion` and `jsVersion` must be at least the Scala Native and Scala.js versions the library is built with.
+`nativeVersion` must be at least the Scala Native version the library is built with.
 
 ```text
 scala-cli run . -- -l
