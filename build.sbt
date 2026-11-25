@@ -127,9 +127,9 @@ lazy val sbtPlugin = project
     libraryDependencies += "com.lihaoyi" %% "scalatags" % scalaTagsVersion,
     scalaVersion := sbtScalaVersion,
     crossScalaVersions := Seq(sbtScalaVersion),
-    pluginCrossBuild / sbtVersion := "2.0.11",
-    addSbtPlugin("org.scala-native" % "sbt-scala-native" % "0.5.12"),
-    addSbtPlugin("org.scala-js" % "sbt-scalajs" % "1.22.0"),
+    pluginCrossBuild / sbtVersion := "2.1.1",
+    addSbtPlugin("org.scala-native" % "sbt-scala-native" % "0.5.13"),
+    addSbtPlugin("org.scala-js" % "sbt-scalajs" % "1.23.0"),
     addSbtPlugin("pl.project13.scala" % "sbt-jmh" % "0.4.8"),
     scriptedBufferLog := false,
     scriptedLaunchOpts ++= Seq(

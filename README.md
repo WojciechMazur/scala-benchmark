@@ -17,8 +17,8 @@ Add the plugin to `project/plugins.sbt`, next to sbt-jmh and the plugins of the 
 ```scala
 addSbtPlugin("io.github.wojciechmazur" % "sbt-microbench" % "<version>")
 addSbtPlugin("pl.project13.scala" % "sbt-jmh" % "0.4.8")
-addSbtPlugin("org.scala-native" % "sbt-scala-native" % "0.5.12")
-addSbtPlugin("org.scala-js" % "sbt-scalajs" % "1.22.0")
+addSbtPlugin("org.scala-native" % "sbt-scala-native" % "0.5.13")
+addSbtPlugin("org.scala-js" % "sbt-scalajs" % "1.23.0")
 ```
 
 Enable `JmhPlugin` on the benchmark project. The plugin adds the right backend for each platform:
@@ -86,6 +86,8 @@ Without sbt, list the benchmark classes in a main method. `suite[T]` derives a c
 
 ```scala
 //> using dep io.github.wojciechmazur::microbench::<version>
+//> using nativeVersion 0.5.13
+//> using jsVersion 1.23.0
 //> using nativeMode release-full
 //> using nativeMultithreading
 //> using jsMode release
@@ -106,7 +108,8 @@ scala-cli run . --js -- Example -rf json -rff results.json
 
 The same runtime then measures on every platform, including the JVM. Unlike `Jmh/run`, the JVM path uses Scala
 Benchmark's own harness rather than upstream JMH; see [compatibility](docs/compatibility.md#running-without-sbt).
-The `nativeMode` and `jsMode` directives matter: a debug build runs, but warns that its measurements are not
+`nativeVersion` and `jsVersion` must be at least the versions the library is built with. The `nativeMode` and
+`jsMode` directives matter: a debug build runs, but warns that its measurements are not
 representative. [examples/scala-cli](examples/scala-cli) is a complete project.
 
 ## Contributing

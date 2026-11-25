@@ -3,7 +3,7 @@
 ## Requirements
 
 - JDK 17 or later
-- sbt 2.0
+- sbt 2.1
 - LLVM/Clang, for Scala Native
 - Node.js 25, for Scala.js and Wasm
 
