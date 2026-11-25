@@ -37,7 +37,7 @@ test projects with a newer compiler.
 To check the scala-cli entry point, publish the libraries locally and run the example on each platform:
 
 ```text
-sbt publishLocal
+sbt +publishLocal
 scala-cli run examples/scala-cli -- -l
 scala-cli run examples/scala-cli --native -- LifecycleBenchmark.sum -wi 0 -i 1 -r 100ms -f 1
 scala-cli run examples/scala-cli --js -- LifecycleBenchmark.sum -wi 0 -i 1 -r 100ms -f 1
