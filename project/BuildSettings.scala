@@ -9,19 +9,8 @@ object BuildSettings:
   val jmhVersion = "1.37"
   val projectOrganization = "io.github.wojciechmazur"
   val projectRepository = "WojciechMazur/scala-microbench-harness"
-
   val projectDescription =
     "Scala MicroBenchmark Harness (SMH): JMH benchmarks written in Scala 3 on the JVM, Scala Native, Scala.js and Wasm"
-
-  /** Releases take their version from the git tag (sbt-dynver, through sbt-ci-release). The meta-build only needs a
-    * placeholder: its BuildInfo is never used to resolve published artifacts.
-    */
-  val metaBuildVersion = "0.0.0-meta-SNAPSHOT"
-
-  /** The version `examples/scala-cli` depends on. CI and contributors publish the libraries locally with it, and it is
-    * never released, so a local build cannot shadow a release or be shadowed by one.
-    */
-  val localExampleVersion = "0.0.0-local-SNAPSHOT"
 
   /** Libraries and macros are built once with the LTS compiler; consumers may use any later Scala 3. */
   val libraryScalaVersion = "3.3.9"

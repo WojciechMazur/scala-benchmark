@@ -1,5 +1,4 @@
 name: Release
-# A `v<major>.<minor>.<patch>` tag publishes that version to Maven Central (see "Releasing" in CONTRIBUTING.md).
 on:
   push:
     tags: ['v*']
@@ -16,13 +15,12 @@ jobs:
     steps:
       - uses: actions/checkout@v7
         with:
-          # sbt-dynver derives the version from the tag and needs the history to find it.
           fetch-depth: 0
       - uses: ./.github/actions/setup
       - name: Sign, upload and release
-        # `--server`: the thin client can exit with status 0 when the command fails.
         run: sbt --server --batch ci-release
         env:
+          CI_RELEASE: publishing/publishSigned
           PGP_PASSPHRASE: ${{ secrets.PGP_PASSPHRASE }}
           PGP_SECRET: ${{ secrets.PGP_SECRET }}
           SONATYPE_USERNAME: ${{ secrets.SONATYPE_USERNAME }}

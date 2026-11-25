@@ -30,10 +30,10 @@ sbt "scriptedOn jvm,native,js microbench/*"
 sbt "scriptedOn wasm microbench/integrity microbench/platform"
 ```
 
-To check the scala-cli entry point, publish the libraries locally and run the example on each platform:
+To check the scala-cli entry point, publish the libraries locally under the version `examples/scala-cli` uses:
 
 ```text
-sbt publishExampleLibraries
+sbt 'set ThisBuild / version := "1.0.0"' publishing/publishLocal
 scala-cli run examples/scala-cli -- -l
 scala-cli run examples/scala-cli --native -- LifecycleBenchmark.sum -wi 0 -i 1 -r 100ms -f 1
 scala-cli run examples/scala-cli --js -- LifecycleBenchmark.sum -wi 0 -i 1 -r 100ms -f 1
@@ -45,22 +45,13 @@ test projects with a newer compiler.
 
 ## Releasing
 
-Releases are published to Maven Central from a tag; the version is the tag without its `v` (sbt-dynver). Pick the
-number by the policy in the README's "Versioning" section.
+Bump the version in the README and `examples/scala-cli/project.scala`, then push a tag; the `Release` workflow
+publishes it to Maven Central.
 
-1. Push the release commit to `main` and wait for CI to pass.
-2. Update the versions in the README, then tag that commit and push the tag:
-
-   ```text
-   git tag -a v1.2.3 -m "v1.2.3"
-   git push origin v1.2.3
-   ```
-
-3. The `Release` workflow signs the artifacts, uploads them to the Central Portal and releases them. They appear on
-   Maven Central within about half an hour.
-
-A Central release cannot be removed or replaced: a broken release is fixed by the next patch version. Never run
-`ci-release`, `sonaUpload` or `sonaRelease` locally.
+```text
+git tag -a v1.2.3 -m "v1.2.3"
+git push origin v1.2.3
+```
 
 ## Formatting
 

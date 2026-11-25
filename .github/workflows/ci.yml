@@ -77,7 +77,10 @@ jobs:
           node-version: '25'
       - uses: VirtusLab/scala-cli-setup@v1.19.0
       - name: Publish the libraries locally
-        run: sbt --server --batch publishExampleLibraries
+        shell: bash
+        run: |
+          version=$(sed -n 's|^//> using dep io.github.wojciechmazur::microbench::||p' examples/scala-cli/project.scala | tr -d '\r')
+          sbt --server --batch "set ThisBuild / version := \"$version\"" publishing/publishLocal
       - name: List the benchmarks
         if: runner.os == 'Linux'
         run: |
