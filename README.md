@@ -100,6 +100,8 @@ import microbench.{run, suite}
 )
 ```
 
+`nativeVersion` and `jsVersion` must be at least the Scala Native and Scala.js versions the library is built with.
+
 ```text
 scala-cli run . -- -l
 scala-cli run . --native -- Example -wi 3 -i 5 -f 2
@@ -108,8 +110,7 @@ scala-cli run . --js -- Example -rf json -rff results.json
 
 The same runtime then measures on every platform, including the JVM. Unlike `Jmh/run`, the JVM path uses SMH's own
 harness rather than upstream JMH; see [compatibility](docs/compatibility.md#running-without-sbt).
-`nativeVersion` and `jsVersion` must be at least the versions the library is built with. The `nativeMode` and
-`jsMode` directives matter: a debug build runs, but warns that its measurements are not
+The `nativeMode` and `jsMode` directives matter: a debug build runs, but warns that its measurements are not
 representative. [examples/scala-cli](examples/scala-cli) is a complete project.
 
 ## Contributing
