@@ -30,15 +30,6 @@ sbt "scriptedOn jvm,native,js microbench/*"
 sbt "scriptedOn wasm microbench/integrity microbench/platform"
 ```
 
-To check the scala-cli entry point, publish the libraries locally under the version `examples/scala-cli` uses:
-
-```text
-sbt 'set ThisBuild / version := "1.0.0"' publishing/publishLocal
-scala-cli run examples/scala-cli -- -l
-scala-cli run examples/scala-cli --native -- LifecycleBenchmark.sum -wi 0 -i 1 -r 100ms -f 1
-scala-cli run examples/scala-cli --js -- LifecycleBenchmark.sum -wi 0 -i 1 -r 100ms -f 1
-```
-
 The scripted tests in `sbt-plugin/src/sbt-test/microbench` run each scenario on every selected platform and compare
 the results with upstream JMH on the JVM. `scriptedOn` selects the platforms; add `scala=<version>` to build the
 test projects with a newer compiler.

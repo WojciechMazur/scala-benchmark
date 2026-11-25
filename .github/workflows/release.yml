@@ -20,7 +20,6 @@ jobs:
       - name: Sign, upload and release
         run: sbt --server --batch ci-release
         env:
-          CI_RELEASE: publishing/publishSigned
           PGP_PASSPHRASE: ${{ secrets.PGP_PASSPHRASE }}
           PGP_SECRET: ${{ secrets.PGP_SECRET }}
           SONATYPE_USERNAME: ${{ secrets.SONATYPE_USERNAME }}

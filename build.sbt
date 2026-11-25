@@ -61,12 +61,6 @@ lazy val root = project
   )
   .settings(name := "microbench-root", publish / skip := true)
 
-/** Every published module. */
-lazy val publishing = project
-  .in(file("target/publishing"))
-  .aggregate((Seq(interface, runtime, microbench).flatMap(_.projectRefs) :+ LocalProject(sbtPlugin.id)) *)
-  .settings(name := "microbench-publishing", publish / skip := true)
-
 lazy val interface = projectMatrix
   .in(file("interface"))
   .settings(librarySettings("interface"), sourceLayout("shared"))
