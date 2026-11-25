@@ -27,7 +27,11 @@ javacOptions ++= Seq("--release", javaRelease)
 homepage := Some(uri(s"https://github.com/$projectRepository"))
 
 scmInfo := Some(
-  ScmInfo(uri(s"https://github.com/$projectRepository"), s"scm:git:https://github.com/$projectRepository.git")
+  ScmInfo(
+    uri(s"https://github.com/$projectRepository"),
+    s"scm:git:https://github.com/$projectRepository.git",
+    s"scm:git:git@github.com:$projectRepository.git"
+  )
 )
 
 developers := List(
