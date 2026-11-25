@@ -5,6 +5,8 @@
 //> using scala 3.lts
 //> using dep io.github.wojciechmazur::microbench::0.1.0-SNAPSHOT
 //> using files ../shared/src/main/scala
+// The libraries are built with this Scala Native version; older ones cannot read them.
+//> using nativeVersion 0.5.13
 
 // Measure optimized code: these only apply to the platform being built.
 //> using nativeMode release-full

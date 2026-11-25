@@ -15,7 +15,7 @@ object BuildSettings:
   val libraryScalaVersion = "3.3.9"
   val libraryScalaVersions = Seq(libraryScalaVersion)
   val javaRelease = "17"
-  val sbtScalaVersion = "3.8.4"
+  val sbtScalaVersion = "3.9.0"
 
   /** Node.js host modules of the Scala.js backend, under `microbench/`. */
   val nodeHostResources = "runtime/js/src/main/resources"
