@@ -15,7 +15,7 @@ from JMH.
 Add the plugin to `project/plugins.sbt`, next to sbt-jmh and the plugins of the platforms you need:
 
 ```scala
-addSbtPlugin("io.github.wojciechmazur" % "sbt-microbench" % "<version>")
+addSbtPlugin("io.github.wojciechmazur" % "sbt-microbench" % "1.0.0")
 addSbtPlugin("pl.project13.scala" % "sbt-jmh" % "0.4.8")
 addSbtPlugin("org.scala-native" % "sbt-scala-native" % "0.5.12")
 addSbtPlugin("org.scala-js" % "sbt-scalajs" % "1.22.0")
@@ -85,7 +85,7 @@ Without sbt, list the benchmark classes in a main method. `suite[T]` derives a c
 `run` takes the same command-line options as `Jmh/run`:
 
 ```scala
-//> using dep io.github.wojciechmazur::microbench::<version>
+//> using dep io.github.wojciechmazur::microbench::1.0.0
 //> using nativeMode release-full
 //> using nativeMultithreading
 //> using jsMode release
@@ -104,10 +104,23 @@ scala-cli run . --native -- Example -wi 3 -i 5 -f 2
 scala-cli run . --js -- Example -rf json -rff results.json
 ```
 
-The same runtime then measures on every platform, including the JVM. Unlike `Jmh/run`, the JVM path uses Scala
-Benchmark's own harness rather than upstream JMH; see [compatibility](docs/compatibility.md#running-without-sbt).
+The same runtime then measures on every platform, including the JVM. Unlike `Jmh/run`, the JVM path uses SMH's own
+harness rather than upstream JMH; see [compatibility](docs/compatibility.md#running-without-sbt).
 The `nativeMode` and `jsMode` directives matter: a debug build runs, but warns that its measurements are not
 representative. [examples/scala-cli](examples/scala-cli) is a complete project.
+
+## Versioning
+
+Releases follow [Semantic Versioning](https://semver.org) from 1.0.0, published with `versionScheme := "early-semver"`:
+
+- **Patch** releases (1.0.x) fix bugs and are binary and source compatible.
+- **Minor** releases (1.x.0) add features and are binary compatible with earlier 1.x releases.
+- **Major** releases may break binary or source compatibility.
+
+The public API is the `microbench` package (annotations, `suite`, `run` and the runner API), the JMH API provided
+under `org.openjdk.jmh` on Scala Native and Scala.js, the sbt plugin's settings and tasks, and the command-line
+options. `microbench.internal` and `microbench.runtime` are implementation details. Keep every `microbench` module and
+`sbt-microbench` on the same version; the sbt plugin adds the libraries of its own version.
 
 ## Contributing
 

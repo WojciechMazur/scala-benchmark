@@ -6,7 +6,13 @@ import sbt.{*, given}
 import sbtbuildinfo.BuildInfoPlugin
 
 organization := projectOrganization
-version := projectVersion
+// `version` comes from the git tag: v1.2.3 releases 1.2.3, other commits are snapshots (sbt-dynver).
+description := projectDescription
+
+/** Semantic versioning from 1.0.0 on: patch releases are binary compatible and source compatible, minor releases are
+  * binary compatible, major releases may break both. See "Versioning" in the README for the public API it covers.
+  */
+versionScheme := Some("early-semver")
 scalaVersion := libraryScalaVersion
 // sbt 2 applies bare settings to every subproject.
 scalacOptions ++= Seq("-deprecation", "-feature", "-unchecked", "-java-output-version", javaRelease)
@@ -48,6 +54,17 @@ commands += Command.args("scriptedOn", "<platforms> [scala=<version>] <tests>") 
     s"sbtPlugin/scripted ${tests.mkString(" ")}" ::
     state
 }
+
+/** `publishExampleLibraries` publishes the libraries locally under the version `examples/scala-cli` depends on. */
+addCommandAlias(
+  "publishExampleLibraries",
+  (s"""set ThisBuild / version := "$localExampleVersion"""" +:
+    Seq("interface", "runtime", "microbench")
+      .flatMap(module => Seq(module, module + "Native", module + "JS"))
+      .map(_ + "/publishLocal") :+
+    // The sbt server outlives this command; later commands must see the tag-derived version again.
+    "session clear").mkString("; ")
+)
 
 lazy val root = project
   .in(file("."))
