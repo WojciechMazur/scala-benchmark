@@ -3,7 +3,7 @@
 //   scala-cli run examples/scala-cli --native -- LifecycleBenchmark -wi 1 -i 3 -f 1
 //   scala-cli run examples/scala-cli --js -- LifecycleBenchmark -wi 1 -i 3 -f 1
 //> using scala 3.lts
-//> using dep io.github.wojciechmazur::microbench::0.1.0-SNAPSHOT
+//> using dep io.github.wojciechmazur::microbench::1.0.0
 //> using files ../shared/src/main/scala
 // The libraries are built with this Scala Native version; older ones cannot read them.
 //> using nativeVersion 0.5.13

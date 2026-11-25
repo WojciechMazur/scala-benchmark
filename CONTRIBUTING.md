@@ -30,18 +30,28 @@ sbt "scriptedOn jvm,native,js microbench/*"
 sbt "scriptedOn wasm microbench/integrity microbench/platform"
 ```
 
+The scripted tests in `sbt-plugin/src/sbt-test/microbench` run each scenario on every selected platform and compare
+the results with upstream JMH on the JVM. `scriptedOn` selects the platforms; add `scala=<version>` to build the
+test projects with a newer compiler.
+
 To check the scala-cli entry point, publish the libraries locally and run the example on each platform:
 
 ```text
-sbt "interface/publishLocal; interfaceNative/publishLocal; interfaceJS/publishLocal; runtime/publishLocal; runtimeNative/publishLocal; runtimeJS/publishLocal; microbench/publishLocal; microbenchNative/publishLocal; microbenchJS/publishLocal"
+sbt +publishLocal
 scala-cli run examples/scala-cli -- -l
 scala-cli run examples/scala-cli --native -- LifecycleBenchmark.sum -wi 0 -i 1 -r 100ms -f 1
 scala-cli run examples/scala-cli --js -- LifecycleBenchmark.sum -wi 0 -i 1 -r 100ms -f 1
 ```
 
-The scripted tests in `sbt-plugin/src/sbt-test/microbench` run each scenario on every selected platform and compare
-the results with upstream JMH on the JVM. `scriptedOn` selects the platforms; add `scala=<version>` to build the
-test projects with a newer compiler.
+## Releasing
+
+Set the version in `project/BuildSettings.scala`, the README and `examples/scala-cli/project.scala`, then push a tag
+for it; the `Release` workflow publishes that version to Maven Central.
+
+```text
+git tag -a v1.2.3 -m "v1.2.3"
+git push origin v1.2.3
+```
 
 ## Formatting
 

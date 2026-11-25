@@ -8,8 +8,11 @@ object BuildSettings:
   val scalaTagsVersion = "0.13.1"
   val jmhVersion = "1.37"
   val projectOrganization = "io.github.wojciechmazur"
-  val projectRepository = "WojciechMazur/microbench"
-  val projectVersion = "0.1.0-SNAPSHOT"
+  val projectRepository = "WojciechMazur/scala-microbench-harness"
+  val projectVersion = "1.0.0"
+
+  val projectDescription =
+    "Scala MicroBenchmark Harness (SMH): JMH benchmarks written in Scala 3 on the JVM, Scala Native, Scala.js and Wasm"
 
   /** Libraries and macros are built once with the LTS compiler; consumers may use any later Scala 3. */
   val libraryScalaVersion = "3.3.9"
