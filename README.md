@@ -45,30 +45,6 @@ lazy val benchmarks = projectMatrix
   .jsPlatform(scalaVersions)
 ```
 
-Projects defined in `project/*.scala` and referenced from `build.sbt` work the same way. Plain projects enable the
-platform plugins themselves, and Scala sources import the plugins that `build.sbt` imports automatically:
-
-```scala
-import org.scalajs.sbtplugin.ScalaJSPlugin
-import pl.project13.scala.sbt.JmhPlugin
-import sbt.*
-import scala.scalanative.sbtplugin.ScalaNativePlugin
-
-object Build {
-  lazy val benchmarksJVM = Project("benchmarksJVM", file("benchmarks/jvm")).enablePlugins(JmhPlugin)
-  lazy val benchmarksNative = Project("benchmarksNative", file("benchmarks/native"))
-    .enablePlugins(JmhPlugin, ScalaNativePlugin)
-  lazy val benchmarksJS = Project("benchmarksJS", file("benchmarks/js")).enablePlugins(JmhPlugin, ScalaJSPlugin)
-}
-```
-
-```scala
-// build.sbt
-lazy val benchmarksJVM = Build.benchmarksJVM
-lazy val benchmarksNative = Build.benchmarksNative
-lazy val benchmarksJS = Build.benchmarksJS
-```
-
 ## Write benchmarks
 
 Benchmarks use the JMH annotations. Import them from `microbench`, or keep existing `org.openjdk.jmh`
