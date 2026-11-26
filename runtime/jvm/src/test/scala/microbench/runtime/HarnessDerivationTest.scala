@@ -13,10 +13,7 @@ import org.openjdk.jmh.annotations.Mode
 
 class HarnessDerivationTest:
 
-  /** HotSpot does not JIT-compile methods above 8000 bytecodes (-XX:+DontCompileHugeMethods). With every measured
-    * loop of a class in one method, a class of about ten benchmarks crossed that limit and measured its loops in the
-    * interpreter: a floor of ~40 ns/op where upstream JMH reports 1-2 ns.
-    */
+  /** HotSpot does not compile methods over 8000 bytecodes, so no measured loop may share one. */
   @Test def measuredLoopsStayBelowTheHugeMethodLimit(): Unit =
     val benchmarks = (1 to 32).map(i =>
       s"  @Benchmark def b$i(): Array[Int] = { java.util.Arrays.fill(ints, $i); ints }"
@@ -42,7 +39,7 @@ class HarnessDerivationTest:
       val loops = sizes.filter((name, _) => name.contains("$measured$"))
       assertEquals("One measured method per benchmark", 32, loops.size)
       assertTrue(s"Loops must together exceed the limit: ${loops.map(_._2).sum}", loops.map(_._2).sum > 8000)
-      // Metadata initialisation runs once and may stay interpreted; only measuring code must be compilable.
+      // Metadata initialisation runs once; only measuring code must be compiled.
       val (name, largest) = (loops ++ sizes.filter(_._1 == "measure")).maxBy(_._2)
       assertTrue(s"$name has $largest bytecodes", largest < 2000)
     }
@@ -272,7 +269,7 @@ class HarnessDerivationTest:
       "-classpath",
       output.toString,
       "generated.Retained$$anon$1",
-      // Each measured loop is a local def of `measure`, lifted to a static method of the enclosing object.
+      // Measured loops are lifted into the enclosing object.
       "generated.Retained$"
     ).redirectErrorStream(true).start()
     val bytes = process.getInputStream.readAllBytes()
