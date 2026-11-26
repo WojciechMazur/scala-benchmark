@@ -18,7 +18,9 @@ class HarnessDerivationTest:
     * interpreter: a floor of ~40 ns/op where upstream JMH reports 1-2 ns.
     */
   @Test def measuredLoopsStayBelowTheHugeMethodLimit(): Unit =
-    val benchmarks = (1 to 32).map(i => s"  @Benchmark def b$i(): Array[Int] = { java.util.Arrays.fill(ints, $i); ints }")
+    val benchmarks = (1 to 32).map(i =>
+      s"  @Benchmark def b$i(): Array[Int] = { java.util.Arrays.fill(ints, $i); ints }"
+    )
     compile(
       s"""package bench
          |import microbench.*
@@ -33,7 +35,9 @@ class HarnessDerivationTest:
       assertTrue(success)
       val classes = Files.walk(output.resolve("generated"))
       val sizes =
-        try classes.iterator().asScala.filter(_.toString.endsWith(".class")).flatMap(f => MethodSizes(Files.readAllBytes(f))).toVector
+        try classes.iterator().asScala.filter(_.toString.endsWith(".class")).flatMap(f =>
+            MethodSizes(Files.readAllBytes(f))
+          ).toVector
         finally classes.close()
       val loops = sizes.filter((name, _) => name.contains("$measured$"))
       assertEquals("One measured method per benchmark", 32, loops.size)
@@ -603,6 +607,7 @@ end HarnessDerivationTest
 
 /** Bytecode lengths of every method of one class file, read from its `Code` attributes. */
 private object MethodSizes:
+
   def apply(bytes: Array[Byte]): Map[String, Int] =
     val in = new java.io.DataInputStream(new java.io.ByteArrayInputStream(bytes))
     in.skipBytes(8)
@@ -611,13 +616,13 @@ private object MethodSizes:
     var index = 1
     while index < count do
       in.readUnsignedByte() match
-        case 1           => utf8(index) = in.readUTF()
-        case 3 | 4       => in.skipBytes(4)
-        case 5 | 6       => in.skipBytes(8); index += 1
-        case 7 | 8 | 16 | 19 | 20 => in.skipBytes(2)
+        case 1                          => utf8(index) = in.readUTF()
+        case 3 | 4                      => in.skipBytes(4)
+        case 5 | 6                      => in.skipBytes(8); index += 1
+        case 7 | 8 | 16 | 19 | 20       => in.skipBytes(2)
         case 9 | 10 | 11 | 12 | 17 | 18 => in.skipBytes(4)
-        case 15          => in.skipBytes(3)
-        case tag         => throw new IllegalArgumentException(s"constant pool tag $tag")
+        case 15                         => in.skipBytes(3)
+        case tag                        => throw new IllegalArgumentException(s"constant pool tag $tag")
       index += 1
     in.skipBytes(6)
     in.skipBytes(2 * in.readUnsignedShort())
@@ -641,3 +646,7 @@ private object MethodSizes:
           in.skipBytes(length); None
       }
     }.groupMapReduce(_._1)(_._2)(math.max)
+
+  end apply
+
+end MethodSizes
