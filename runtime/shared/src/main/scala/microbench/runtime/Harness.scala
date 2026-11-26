@@ -692,8 +692,12 @@ final private class HarnessMacro[Q <: Quotes](q: Q) extends BenchmarkSymbols[Q](
             )
           }.asTerm
         }.asExprOf[RawResult]
+      // HotSpot does not compile methods over 8000 bytecodes: give each loop its own method, as JMH does.
+      def separate(body: Expr[RawResult]): Expr[RawResult] =
+        if HarnessPlatform.jvm then '{ def measured(): RawResult = $body; measured() } else body
       val cases = generatedEntries.map { (head, index) =>
-        val alternatives = groups(groupName(head)).zipWithIndex.map((member, subgroup) => subgroup -> loop(member))
+        val alternatives =
+          groups(groupName(head)).zipWithIndex.map((member, subgroup) => subgroup -> separate(loop(member)))
         index -> choose(subgroup(environment), alternatives, unknown)
       }
       choose(benchmark, cases, unknown)
