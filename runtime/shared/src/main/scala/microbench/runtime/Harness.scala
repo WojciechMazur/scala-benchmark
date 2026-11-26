@@ -692,8 +692,14 @@ final private class HarnessMacro[Q <: Quotes](q: Q) extends BenchmarkSymbols[Q](
             )
           }.asTerm
         }.asExprOf[RawResult]
+      // HotSpot never JIT-compiles a method above 8000 bytecodes (-XX:+DontCompileHugeMethods), so a single `measure`
+      // holding every loop of a large class would run its measured loops in the interpreter. As in JMH, each member's
+      // loop gets a method of its own (a local def, lifted to a private method), and `measure` only dispatches.
+      def separate(body: Expr[RawResult]): Expr[RawResult] =
+        if HarnessPlatform.jvm then '{ def measured(): RawResult = $body; measured() } else body
       val cases = generatedEntries.map { (head, index) =>
-        val alternatives = groups(groupName(head)).zipWithIndex.map((member, subgroup) => subgroup -> loop(member))
+        val alternatives =
+          groups(groupName(head)).zipWithIndex.map((member, subgroup) => subgroup -> separate(loop(member)))
         index -> choose(subgroup(environment), alternatives, unknown)
       }
       choose(benchmark, cases, unknown)

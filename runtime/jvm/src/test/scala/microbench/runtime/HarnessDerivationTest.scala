@@ -4,12 +4,44 @@ import java.nio.charset.StandardCharsets
 import java.nio.file.{Files, Path}
 import java.util.concurrent.TimeUnit
 
+import scala.jdk.CollectionConverters.*
+
 import HarnessCompiler.compile
 import org.junit.Assert.*
 import org.junit.Test
 import org.openjdk.jmh.annotations.Mode
 
 class HarnessDerivationTest:
+
+  /** HotSpot does not JIT-compile methods above 8000 bytecodes (-XX:+DontCompileHugeMethods). With every measured
+    * loop of a class in one method, a class of about ten benchmarks crossed that limit and measured its loops in the
+    * interpreter: a floor of ~40 ns/op where upstream JMH reports 1-2 ns.
+    */
+  @Test def measuredLoopsStayBelowTheHugeMethodLimit(): Unit =
+    val benchmarks = (1 to 32).map(i => s"  @Benchmark def b$i(): Array[Int] = { java.util.Arrays.fill(ints, $i); ints }")
+    compile(
+      s"""package bench
+         |import microbench.*
+         |@State(Scope.Thread) class Example {
+         |  @Param(Array("16", "1024")) var length: Int = 0
+         |  private var ints: Array[Int] = null
+         |  @Setup(Level.Trial) def prepare(): Unit = ints = new Array[Int](length)
+         |${benchmarks.mkString("\n")}
+         |}
+         |""".stripMargin
+    ) { (success, output) =>
+      assertTrue(success)
+      val classes = Files.walk(output.resolve("generated"))
+      val sizes =
+        try classes.iterator().asScala.filter(_.toString.endsWith(".class")).flatMap(f => MethodSizes(Files.readAllBytes(f))).toVector
+        finally classes.close()
+      val loops = sizes.filter((name, _) => name.contains("$measured$"))
+      assertEquals("One measured method per benchmark", 32, loops.size)
+      assertTrue(s"Loops must together exceed the limit: ${loops.map(_._2).sum}", loops.map(_._2).sum > 8000)
+      // Metadata initialisation runs once and may stay interpreted; only measuring code must be compilable.
+      val (name, largest) = (loops ++ sizes.filter(_._1 == "measure")).maxBy(_._2)
+      assertTrue(s"$name has $largest bytecodes", largest < 2000)
+    }
 
   @Test def partialGroupAnnotationsCollideAsInJmh(): Unit =
     val source = """package bench
@@ -235,7 +267,9 @@ class HarnessDerivationTest:
       "-p",
       "-classpath",
       output.toString,
-      "generated.Retained$$anon$1"
+      "generated.Retained$$anon$1",
+      // Each measured loop is a local def of `measure`, lifted to a static method of the enclosing object.
+      "generated.Retained$"
     ).redirectErrorStream(true).start()
     val bytes = process.getInputStream.readAllBytes()
     assertEquals(0, process.waitFor())
@@ -566,3 +600,44 @@ class HarnessDerivationTest:
   }
 
 end HarnessDerivationTest
+
+/** Bytecode lengths of every method of one class file, read from its `Code` attributes. */
+private object MethodSizes:
+  def apply(bytes: Array[Byte]): Map[String, Int] =
+    val in = new java.io.DataInputStream(new java.io.ByteArrayInputStream(bytes))
+    in.skipBytes(8)
+    val count = in.readUnsignedShort()
+    val utf8 = scala.collection.mutable.Map.empty[Int, String]
+    var index = 1
+    while index < count do
+      in.readUnsignedByte() match
+        case 1           => utf8(index) = in.readUTF()
+        case 3 | 4       => in.skipBytes(4)
+        case 5 | 6       => in.skipBytes(8); index += 1
+        case 7 | 8 | 16 | 19 | 20 => in.skipBytes(2)
+        case 9 | 10 | 11 | 12 | 17 | 18 => in.skipBytes(4)
+        case 15          => in.skipBytes(3)
+        case tag         => throw new IllegalArgumentException(s"constant pool tag $tag")
+      index += 1
+    in.skipBytes(6)
+    in.skipBytes(2 * in.readUnsignedShort())
+    def skipAttributes(): Unit = (1 to in.readUnsignedShort()).foreach { _ =>
+      in.skipBytes(2); in.skipBytes(in.readInt())
+    }
+    (1 to in.readUnsignedShort()).foreach { _ => in.skipBytes(6); skipAttributes() }
+    (1 to in.readUnsignedShort()).flatMap { _ =>
+      in.skipBytes(2)
+      val name = utf8(in.readUnsignedShort())
+      in.skipBytes(2)
+      (1 to in.readUnsignedShort()).flatMap { _ =>
+        val attribute = utf8(in.readUnsignedShort())
+        val length = in.readInt()
+        if attribute == "Code" then
+          in.skipBytes(4)
+          val code = in.readInt()
+          in.skipBytes(length - 8)
+          Some(name -> code)
+        else
+          in.skipBytes(length); None
+      }
+    }.groupMapReduce(_._1)(_._2)(math.max)
