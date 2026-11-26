@@ -9,7 +9,6 @@ object BuildSettings:
   val jmhVersion = "1.37"
   val projectOrganization = "io.github.wojciechmazur"
   val projectRepository = "WojciechMazur/scala-microbench-harness"
-  val projectVersion = "1.0.0"
 
   val projectDescription =
     "Scala MicroBenchmark Harness (SMH): JMH benchmarks written in Scala 3 on the JVM, Scala Native, Scala.js and Wasm"

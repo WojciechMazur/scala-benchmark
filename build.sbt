@@ -6,7 +6,7 @@ import sbt.{*, given}
 import sbtbuildinfo.BuildInfoPlugin
 
 organization := projectOrganization
-ThisBuild / version := projectVersion
+// sbt-ci-release (sbt-dynver) derives the version from the git tag: v1.0.1 publishes 1.0.1.
 ThisBuild / isSnapshot := (ThisBuild / version).value.endsWith("-SNAPSHOT")
 description := projectDescription
 versionScheme := Some("semver-spec")
