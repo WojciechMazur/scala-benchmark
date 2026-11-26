@@ -1,0 +1,15 @@
+# Enabling JmhPlugin alone enables the microbench backend of every platform.
+> benchmarks/Jmh/run -l
+> benchmarks/Jmh/run Example -wi 0 -i 1 -r 10ms -f 1 -foe true -rf json -rff results.json
+> benchmarks/checkResults
+> benchmarksNative/Jmh/run -l
+> benchmarksNative/Jmh/run Example -wi 0 -i 1 -r 10ms -f 1 -foe true -rf json -rff results.json
+> benchmarksNative/checkResults
+> benchmarksJS/Jmh/run -l
+> benchmarksJS/Jmh/run Example -wi 0 -i 1 -r 10ms -f 1 -foe true -rf json -rff results.json
+> benchmarksJS/checkResults
+
+# Manual registration with suite and run, without the plugin.
+> manual/run -l
+> manual/run Example -wi 0 -i 1 -r 10ms -f 1 -foe true
+> manualNative/run Example -wi 0 -i 1 -r 10ms -f 1 -foe true

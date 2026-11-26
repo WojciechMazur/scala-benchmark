@@ -12,16 +12,27 @@ from JMH.
 
 ## Setup
 
-Add the plugin to `project/plugins.sbt`, next to sbt-jmh and the plugins of the platforms you need:
+Add the plugin to `project/plugins.sbt`:
 
 ```scala
 addSbtPlugin("io.github.wojciechmazur" % "sbt-microbench" % "1.0.0")
+// Optionally: sbt-microbench depends on these versions, list them only to use newer ones.
 addSbtPlugin("pl.project13.scala" % "sbt-jmh" % "0.4.8")
 addSbtPlugin("org.scala-native" % "sbt-scala-native" % "0.5.13")
 addSbtPlugin("org.scala-js" % "sbt-scalajs" % "1.22.0")
 ```
 
-Enable `JmhPlugin` on the benchmark project. The plugin adds the right backend for each platform:
+Enable `JmhPlugin` on the benchmark project. The microbench plugins are auto plugins, each activated by the plugins a
+project already enables:
+
+| Plugin | Activated on projects that enable | Adds |
+| --- | --- | --- |
+| `MicrobenchPlugin` | `JmhPlugin` | the `microbench` library of the plugin's version, `@Platforms` support and the HTML and LaTeX formats on the JVM |
+| `NativeMicrobenchPlugin` | `JmhPlugin` and `ScalaNativePlugin` | the Scala Native backend, replacing upstream JMH |
+| `ScalaJSMicrobenchPlugin` | `JmhPlugin` and `ScalaJSPlugin` | the Scala.js and Wasm backend, replacing upstream JMH |
+
+`nativePlatform` and `jsPlatform` enable `ScalaNativePlugin` and `ScalaJSPlugin` on their rows, so one
+`enablePlugins(JmhPlugin)` covers every platform of the matrix:
 
 ```scala
 val scalaVersions = Seq("3.3.9")
@@ -32,6 +43,30 @@ lazy val benchmarks = projectMatrix
   .jvmPlatform(scalaVersions)
   .nativePlatform(scalaVersions)
   .jsPlatform(scalaVersions)
+```
+
+Projects defined in `project/*.scala` and referenced from `build.sbt` work the same way. Plain projects enable the
+platform plugins themselves, and Scala sources import the plugins that `build.sbt` imports automatically:
+
+```scala
+import org.scalajs.sbtplugin.ScalaJSPlugin
+import pl.project13.scala.sbt.JmhPlugin
+import sbt.*
+import scala.scalanative.sbtplugin.ScalaNativePlugin
+
+object Build {
+  lazy val benchmarksJVM = Project("benchmarksJVM", file("benchmarks/jvm")).enablePlugins(JmhPlugin)
+  lazy val benchmarksNative = Project("benchmarksNative", file("benchmarks/native"))
+    .enablePlugins(JmhPlugin, ScalaNativePlugin)
+  lazy val benchmarksJS = Project("benchmarksJS", file("benchmarks/js")).enablePlugins(JmhPlugin, ScalaJSPlugin)
+}
+```
+
+```scala
+// build.sbt
+lazy val benchmarksJVM = Build.benchmarksJVM
+lazy val benchmarksNative = Build.benchmarksNative
+lazy val benchmarksJS = Build.benchmarksJS
 ```
 
 ## Write benchmarks
@@ -79,10 +114,46 @@ sbt "benchmarks/Jmh/run Example -rf html -rff results.html"
 Result formats are `text`, `csv`, `scsv`, `json`, `latex` and `html`. The programmatic API is available too:
 `microbench.Runner` with `OptionsBuilder`, as in JMH.
 
+## Register suites manually
+
+Benchmarks also run without `JmhPlugin`: depend on `microbench` and list the benchmark classes in a main method.
+`suite[T]` derives a class's harness at compile time, and `run` takes the same command-line options as `Jmh/run`.
+Benchmark classes must be top-level classes in a named package.
+
+```scala
+lazy val benchmarks = projectMatrix
+  .in(file("benchmarks"))
+  .settings(libraryDependencies += "io.github.wojciechmazur" %% "microbench" % "1.0.0")
+  // Forked trials start the running JVM again, which must not be sbt itself.
+  .jvmPlatform(scalaVersions, Seq(run / fork := true))
+  .nativePlatform(scalaVersions)
+```
+
+```scala
+package example
+
+import microbench.{run, suite}
+
+@main def benchmarks(args: String*): Unit = run(args)(
+  suite[Example],
+  suite[ConcurrentBenchmarks]
+)
+```
+
+```text
+sbt "benchmarks/run -l"
+sbt "benchmarksNative/run Example -wi 3 -i 5 -f 2"
+```
+
+sbt's Scala.js `run` takes no arguments, so on Scala.js use `Jmh/run` or [scala-cli](#run-with-scala-cli). The SMH runtime
+measures on every platform: unlike `Jmh/run`, the JVM uses SMH's own harness rather than upstream JMH; see
+[compatibility](docs/compatibility.md#running-without-sbt). Build Native in a release mode, such as
+`nativeConfig ~= (_.withMode(scala.scalanative.build.Mode.releaseFull))`: a debug build runs, but warns that its
+measurements are not representative.
+
 ## Run with scala-cli
 
-Without sbt, list the benchmark classes in a main method. `suite[T]` derives a class's harness at compile time, and
-`run` takes the same command-line options as `Jmh/run`:
+The same main method runs with scala-cli:
 
 ```scala
 //> using dep io.github.wojciechmazur::microbench::1.0.0
@@ -107,8 +178,6 @@ scala-cli run . --native -- Example -wi 3 -i 5 -f 2
 scala-cli run . --js -- Example -rf json -rff results.json
 ```
 
-The same runtime then measures on every platform, including the JVM. Unlike `Jmh/run`, the JVM path uses SMH's own
-harness rather than upstream JMH; see [compatibility](docs/compatibility.md#running-without-sbt).
 The `nativeMode` and `jsMode` directives matter: a debug build runs, but warns that its measurements are not
 representative. [examples/scala-cli](examples/scala-cli) is a complete project.
 

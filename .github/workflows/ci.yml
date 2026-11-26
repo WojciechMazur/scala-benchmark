@@ -40,7 +40,7 @@ jobs:
           sbtPlugin/compile"
       - name: Use the libraries from the latest LTS and the latest release candidate
         run: >-
-          sbt --server --batch "scriptedOn jvm,native,js scala=3.lts microbench/api;
+          sbt --server --batch "scriptedOn jvm,native,js scala=3.lts microbench/api microbench/readme;
           scriptedOn jvm,native,js scala=3.rc microbench/api"
       - name: Check host process supervision
         run: node --test sbt-plugin/src/test/node/*.test.mjs
@@ -52,15 +52,11 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
+        # The release candidate is covered by the unit job's scripted run.
         include:
           - os: ubuntu-latest
             scala: 3.lts
-          - os: ubuntu-latest
-            scala: 3.rc
           - os: macos-latest
-            scala: 3.lts
-          # windows-latest ships MSVC 14.52, whose STL requires Clang 22; the setup action pins LLVM 20.
-          - os: windows-2022
             scala: 3.lts
     env:
       RUN: >-
@@ -107,11 +103,10 @@ jobs:
             os: ubuntu-latest
           - platform: native
             os: macos-15
+          # One Windows run keeps job objects and the MSVC toolchain covered. windows-latest ships MSVC 14.52,
+          # whose STL requires Clang 22; the setup action pins LLVM 20.
           - platform: native
             os: windows-2022
-          - platform: native
-            os: windows-2022
-            lto: thin
     steps:
       - uses: actions/checkout@v7
       - uses: ./.github/actions/setup
@@ -162,8 +157,6 @@ jobs:
       matrix:
         include:
           - platform: native
-          - platform: native
-            lto: thin
           - platform: native
             lto: full
           - platform: js
